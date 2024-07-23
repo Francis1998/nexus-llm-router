@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![License](https://img.shields.io/badge/license-MIT-green) ![CI](https://github.com/Francis1998/{repo}/actions/workflows/ci.yml/badge.svg) ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green) ![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![CI](https://github.com/Francis1998/{repo}/actions/workflows/ci.yml/badge.svg)
 
 > Llm Routing — powered by modern Python async architecture.
 
@@ -36,4 +36,4 @@ python -m router --help
 
 MIT © [Francis1998](https://github.com/Francis1998)
 
-*Last updated: 2024-04-23*
+*Last updated: 2024-07-22*
