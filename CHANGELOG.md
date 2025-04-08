@@ -1,26 +1,27 @@
 # Changelog
 
 All notable changes to **nexus-llm-router** are documented here.
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [v0.1.5] - 2026-03-30
+## [v0.4.16] — 2025-04-07
 
 ### Added
-- Improved documentation coverage for core modules
-- Added type annotations to utility functions
-- Extended test coverage for edge cases
+- Extended router module with improved error handling
+- Added structured logging for adapter operations
+- New unit tests covering edge cases in strategy pipeline
 
 ### Changed
-- Refactored internal logging to use structured format
-- Updated dependency pins for security patches
+- Refactored retry logic to use exponential backoff with jitter
+- Improved type annotations across core modules
+- Updated dependency pins to latest stable versions
 
 ### Fixed
-- Resolved intermittent timeout issue in async operations
-- Fixed edge case in input validation logic
+- Resolved race condition in async router handler
+- Fixed incorrect adapter timeout calculation
 
-## [v0.1.0] - 2026-03-02
+## [v0.1.0] — 2025-02-24
 
 ### Added
-- Initial project scaffold
-- Core agent runtime
-- Basic documentation
+- Initial project scaffold with LLM routing core
+- Basic router implementation
+- README and setup documentation
