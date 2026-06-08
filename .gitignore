@@ -1,12 +1,52 @@
-.env
-.venv/
+# Python
 __pycache__/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-*.pyc
-*.log
-*.jsonl
-dist/
+*.py[cod]
+*$py.class
+*.so
+.Python
 build/
+dist/
 *.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checkers
+.mypy_cache/
+.pyright/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Runtime artifacts
+*.pid
+*.seed
+*.pid.lock
+
+# Distribution / packaging
+*.tar.gz
+*.whl
+
+# Updated: 2026-06-08
