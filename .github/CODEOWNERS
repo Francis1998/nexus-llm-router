@@ -1,0 +1,7 @@
+# Critical project surfaces that should not be overwritten by generic automation.
+/README.md @Francis1998
+/CHANGELOG.md @Francis1998
+/.github/workflows/ci.yml @Francis1998
+/.github/workflows/security.yml @Francis1998
+/src/ @Francis1998
+/tests/ @Francis1998

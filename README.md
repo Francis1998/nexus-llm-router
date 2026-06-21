@@ -78,6 +78,36 @@ cp .env.example .env
 PYTHONPATH=src uvicorn api.main:app --reload
 ```
 
+## Quality Gates
+
+```bash
+ruff check src/ tests/ scripts/
+mypy src/
+pytest tests/ -v
+```
+
+## Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Services:
+
+- Router: `http://localhost:8000`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000`
+
+## Routing Strategies
+
+Select a strategy with `X-Router-Strategy`:
+
+- `rule-based`: domain and complexity priority matrix
+- `classifier`: logistic-regression-style complexity and domain features
+- `cost-optimal`: minimizes estimated cost subject to quality floor
+- `latency-aware`: penalizes providers with poor rolling p95 latency
+- `ab`: deterministic request-id buckets across two model arms
+
 ## Documentation
 
 | Document | Description |
@@ -86,6 +116,8 @@ PYTHONPATH=src uvicorn api.main:app --reload
 | [Configuration](CONFIGURATION.md) | All configuration options |
 | [Quickstart](QUICKSTART.md) | Local setup and first request |
 | [Safety](SAFETY.md) | Guardrails, fallback, and PII controls |
+| [Contributing](CONTRIBUTING.md) | Development workflow and PR process |
+| [Security](SECURITY.md) | Vulnerability reporting policy |
 | [Changelog](CHANGELOG.md) | Version history |
 
 ## License

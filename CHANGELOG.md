@@ -19,6 +19,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Restored README positioning after generated documentation overwrote project-specific content.
 - Restored CI to supported Python versions and verified quality gates.
 - Restored the real offline routing demo script after a placeholder benchmark overwrite.
+- Removed automation artifact `DAILY_IMPROVEMENTS.md` and added repository integrity tests.
+- Aligned contributor/security docs, Dockerfile production install, and full-source Bandit scan.
 
 ## [v0.1.0] — 2026-06-20
 

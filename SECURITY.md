@@ -4,20 +4,21 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.x     | ✅ Yes    |
+| 0.x     | Yes       |
 
 ## Reporting a Vulnerability
 
-Please **do not** open a public GitHub issue for security vulnerabilities.
+Please do not open a public GitHub issue for security vulnerabilities.
 
-Send a private report to: security@nexusllmrouter.example.com
+Use GitHub private vulnerability reporting instead:
+
+https://github.com/Francis1998/nexus-llm-router/security/advisories/new
 
 Include:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
 - Suggested fix (optional)
 
-We will respond within 48 hours and aim to patch within 14 days.
-
-*Last reviewed: 2026-01-19*
+We aim to acknowledge reports within 48 hours and patch confirmed issues as quickly as possible.
