@@ -102,6 +102,11 @@ async def chat_completions(
             detail=f"unsupported routing strategy: {x_router_strategy}",
         ) from exception
     api_key_id = request.headers.get("authorization", "anonymous")
+    if payload.stream:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="streaming responses are not supported by the API endpoint yet",
+        )
     router_request = RouterRequest(
         request_id=uuid4().hex,
         messages=payload.messages,

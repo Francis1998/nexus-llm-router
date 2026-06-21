@@ -45,6 +45,7 @@ packages = ["src/router", "src/adapters", "src/classifier", "src/safety", "src/o
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.ruff]
