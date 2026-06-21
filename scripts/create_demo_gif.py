@@ -1,10 +1,9 @@
-"""Render a terminal-style demo GIF."""
+"""Render terminal-style demo GIFs."""
 
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-OUTPUT_PATH = Path("assets/demo.gif")
 WIDTH = 1120
 HEIGHT = 520
 PADDING = 24
@@ -13,6 +12,12 @@ BACKGROUND = (8, 12, 18)
 PROMPT = (106, 227, 183)
 TEXT = (226, 232, 240)
 MUTED = (148, 163, 184)
+ACCENT = (96, 165, 250)
+WARN = (251, 191, 36)
+SUCCESS = (52, 211, 153)
+Color = tuple[int, int, int]
+Line = tuple[str, Color]
+Slide = tuple[str, list[Line]]
 
 
 def demo_lines() -> list[tuple[str, tuple[int, int, int]]]:
@@ -66,7 +71,99 @@ def demo_lines() -> list[tuple[str, tuple[int, int, int]]]:
     ]
 
 
-def render_frame(visible_lines: int) -> Image.Image:
+def use_case_slides() -> list[Slide]:
+    """Return issue-to-solution slides.
+
+    Returns:
+        Slides for the use-case GIF.
+    """
+    return [
+        (
+            "Issue: frontier model spend is growing faster than traffic",
+            [
+                ("signal: simple summarization, realtime, low risk", MUTED),
+                ("decision: route to gemini-1.5-flash", ACCENT),
+                ("result: lower cost while preserving latency target", SUCCESS),
+            ],
+        ),
+        (
+            "Issue: medical/legal prompts need conservative defaults",
+            [
+                ("signal: domain=medical/legal, complexity=0.73", MUTED),
+                ("decision: route to claude-3-5-sonnet", ACCENT),
+                ("result: deterministic rationale and audit trail", SUCCESS),
+            ],
+        ),
+        (
+            "Issue: provider p95 latency spikes during peak traffic",
+            [
+                ("signal: openai p95=2500ms, google p95=45ms", MUTED),
+                ("decision: latency-aware penalty avoids slow provider", ACCENT),
+                ("result: request meets realtime service objective", SUCCESS),
+            ],
+        ),
+        (
+            "Issue: one provider fails mid-incident",
+            [
+                ("signal: circuit opens after 3 consecutive failures", MUTED),
+                ("decision: fallback chain walks to healthy provider", ACCENT),
+                ("result: graceful degradation instead of outage", SUCCESS),
+            ],
+        ),
+        (
+            "Issue: teams need online eval without app rewrites",
+            [
+                ("signal: X-Router-Strategy: ab", MUTED),
+                ("decision: stable request-id bucket selects model arm", ACCENT),
+                ("result: model experiments stay reproducible", SUCCESS),
+            ],
+        ),
+    ]
+
+
+def decision_flow_slides() -> list[Slide]:
+    """Return Observe-Decide-Act routing slides.
+
+    Returns:
+        Slides for the decision-flow GIF.
+    """
+    return [
+        (
+            "RECEIVED -> CLASSIFIED",
+            [
+                ("observe.complexity_score = 0.81", MUTED),
+                ("observe.domain_tag = code", MUTED),
+                ("observe.latency_requirement = realtime", MUTED),
+            ],
+        ),
+        (
+            "CLASSIFIED -> ROUTED",
+            [
+                ("strategy = classifier", MUTED),
+                ("chosen_model = gpt-4o", ACCENT),
+                ("rationale = classifier detected code domain", SUCCESS),
+            ],
+        ),
+        (
+            "ROUTED -> DISPATCHED",
+            [
+                ("budget guardrail: pass", SUCCESS),
+                ("circuit breaker: provider available", SUCCESS),
+                ("PII scrubber: optional pre-dispatch redaction", WARN),
+            ],
+        ),
+        (
+            "DISPATCHED -> RESPONDED",
+            [
+                ("provider = openai", ACCENT),
+                ("latency_ms = 91.2", MUTED),
+                ("audit log persisted request_id + cost + rationale", SUCCESS),
+            ],
+        ),
+    ]
+
+
+def render_terminal_frame(visible_lines: int) -> Image.Image:
     """Render one terminal frame.
 
     Args:
@@ -95,18 +192,90 @@ def render_frame(visible_lines: int) -> Image.Image:
     return image
 
 
-def main() -> None:
-    """Write the demo GIF artifact."""
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    frames = [render_frame(visible_lines) for visible_lines in range(1, len(demo_lines()) + 1)]
+def render_slide_frame(title: str, lines: list[Line], step: int, total_steps: int) -> Image.Image:
+    """Render one slide-style frame.
+
+    Args:
+        title: Slide title.
+        lines: Slide body lines.
+        step: Current slide number.
+        total_steps: Total slide count.
+
+    Returns:
+        Rendered slide frame.
+    """
+    image = Image.new("RGB", (WIDTH, HEIGHT), BACKGROUND)
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default()
+    draw.rounded_rectangle(
+        (12, 12, WIDTH - 12, HEIGHT - 12),
+        radius=18,
+        outline=(30, 41, 59),
+        width=2,
+    )
+    draw.text((PADDING, PADDING), "nexus-llm-router", fill=PROMPT, font=font)
+    draw.text((WIDTH - 130, PADDING), f"{step}/{total_steps}", fill=MUTED, font=font)
+    draw.text((PADDING, 86), title, fill=TEXT, font=font)
+    y_position = 150
+    for line, color in lines:
+        draw.rounded_rectangle(
+            (PADDING, y_position - 10, WIDTH - PADDING, y_position + 36),
+            radius=10,
+            fill=(15, 23, 42),
+            outline=(30, 41, 59),
+        )
+        draw.text((PADDING + 18, y_position + 4), line, fill=color, font=font)
+        y_position += 72
+    draw.text(
+        (PADDING, HEIGHT - 48),
+        "task-aware routing | cost controls | fallback safety | audit rationale",
+        fill=MUTED,
+        font=font,
+    )
+    return image
+
+
+def save_gif(path: Path, frames: list[Image.Image], duration_ms: int) -> None:
+    """Save rendered frames as a GIF.
+
+    Args:
+        path: Output GIF path.
+        frames: Rendered frames.
+        duration_ms: Frame duration in milliseconds.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
     frames[0].save(
-        OUTPUT_PATH,
+        path,
         save_all=True,
         append_images=frames[1:],
-        duration=650,
+        duration=duration_ms,
         loop=0,
     )
-    print(f"wrote {OUTPUT_PATH}")
+    print(f"wrote {path}")
+
+
+def main() -> None:
+    """Write demo GIF artifacts."""
+    terminal_frames = [
+        render_terminal_frame(visible_lines) for visible_lines in range(1, len(demo_lines()) + 1)
+    ]
+    save_gif(Path("assets/demo.gif"), terminal_frames, 650)
+
+    use_case_frames = [
+        render_slide_frame(title, lines, index + 1, len(use_case_slides()))
+        for index, (title, lines) in enumerate(use_case_slides())
+    ]
+    save_gif(Path("assets/use-cases.gif"), use_case_frames, 1350)
+
+    decision_flow_frames = [
+        render_slide_frame(title, lines, index + 1, len(decision_flow_slides()))
+        for index, (title, lines) in enumerate(decision_flow_slides())
+    ]
+    save_gif(
+        Path("assets/decision-flow.gif"),
+        decision_flow_frames,
+        1200,
+    )
 
 
 if __name__ == "__main__":
