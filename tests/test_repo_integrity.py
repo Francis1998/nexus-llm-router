@@ -51,3 +51,18 @@ def test_dockerfile_uses_production_dependencies() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert '.[dev]' not in dockerfile
     assert "pip install" in dockerfile
+
+
+def test_readme_test_badge_matches_collected_tests() -> None:
+    """README test badge count must match collected pytest functions."""
+    import ast
+
+    test_count = sum(
+        1
+        for path in (REPO_ROOT / "tests").glob("test_*.py")
+        for node in ast.parse(path.read_text(encoding="utf-8")).body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("test_")
+    )
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    assert f"tests-{test_count}%20passing" in readme

@@ -9,6 +9,26 @@ from adapters.http_utils import json_object, nested_int
 from router.schemas import ChatMessage, ProviderResponse
 
 
+def _build_anthropic_payload(
+    model: str, messages: list[ChatMessage], max_tokens: int
+) -> dict[str, object]:
+    """Build Anthropic Messages API payload with system text extracted."""
+    system_parts = [message.content for message in messages if message.role == "system"]
+    conversation_messages = [
+        {"role": message.role, "content": message.content}
+        for message in messages
+        if message.role in {"user", "assistant", "tool"}
+    ]
+    payload: dict[str, object] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": conversation_messages,
+    }
+    if system_parts:
+        payload["system"] = "\n\n".join(system_parts)
+    return payload
+
+
 class AnthropicAdapter(BaseProviderAdapter):
     """Adapter for Anthropic Claude messages."""
 
@@ -34,15 +54,7 @@ class AnthropicAdapter(BaseProviderAdapter):
         """Return a normalized Anthropic completion."""
         if not self._api_key:
             raise ProviderError("ANTHROPIC_API_KEY is not configured")
-        payload = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "messages": [
-                {"role": message.role, "content": message.content}
-                for message in messages
-                if message.role != "system"
-            ],
-        }
+        payload = _build_anthropic_payload(model, messages, max_tokens)
         headers = {
             "x-api-key": self._api_key,
             "anthropic-version": "2023-06-01",
