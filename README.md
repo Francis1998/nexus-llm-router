@@ -2,9 +2,61 @@
 
 Intelligent multi-LLM router with task-aware routing strategies, cost optimization, and production safety controls. Nexus exposes a drop-in OpenAI-compatible `/v1/chat/completions` API and routes each request through an opinionated `Observe -> Decide -> Act` pipeline.
 
+![Nexus use cases](assets/use-cases.gif)
+
 ## Why Nexus
 
 Nexus is designed for AI infrastructure engineers running multi-model production pipelines where quality, latency, and cost all matter. It is inspired by the problem space explored by LiteLLM, RouteLLM, and anyscale/llm-router, but uses an original architecture centered on deterministic routing decisions, durable audit logs, and explicit safety controls.
+
+Most teams start with one LLM endpoint. That works until traffic grows, latency starts swinging, finance asks why every request hits the most expensive model, and incident review asks why the app kept calling a degraded provider. Nexus gives the application one stable OpenAI-compatible API while moving model choice, fallback, budget, audit, and routing rationale into infra-owned middleware.
+
+## Problems It Solves
+
+- Issue: every prompt is sent to the same frontier model.
+  Nexus solves this by classifying prompt complexity and routing simple tasks to cheaper low-latency models while reserving premium models for hard prompts.
+
+- Issue: spend grows faster than product usage.
+  Nexus solves this with cost-aware routing, model cost estimates, per-user budget guardrails, and Prometheus cost metrics.
+
+- Issue: code, medical, legal, and general prompts need different quality defaults.
+  Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude and complex code to GPT-4o.
+
+- Issue: one provider has an incident and the app fails hard.
+  Nexus solves this with per-provider circuit breakers and automatic fallback chains.
+
+- Issue: provider latency spikes during peak traffic.
+  Nexus solves this with latency-aware routing that tracks rolling p95 latency and penalizes slow providers.
+
+- Issue: teams want to compare models without rewriting product code.
+  Nexus solves this with stable request-id A/B routing selected by the `X-Router-Strategy` header.
+
+- Issue: support and compliance teams ask why a model answered a request.
+  Nexus solves this by persisting durable audit records with `request_id`, selected model, strategy, rationale, latency, token usage, and cost.
+
+- Issue: a single API key can overwhelm the router.
+  Nexus solves this with a token-bucket rate limiter keyed by API key identifier.
+
+- Issue: session or tenant budgets need hard enforcement.
+  Nexus solves this by rejecting requests before dispatch when estimated spend would exceed the configured cap.
+
+- Issue: PII can leak into third-party providers.
+  Nexus solves this with optional regex redaction and a Presidio extension path before provider dispatch.
+
+- Issue: teams need OpenAI compatibility without giving up provider choice.
+  Nexus solves this by exposing `/v1/chat/completions` while normalizing OpenAI, Anthropic, Gemini, and Moonshot adapters behind one interface.
+
+- Issue: model routing becomes a hidden product decision.
+  Nexus solves this by making routing policy explicit, testable, observable, and owned in infra.
+
+## Demo Gallery
+
+Terminal routing demo with JSON rationale logs:
+
+![Nexus terminal demo](assets/demo.gif)
+
+Observe → Decide → Act state-machine demo:
+
+![Nexus decision flow](assets/decision-flow.gif)
 
 ## Core Features
 
