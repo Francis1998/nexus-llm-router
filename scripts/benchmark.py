@@ -1,28 +1,64 @@
-#!/usr/bin/env python3
-"""Basic benchmark for LLM routing throughput."""
-import time
-import statistics
+"""Run a local routing demo with deterministic mock providers."""
 
-ITERATIONS = 100
+import asyncio
+from pathlib import Path
 
-def benchmark_run() -> dict:
-    """Run a basic throughput benchmark."""
-    times = []
-    for _ in range(ITERATIONS):
-        start = time.perf_counter()
-        # Placeholder: replace with actual operation
-        time.sleep(0.001)
-        times.append(time.perf_counter() - start)
+from adapters.mock import MockProviderAdapter
+from adapters.registry import AdapterRegistry
+from observability.logging import configure_logging
+from router.config import RouterSettings
+from router.engine import NexusRouter
+from router.schemas import ChatMessage, RouterRequest, RoutingStrategyName
 
-    return {
-        "iterations": ITERATIONS,
-        "mean_ms": round(statistics.mean(times) * 1000, 2),
-        "p50_ms": round(statistics.median(times) * 1000, 2),
-        "p95_ms": round(sorted(times)[int(ITERATIONS * 0.95)] * 1000, 2),
-        "p99_ms": round(sorted(times)[int(ITERATIONS * 0.99)] * 1000, 2),
-    }
+
+def build_demo_router() -> NexusRouter:
+    """Build an offline demo router.
+
+    Returns:
+        Router configured with mock providers.
+    """
+    return NexusRouter(
+        settings=RouterSettings(audit_log_path="migrations/demo-audit.jsonl"),
+        adapter_registry=AdapterRegistry(
+            {
+                "openai": MockProviderAdapter("openai"),
+                "anthropic": MockProviderAdapter("anthropic"),
+                "google": MockProviderAdapter("google"),
+                "moonshot": MockProviderAdapter("moonshot"),
+            },
+        ),
+    )
+
+
+async def run_demo() -> None:
+    """Run demo prompts through different routing strategies."""
+    configure_logging()
+    Path("migrations").mkdir(exist_ok=True)
+    router = build_demo_router()
+    prompts = [
+        ("medical", "Assess patient symptoms and treatment risk.", RoutingStrategyName.RULE_BASED),
+        (
+            "code",
+            "Debug this Python async function and propose tests.",
+            RoutingStrategyName.CLASSIFIER,
+        ),
+        ("cost", "Summarize this rollout update for executives.", RoutingStrategyName.COST_OPTIMAL),
+        ("ab", "Write a concise release note.", RoutingStrategyName.AB_TEST),
+    ]
+    for request_id, prompt, strategy in prompts:
+        response = await router.complete(
+            RouterRequest(
+                request_id=f"demo-{request_id}",
+                messages=[ChatMessage(content=prompt)],
+                strategy=strategy,
+            ),
+        )
+        print(
+            f"{request_id}: strategy={response.routing_strategy.value} "
+            f"model={response.model_used} cost=${response.cost_usd:.6f} "
+            f"rationale={response.rationale}",
+        )
+
 
 if __name__ == "__main__":
-    results = benchmark_run()
-    for k, v in results.items():
-        print(f"{k:<15}: {v}")
+    asyncio.run(run_demo())
