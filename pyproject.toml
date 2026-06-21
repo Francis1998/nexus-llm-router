@@ -36,9 +36,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/chrisliu/nexus-llm-router"
-Repository = "https://github.com/chrisliu/nexus-llm-router"
-Issues = "https://github.com/chrisliu/nexus-llm-router/issues"
+Homepage = "https://github.com/Francis1998/nexus-llm-router"
+Repository = "https://github.com/Francis1998/nexus-llm-router"
+Issues = "https://github.com/Francis1998/nexus-llm-router/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/router", "src/adapters", "src/classifier", "src/safety", "src/observability", "src/api"]
