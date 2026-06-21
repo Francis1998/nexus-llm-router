@@ -1,0 +1,42 @@
+"""Tests for safety controls."""
+
+import pytest
+
+from safety.budget import BudgetExceededError, BudgetGuardrail
+from safety.circuit_breaker import CircuitBreakerRegistry, CircuitOpenError
+from safety.pii import PiiScrubber
+from safety.rate_limiter import RateLimitExceededError, TokenBucketRateLimiter
+
+
+def test_budget_guardrail_hard_rejects_excess_spend() -> None:
+    """Budget guardrail should reject spend above the configured cap."""
+    guardrail = BudgetGuardrail(cap_usd=1.0)
+    guardrail.record_spend("user-a", 0.75)
+    with pytest.raises(BudgetExceededError):
+        guardrail.assert_can_spend("user-a", 0.30)
+
+
+def test_circuit_breaker_opens_after_three_failures() -> None:
+    """Circuit breaker should open after three consecutive failures."""
+    circuit_breakers = CircuitBreakerRegistry(failure_threshold=3, recovery_window_seconds=60.0)
+    circuit_breakers.record_failure("openai")
+    circuit_breakers.record_failure("openai")
+    circuit_breakers.record_failure("openai")
+    with pytest.raises(CircuitOpenError):
+        circuit_breakers.assert_available("openai")
+
+
+def test_pii_scrubber_redacts_email_and_phone() -> None:
+    """PII scrubber should redact email addresses and US phone numbers."""
+    scrubber = PiiScrubber(enabled=True)
+    redacted = scrubber.scrub_text("Email jane@example.com or call 415-555-1212.")
+    assert "[REDACTED_EMAIL]" in redacted
+    assert "[REDACTED_PHONE]" in redacted
+
+
+def test_rate_limiter_rejects_empty_bucket() -> None:
+    """Token bucket should reject when insufficient tokens remain."""
+    limiter = TokenBucketRateLimiter(capacity=1, refill_per_second=0.0)
+    limiter.assert_allowed("key-a")
+    with pytest.raises(RateLimitExceededError):
+        limiter.assert_allowed("key-a")
