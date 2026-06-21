@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nexus-llm-router"
+version = "0.1.0"
+description = "Intelligent multi-LLM router with task-aware routing strategies, cost optimization, and production safety controls."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Nexus LLM Router Contributors" }]
+keywords = ["llm-router", "multi-llm", "ai-infrastructure", "openai-compatible", "mlops"]
+dependencies = [
+  "fastapi>=0.115.0",
+  "httpx>=0.27.0",
+  "opentelemetry-api>=1.27.0",
+  "opentelemetry-instrumentation-fastapi>=0.48b0",
+  "opentelemetry-sdk>=1.27.0",
+  "prometheus-client>=0.21.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.5.0",
+  "python-dotenv>=1.0.1",
+  "structlog>=24.4.0",
+  "uvicorn[standard]>=0.30.0",
+]
+
+[project.optional-dependencies]
+pii = ["presidio-analyzer>=2.2.355", "presidio-anonymizer>=2.2.355"]
+dev = [
+  "mypy>=1.11.0",
+  "pillow>=11.0.0",
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "ruff>=0.6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/chrisliu/nexus-llm-router"
+Repository = "https://github.com/chrisliu/nexus-llm-router"
+Issues = "https://github.com/chrisliu/nexus-llm-router/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/router", "src/adapters", "src/classifier", "src/safety", "src/observability", "src/api"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "ANN", "S", "C4", "SIM", "RET"]
+ignore = ["S101"]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+packages = ["router", "adapters", "classifier", "safety", "observability", "api"]
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
