@@ -148,8 +148,13 @@ class CostOptimalStrategy(RoutingStrategy):
             )
         ]
         if not feasible_candidates:
+            highest_quality = max(
+                self._model_catalog.values(),
+                key=lambda candidate: candidate.quality_score,
+            )
             return self._decision(
-                "claude-3-5-sonnet", "quality floor forced highest-quality fallback"
+                highest_quality.model,
+                "quality floor forced highest-quality fallback",
             )
         selected_candidate = min(
             feasible_candidates,
