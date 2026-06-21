@@ -228,6 +228,16 @@ class LatencyAwareStrategy(RoutingStrategy):
             for candidate in self._model_catalog.values()
             if signals.domain_tag in candidate.supports_domains
         ]
+        if not eligible_candidates:
+            highest_quality = max(
+                self._model_catalog.values(),
+                key=lambda candidate: candidate.quality_score,
+            )
+            return self._decision(
+                highest_quality.model,
+                "no model supports requested domain; "
+                "latency-aware fell back to highest-quality model",
+            )
         selected_candidate = min(
             eligible_candidates,
             key=lambda candidate: (
