@@ -1,14 +1,70 @@
 # nexus-llm-router
 
-![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen) ![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![CI](https://github.com/Francis1998/{repo}/actions/workflows/ci.yml/badge.svg)
+![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
-> Llm Routing — powered by modern Python async architecture.
+> Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
+
+![Nexus use cases](assets/use-cases.gif)
+
+## Why Nexus
+
+Most teams start with one LLM endpoint. That works until traffic grows, latency starts swinging, finance asks why every request hits the most expensive model, and incident review asks why the app kept calling a degraded provider. Nexus gives the application one stable OpenAI-compatible API while moving model choice, fallback, budget, audit, and routing rationale into infra-owned middleware.
+
+Nexus is designed for AI infrastructure engineers running multi-model production pipelines where quality, latency, and cost must be optimized at the same time.
+
+## Problems It Solves
+
+- Issue: every prompt is sent to the same frontier model.
+  Nexus solves this by classifying prompt complexity and routing simple tasks to cheaper low-latency models while reserving premium models for hard prompts.
+
+- Issue: spend grows faster than product usage.
+  Nexus solves this with cost-aware routing, model cost estimates, per-user budget guardrails, and Prometheus cost metrics.
+
+- Issue: code, medical, legal, and general prompts need different quality defaults.
+  Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude and complex code to GPT-4o.
+
+- Issue: one provider has an incident and the app fails hard.
+  Nexus solves this with per-provider circuit breakers and automatic fallback chains.
+
+- Issue: provider latency spikes during peak traffic.
+  Nexus solves this with latency-aware routing that tracks rolling p95 latency and penalizes slow providers.
+
+- Issue: teams want to compare models without rewriting product code.
+  Nexus solves this with stable request-id A/B routing selected by the `X-Router-Strategy` header.
+
+- Issue: support and compliance teams ask why a model answered a request.
+  Nexus solves this by persisting durable audit records with `request_id`, selected model, strategy, rationale, latency, token usage, and cost.
+
+- Issue: a single API key can overwhelm the router.
+  Nexus solves this with a token-bucket rate limiter keyed by API key identifier.
+
+- Issue: session or tenant budgets need hard enforcement.
+  Nexus solves this by rejecting requests before dispatch when estimated spend would exceed the configured cap.
+
+- Issue: PII can leak into third-party providers.
+  Nexus solves this with optional regex redaction and a Presidio extension path before provider dispatch.
+
+- Issue: teams need OpenAI compatibility without giving up provider choice.
+  Nexus solves this by exposing `/v1/chat/completions` while normalizing OpenAI, Anthropic, Gemini, and Moonshot adapters behind one interface.
+
+- Issue: model routing becomes a hidden product decision.
+  Nexus solves this by making routing policy explicit, testable, observable, and owned in infra.
+
+## Demo Gallery
+
+Terminal routing demo with JSON rationale logs:
+
+![Nexus terminal demo](assets/demo.gif)
+
+Observe -> Decide -> Act state-machine demo:
+
+![Nexus decision flow](assets/decision-flow.gif)
 
 ## Features
 
 - **Router engine** with configurable strategies
 - **Adapter pipeline** with full observability
-- **Async-first** design using `asyncio` + `aiohttp`
+- **Async-first** design using `asyncio` + `httpx`
 - **Type-safe** with full `mypy` compliance
 - **Production-ready** with Docker, CI/CD, and structured logging
 
@@ -19,7 +75,7 @@ git clone https://github.com/Francis1998/nexus-llm-router.git
 cd nexus-llm-router
 pip install -e ".[dev]"
 cp .env.example .env
-python -m router --help
+PYTHONPATH=src uvicorn api.main:app --reload
 ```
 
 ## Documentation
@@ -27,13 +83,13 @@ python -m router --help
 | Document | Description |
 |----------|-------------|
 | [Architecture](ARCHITECTURE.md) | System design and component overview |
-| [Configuration](docs/CONFIGURATION.md) | All configuration options |
-| [Deployment](docs/DEPLOYMENT.md) | Production deployment guide |
-| [Contributing](CONTRIBUTING.md) | Development and PR workflow |
+| [Configuration](CONFIGURATION.md) | All configuration options |
+| [Quickstart](QUICKSTART.md) | Local setup and first request |
+| [Safety](SAFETY.md) | Guardrails, fallback, and PII controls |
 | [Changelog](CHANGELOG.md) | Version history |
 
 ## License
 
-MIT © [Francis1998](https://github.com/Francis1998)
+Apache-2.0 © [Francis1998](https://github.com/Francis1998)
 
 *Last updated: 2024-10-30*
