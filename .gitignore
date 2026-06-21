@@ -38,6 +38,7 @@ htmlcov/
 
 # Logs
 *.log
+*.jsonl
 logs/
 
 # Runtime artifacts

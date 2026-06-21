@@ -3,25 +3,24 @@
 All notable changes to **nexus-llm-router** are documented here.
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [v0.1.6] — 2024-11-22
+## [Unreleased]
 
 ### Added
-- Extended adapter module with improved error handling
-- Added structured logging for router operations
-- New unit tests covering edge cases in provider pipeline
-
-### Changed
-- Refactored retry logic to use exponential backoff with jitter
-- Improved type annotations across core modules
-- Updated dependency pins to latest stable versions
+- OpenAI-compatible FastAPI router API.
+- Observe -> Decide -> Act routing engine.
+- Rule-based, classifier, cost-optimal, latency-aware, and A/B routing strategies.
+- OpenAI, Anthropic, Google Gemini, Moonshot, and mock provider adapters.
+- Circuit breaker, budget guardrail, PII scrubber, and token-bucket rate limiter.
+- Prometheus metrics, OpenTelemetry tracing, structlog JSON logging, and JSONL audit logs.
+- Docker Compose stack with router, Prometheus, and Grafana.
+- Demo GIF gallery and offline benchmark/demo script.
 
 ### Fixed
-- Resolved race condition in async adapter handler
-- Fixed incorrect router timeout calculation
+- Restored README positioning after generated documentation overwrote project-specific content.
+- Restored CI to supported Python versions and verified quality gates.
+- Restored the real offline routing demo script after a placeholder benchmark overwrite.
 
-## [v0.1.0] — 2024-11-01
+## [v0.1.0] — 2026-06-20
 
 ### Added
-- Initial project scaffold with LLM routing core
-- Basic router implementation
-- README and setup documentation
+- Initial project scaffold with routing core, safety controls, observability, tests, docs, and deployment assets.

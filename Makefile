@@ -1,6 +1,6 @@
-.PHONY: help install dev-install test lint format type-check clean docker-build
+.PHONY: help install dev-install test lint type-check clean docker-build docker-run
 
-# nexus-llm-router Makefile  —  updated 2024-12-23
+# nexus-llm-router Makefile
 
 help:  ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
@@ -11,23 +11,15 @@ install:  ## Install package
 
 dev-install:  ## Install with dev extras
 	pip install -e ".[dev]"
-	pre-commit install
 
-test:  ## Run test suite with coverage
-	pytest tests/ -v --tb=short --cov=src --cov-report=term-missing
-
-test-fast:  ## Run tests without coverage (faster)
-	pytest tests/ -v --tb=short -x
+test:  ## Run test suite
+	pytest tests/ -v
 
 lint:  ## Lint with ruff
-	ruff check .
-
-format:  ## Format with ruff
-	ruff format .
-	ruff check --fix .
+	ruff check src/
 
 type-check:  ## Type check with mypy
-	mypy src/router --ignore-missing-imports
+	mypy src/
 
 clean:  ## Remove build artifacts
 	find . -type f -name "*.pyc" -delete
@@ -35,10 +27,7 @@ clean:  ## Remove build artifacts
 	rm -rf .pytest_cache htmlcov .coverage dist build *.egg-info
 
 docker-build:  ## Build Docker image
-	docker build -t Francis1998/nexus-llm-router:0.4.0 .
+	docker build -t nexus-llm-router:latest .
 
 docker-run:  ## Run Docker container
-	docker run --env-file .env Francis1998/nexus-llm-router:0.4.0
-
-bump-patch:  ## Bump patch version
-	bump2version patch
+	docker run --env-file .env -p 8000:8000 nexus-llm-router:latest
