@@ -24,8 +24,8 @@ class OpenAIAdapter(BaseProviderAdapter):
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
         self._costs: dict[str, tuple[float, float]] = {
-            "gpt-4o": (0.005, 0.015),
-            "gpt-4o-mini": (0.00015, 0.0006),
+            "gpt-5.5": (0.006, 0.018),
+            "gpt-4.1-mini": (0.0002, 0.0008),
         }
 
     async def complete(

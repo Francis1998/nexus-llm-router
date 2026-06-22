@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-31%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-33%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -21,7 +21,7 @@ Nexus is designed for AI infrastructure engineers running multi-model production
   Nexus solves this with cost-aware routing, model cost estimates, per-user budget guardrails, and Prometheus cost metrics.
 
 - Issue: code, medical, legal, and general prompts need different quality defaults.
-  Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude and complex code to GPT-4o.
+  Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude Sonnet 4.6 and complex code to GPT-5.5.
 
 - Issue: one provider has an incident and the app fails hard.
   Nexus solves this with per-provider circuit breakers and automatic fallback chains.
@@ -124,4 +124,4 @@ Select a strategy with `X-Router-Strategy`:
 
 Apache-2.0 © [Francis1998](https://github.com/Francis1998)
 
-*Last updated: 2026-06-20*
+*Last updated: 2026-06-21*

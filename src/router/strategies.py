@@ -4,6 +4,13 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from hashlib import sha256
 
+from router.model_ids import (
+    ANTHROPIC_SAFETY_MODEL,
+    GEMINI_FLASH_MODEL,
+    MOONSHOT_BALANCED_MODEL,
+    OPENAI_BALANCED_MODEL,
+    OPENAI_FRONTIER_MODEL,
+)
 from router.schemas import (
     DomainTag,
     LatencyRequirement,
@@ -85,23 +92,29 @@ class RuleBasedStrategy(RoutingStrategy):
         """Choose a model from deterministic domain and complexity rules."""
         if signals.domain_tag is DomainTag.MEDICAL:
             return self._decision(
-                "claude-3-5-sonnet", "medical domain requires highest safety prior"
+                ANTHROPIC_SAFETY_MODEL, "medical domain requires highest safety prior"
             )
         if signals.domain_tag is DomainTag.LEGAL:
             return self._decision(
-                "claude-3-5-sonnet", "legal domain favors Claude policy reasoning"
+                ANTHROPIC_SAFETY_MODEL, "legal domain favors Claude policy reasoning"
             )
         if signals.domain_tag is DomainTag.CODE and signals.complexity_score >= 0.55:
-            return self._decision("gpt-4o", "complex code prompt favors GPT-4o quality")
+            return self._decision(
+                OPENAI_FRONTIER_MODEL, "complex code prompt favors GPT-5.5 quality"
+            )
         if (
             signals.complexity_score <= 0.35
             and signals.latency_requirement is LatencyRequirement.REALTIME
         ):
-            return self._decision("gemini-1.5-flash", "simple realtime prompt favors low latency")
+            return self._decision(
+                GEMINI_FLASH_MODEL, "simple realtime prompt favors low latency"
+            )
         requested_model = request.requested_model
         if requested_model and requested_model in self._model_catalog:
             return self._decision(requested_model, "explicit compatible model request honored")
-        return self._decision("gpt-4o-mini", "general prompt routed to balanced low-cost model")
+        return self._decision(
+            OPENAI_BALANCED_MODEL, "general prompt routed to balanced low-cost model"
+        )
 
 
 class ClassifierStrategy(RoutingStrategy):
@@ -112,12 +125,18 @@ class ClassifierStrategy(RoutingStrategy):
     def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
         """Choose a model based on classifier scores."""
         if signals.complexity_score >= 0.8:
-            return self._decision("claude-3-5-sonnet", "classifier marked task high complexity")
+            return self._decision(
+                ANTHROPIC_SAFETY_MODEL, "classifier marked task high complexity"
+            )
         if signals.domain_tag is DomainTag.CODE:
-            return self._decision("gpt-4o", "classifier detected code domain")
+            return self._decision(OPENAI_FRONTIER_MODEL, "classifier detected code domain")
         if signals.complexity_score <= 0.4:
-            return self._decision("kimi-k2", "classifier marked task simple and cost-sensitive")
-        return self._decision("gpt-4o-mini", "classifier selected balanced middle tier")
+            return self._decision(
+                MOONSHOT_BALANCED_MODEL, "classifier marked task simple and cost-sensitive"
+            )
+        return self._decision(
+            OPENAI_BALANCED_MODEL, "classifier selected balanced middle tier"
+        )
 
 
 class CostOptimalStrategy(RoutingStrategy):

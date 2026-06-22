@@ -41,9 +41,9 @@ If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
 
 The default catalog lives in `src/router/config.py` and includes:
 
-- OpenAI: `gpt-4o`, `gpt-4o-mini`
-- Anthropic: `claude-3-5-sonnet`, `claude-3-5-haiku`
-- Google: `gemini-1.5-pro`, `gemini-1.5-flash`
+- OpenAI: `gpt-5.5`, `gpt-4.1-mini`
+- Anthropic: `claude-sonnet-4-6`, `claude-haiku-4-5`
+- Google: `gemini-3.1-pro-preview`, `gemini-3.5-flash`
 - Moonshot: `kimi-k2`
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
