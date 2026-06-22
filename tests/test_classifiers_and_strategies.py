@@ -2,6 +2,7 @@
 
 from router.analyzer import RequestAnalyzer
 from router.config import default_model_catalog
+from router.model_ids import ANTHROPIC_FAST_MODEL, OPENAI_BALANCED_MODEL
 from router.schemas import ChatMessage, DomainTag, RouterRequest, RoutingStrategyName
 from router.strategies import ABRoutingStrategy, LatencyAwareStrategy, LatencyStats
 
@@ -21,7 +22,9 @@ def test_analyzer_detects_code_domain() -> None:
 
 def test_ab_strategy_is_deterministic_for_request_id() -> None:
     """A/B routing should produce stable decisions for the same request id."""
-    strategy = ABRoutingStrategy(default_model_catalog(), "gpt-4o-mini", "claude-3-5-haiku", 0.5)
+    strategy = ABRoutingStrategy(
+        default_model_catalog(), OPENAI_BALANCED_MODEL, ANTHROPIC_FAST_MODEL, 0.5
+    )
     request = RouterRequest(
         request_id="stable-request",
         messages=[ChatMessage(content="Hello")],

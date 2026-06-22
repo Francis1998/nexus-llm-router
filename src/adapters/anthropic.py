@@ -44,8 +44,8 @@ class AnthropicAdapter(BaseProviderAdapter):
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
         self._costs: dict[str, tuple[float, float]] = {
-            "claude-3-5-sonnet": (0.003, 0.015),
-            "claude-3-5-haiku": (0.0008, 0.004),
+            "claude-sonnet-4-6": (0.003, 0.015),
+            "claude-haiku-4-5": (0.0008, 0.004),
         }
 
     async def complete(

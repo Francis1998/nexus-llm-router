@@ -37,7 +37,7 @@ def test_cost_optimal_falls_back_when_no_model_supports_domain() -> None:
     """Cost-optimal routing should not crash when no candidate supports the domain.
 
     A custom catalog that omits a domain previously raised ``KeyError`` because
-    the quality-floor fallback hardcoded ``claude-3-5-sonnet``. It should
+    the quality-floor fallback no longer hardcodes a legacy model id. It should
     instead fall back to the highest-quality model in the catalog.
     """
     catalog = _general_only_catalog()

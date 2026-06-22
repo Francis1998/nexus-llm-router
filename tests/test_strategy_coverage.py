@@ -8,6 +8,13 @@ cost-optimal quality-floor fallback, and complexity-score monotonicity.
 from classifier.complexity import LogisticComplexityClassifier
 from classifier.features import extract_prompt_features
 from router.config import default_model_catalog
+from router.model_ids import (
+    ANTHROPIC_SAFETY_MODEL,
+    GEMINI_FLASH_MODEL,
+    MOONSHOT_BALANCED_MODEL,
+    OPENAI_BALANCED_MODEL,
+    OPENAI_FRONTIER_MODEL,
+)
 from router.schemas import (
     ChatMessage,
     DomainTag,
@@ -48,18 +55,18 @@ def _signals(
 
 
 def test_rule_based_routes_legal_to_claude() -> None:
-    """Legal prompts should route to Claude under the rule-based matrix."""
+    """Legal prompts should route to Claude Sonnet under the rule-based matrix."""
     strategy = RuleBasedStrategy(default_model_catalog())
     decision = strategy.choose(_request(), _signals(0.5, DomainTag.LEGAL))
-    assert decision.chosen_model == "claude-3-5-sonnet"
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
     assert "legal" in decision.rationale
 
 
-def test_rule_based_routes_complex_code_to_gpt4o() -> None:
-    """Complex code prompts should prefer GPT-4o."""
+def test_rule_based_routes_complex_code_to_gpt5() -> None:
+    """Complex code prompts should prefer the OpenAI frontier model."""
     strategy = RuleBasedStrategy(default_model_catalog())
     decision = strategy.choose(_request(), _signals(0.7, DomainTag.CODE))
-    assert decision.chosen_model == "gpt-4o"
+    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
 
 
 def test_rule_based_routes_simple_realtime_to_flash() -> None:
@@ -68,17 +75,17 @@ def test_rule_based_routes_simple_realtime_to_flash() -> None:
     decision = strategy.choose(
         _request(), _signals(0.2, DomainTag.GENERAL, LatencyRequirement.REALTIME)
     )
-    assert decision.chosen_model == "gemini-1.5-flash"
+    assert decision.chosen_model == GEMINI_FLASH_MODEL
 
 
 def test_rule_based_honors_compatible_requested_model() -> None:
     """An explicit, in-catalog model request should be honored."""
     strategy = RuleBasedStrategy(default_model_catalog())
     decision = strategy.choose(
-        _request(requested_model="kimi-k2"),
+        _request(requested_model=MOONSHOT_BALANCED_MODEL),
         _signals(0.5, DomainTag.GENERAL),
     )
-    assert decision.chosen_model == "kimi-k2"
+    assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
     assert decision.routing_strategy == RoutingStrategyName.RULE_BASED
 
 
@@ -86,28 +93,28 @@ def test_rule_based_defaults_to_balanced_low_cost_model() -> None:
     """A general prompt with no overrides should route to the balanced default."""
     strategy = RuleBasedStrategy(default_model_catalog())
     decision = strategy.choose(_request(), _signals(0.5, DomainTag.GENERAL))
-    assert decision.chosen_model == "gpt-4o-mini"
+    assert decision.chosen_model == OPENAI_BALANCED_MODEL
 
 
 def test_classifier_routes_high_complexity_to_sonnet() -> None:
     """High classifier complexity should route to the top-quality model."""
     strategy = ClassifierStrategy(default_model_catalog())
     decision = strategy.choose(_request(), _signals(0.85, DomainTag.GENERAL))
-    assert decision.chosen_model == "claude-3-5-sonnet"
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
 
 
 def test_classifier_routes_simple_prompt_to_kimi() -> None:
     """Low-complexity prompts should route to the cost-sensitive model."""
     strategy = ClassifierStrategy(default_model_catalog())
     decision = strategy.choose(_request(), _signals(0.2, DomainTag.GENERAL))
-    assert decision.chosen_model == "kimi-k2"
+    assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
 
 
 def test_cost_optimal_forces_fallback_when_floor_unreachable() -> None:
     """An unreachable quality floor should force the highest-quality fallback."""
     strategy = CostOptimalStrategy(default_model_catalog(), quality_floor=1.0)
     decision = strategy.choose(_request(), _signals(0.5, DomainTag.GENERAL))
-    assert decision.chosen_model == "claude-3-5-sonnet"
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
     assert "quality floor forced" in decision.rationale
 
 
