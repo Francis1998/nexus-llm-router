@@ -6,6 +6,15 @@ from typing import Annotated
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from router.model_ids import (
+    ANTHROPIC_FAST_MODEL,
+    ANTHROPIC_SAFETY_MODEL,
+    GEMINI_FLASH_MODEL,
+    GEMINI_PRO_MODEL,
+    MOONSHOT_BALANCED_MODEL,
+    OPENAI_BALANCED_MODEL,
+    OPENAI_FRONTIER_MODEL,
+)
 from router.schemas import DomainTag, ModelCandidate, RoutingStrategyName
 
 
@@ -36,8 +45,8 @@ class RouterSettings(BaseSettings):
     rate_limit_capacity: int = 120
     rate_limit_refill_per_second: float = 2.0
     enable_pii_scrubbing: bool = False
-    ab_model_a: str = "gpt-4o-mini"
-    ab_model_b: str = "claude-3-5-haiku"
+    ab_model_a: str = OPENAI_BALANCED_MODEL
+    ab_model_b: str = ANTHROPIC_FAST_MODEL
     ab_model_a_weight: float = 0.5
     quality_floor: Annotated[float, Field(ge=0.0, le=1.0)] = 0.72
 
@@ -49,26 +58,26 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
         Mapping of model names to model candidates.
     """
     return {
-        "gpt-4o": ModelCandidate(
-            model="gpt-4o",
+        OPENAI_FRONTIER_MODEL: ModelCandidate(
+            model=OPENAI_FRONTIER_MODEL,
             provider="openai",
-            quality_score=0.95,
-            input_cost_per_1k=0.005,
-            output_cost_per_1k=0.015,
+            quality_score=0.97,
+            input_cost_per_1k=0.006,
+            output_cost_per_1k=0.018,
             supports_domains={DomainTag.CODE, DomainTag.LEGAL, DomainTag.GENERAL},
         ),
-        "gpt-4o-mini": ModelCandidate(
-            model="gpt-4o-mini",
+        OPENAI_BALANCED_MODEL: ModelCandidate(
+            model=OPENAI_BALANCED_MODEL,
             provider="openai",
-            quality_score=0.82,
-            input_cost_per_1k=0.00015,
-            output_cost_per_1k=0.0006,
+            quality_score=0.84,
+            input_cost_per_1k=0.0002,
+            output_cost_per_1k=0.0008,
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
         ),
-        "claude-3-5-sonnet": ModelCandidate(
-            model="claude-3-5-sonnet",
+        ANTHROPIC_SAFETY_MODEL: ModelCandidate(
+            model=ANTHROPIC_SAFETY_MODEL,
             provider="anthropic",
-            quality_score=0.96,
+            quality_score=0.98,
             input_cost_per_1k=0.003,
             output_cost_per_1k=0.015,
             supports_domains={
@@ -78,18 +87,18 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
                 DomainTag.GENERAL,
             },
         ),
-        "claude-3-5-haiku": ModelCandidate(
-            model="claude-3-5-haiku",
+        ANTHROPIC_FAST_MODEL: ModelCandidate(
+            model=ANTHROPIC_FAST_MODEL,
             provider="anthropic",
-            quality_score=0.80,
+            quality_score=0.82,
             input_cost_per_1k=0.0008,
             output_cost_per_1k=0.004,
             supports_domains={DomainTag.GENERAL, DomainTag.LEGAL},
         ),
-        "gemini-1.5-pro": ModelCandidate(
-            model="gemini-1.5-pro",
+        GEMINI_PRO_MODEL: ModelCandidate(
+            model=GEMINI_PRO_MODEL,
             provider="google",
-            quality_score=0.93,
+            quality_score=0.95,
             input_cost_per_1k=0.0035,
             output_cost_per_1k=0.0105,
             supports_domains={
@@ -100,16 +109,16 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             },
             supports_realtime=False,
         ),
-        "gemini-1.5-flash": ModelCandidate(
-            model="gemini-1.5-flash",
+        GEMINI_FLASH_MODEL: ModelCandidate(
+            model=GEMINI_FLASH_MODEL,
             provider="google",
-            quality_score=0.78,
-            input_cost_per_1k=0.00035,
-            output_cost_per_1k=0.00105,
+            quality_score=0.81,
+            input_cost_per_1k=0.0015,
+            output_cost_per_1k=0.009,
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
         ),
-        "kimi-k2": ModelCandidate(
-            model="kimi-k2",
+        MOONSHOT_BALANCED_MODEL: ModelCandidate(
+            model=MOONSHOT_BALANCED_MODEL,
             provider="moonshot",
             quality_score=0.76,
             input_cost_per_1k=0.0005,

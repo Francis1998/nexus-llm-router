@@ -24,8 +24,8 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
         self._costs: dict[str, tuple[float, float]] = {
-            "gemini-1.5-pro": (0.0035, 0.0105),
-            "gemini-1.5-flash": (0.00035, 0.00105),
+            "gemini-3.1-pro-preview": (0.0035, 0.0105),
+            "gemini-3.5-flash": (0.0015, 0.009),
         }
 
     async def complete(

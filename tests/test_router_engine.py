@@ -8,6 +8,7 @@ from adapters.mock import MockProviderAdapter
 from adapters.registry import AdapterRegistry
 from router.config import RouterSettings
 from router.engine import NexusRouter
+from router.model_ids import ANTHROPIC_SAFETY_MODEL, OPENAI_BALANCED_MODEL
 from router.schemas import ChatMessage, RouterRequest, RoutingStrategyName
 
 
@@ -32,7 +33,7 @@ async def test_rule_based_routes_medical_prompt_to_claude(tmp_path: Path) -> Non
             strategy=RoutingStrategyName.RULE_BASED,
         ),
     )
-    assert response.model_used == "claude-3-5-sonnet"
+    assert response.model_used == ANTHROPIC_SAFETY_MODEL
     assert response.routing_strategy == RoutingStrategyName.RULE_BASED
     assert "medical" in response.rationale
     assert (tmp_path / "audit.jsonl").exists()
@@ -59,7 +60,7 @@ async def test_fallback_chain_uses_next_provider_on_failure(tmp_path: Path) -> N
             strategy=RoutingStrategyName.RULE_BASED,
         ),
     )
-    assert response.model_used == "claude-3-5-sonnet"
+    assert response.model_used == ANTHROPIC_SAFETY_MODEL
     assert "fallback attempt" in response.rationale
 
 
@@ -87,5 +88,5 @@ async def test_cost_optimal_respects_quality_floor(tmp_path: Path) -> None:
             strategy=RoutingStrategyName.COST_OPTIMAL,
         ),
     )
-    assert response.model_used == "gpt-4o-mini"
+    assert response.model_used == OPENAI_BALANCED_MODEL
     assert response.routing_strategy == RoutingStrategyName.COST_OPTIMAL

@@ -8,13 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from adapters.anthropic import AnthropicAdapter, _build_anthropic_payload
+from router.model_ids import ANTHROPIC_SAFETY_MODEL
 from router.schemas import ChatMessage
 
 
 def test_build_payload_extracts_system_to_top_level() -> None:
     """System messages must map to Anthropic's top-level system field."""
     payload = _build_anthropic_payload(
-        "claude-3-5-sonnet",
+        ANTHROPIC_SAFETY_MODEL,
         [
             ChatMessage(role="system", content="You are a careful medical assistant."),
             ChatMessage(role="user", content="Summarize this case."),
@@ -28,7 +29,7 @@ def test_build_payload_extracts_system_to_top_level() -> None:
 def test_build_payload_joins_multiple_system_messages() -> None:
     """Multiple system messages are joined for Anthropic's single system field."""
     payload = _build_anthropic_payload(
-        "claude-3-5-sonnet",
+        ANTHROPIC_SAFETY_MODEL,
         [
             ChatMessage(role="system", content="Policy A."),
             ChatMessage(role="system", content="Policy B."),
@@ -64,7 +65,7 @@ async def test_complete_posts_system_field_to_anthropic() -> None:
 
     with patch("adapters.anthropic.httpx.AsyncClient", return_value=mock_client):
         await adapter.complete(
-            "claude-3-5-sonnet",
+            ANTHROPIC_SAFETY_MODEL,
             [
                 ChatMessage(role="system", content="Safety policy."),
                 ChatMessage(role="user", content="Hello."),
