@@ -34,16 +34,7 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         """Return a normalized Gemini completion."""
         if not self._api_key:
             raise ProviderError("GOOGLE_API_KEY is not configured")
-        payload = {
-            "contents": [
-                {
-                    "role": "model" if message.role == "assistant" else "user",
-                    "parts": [{"text": message.content}],
-                }
-                for message in messages
-            ],
-            "generationConfig": {"maxOutputTokens": max_tokens},
-        }
+        payload = _build_gemini_payload(messages, max_tokens)
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"{model}:generateContent?key={self._api_key}"
@@ -87,3 +78,22 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
     async def health_check(self) -> bool:
         """Return whether Google credentials are configured."""
         return self._api_key is not None
+
+
+def _build_gemini_payload(messages: list[ChatMessage], max_tokens: int) -> dict[str, object]:
+    """Build a Gemini generateContent payload from normalized chat messages."""
+    system_text = "\n\n".join(message.content for message in messages if message.role == "system")
+    payload: dict[str, object] = {
+        "contents": [
+            {
+                "role": "model" if message.role == "assistant" else "user",
+                "parts": [{"text": message.content}],
+            }
+            for message in messages
+            if message.role != "system"
+        ],
+        "generationConfig": {"maxOutputTokens": max_tokens},
+    }
+    if system_text:
+        payload["systemInstruction"] = {"parts": [{"text": system_text}]}
+    return payload
