@@ -90,11 +90,11 @@ class NexusRouter:
         state_machine = RoutingStateMachine()
         started_at = time.perf_counter()
         self._rate_limiter.assert_allowed(request.api_key_id)
-        router_requests_total.labels("unknown", state_machine.current_state.value).inc()
+        strategy_name = request.strategy or self._settings.default_strategy
+        router_requests_total.labels(strategy_name.value, state_machine.current_state.value).inc()
 
         signals = self._analyzer.analyze(request)
         state_machine.transition(RequestState.CLASSIFIED)
-        strategy_name = request.strategy or self._settings.default_strategy
         strategy = self._strategies[strategy_name]
         decision = strategy.choose(request, signals)
         state_machine.transition(RequestState.ROUTED)
