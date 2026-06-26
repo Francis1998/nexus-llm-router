@@ -110,12 +110,12 @@ class NexusRouter:
 
         for attempt_index, model_name in enumerate(attempts):
             candidate = self._model_catalog[model_name]
-            adapter = self._adapter_registry.get(candidate.provider)
-            estimated_cost = candidate.estimate_cost(
-                signals.prompt_tokens_estimate, request.max_tokens
-            )
-            self._budget_guardrail.assert_can_spend(request.user_id, estimated_cost)
             try:
+                adapter = self._adapter_registry.get(candidate.provider)
+                estimated_cost = candidate.estimate_cost(
+                    signals.prompt_tokens_estimate, request.max_tokens
+                )
+                self._budget_guardrail.assert_can_spend(request.user_id, estimated_cost)
                 self._circuit_breakers.assert_available(candidate.provider)
                 dispatchable_state = state_machine.current_state in {
                     RequestState.ROUTED,

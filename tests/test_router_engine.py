@@ -94,6 +94,34 @@ async def test_fallback_chain_uses_next_provider_on_failure(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
+async def test_fallback_chain_uses_next_provider_when_selected_adapter_missing(
+    tmp_path: Path,
+) -> None:
+    """Router should fallback when the selected provider is not registered."""
+    router = NexusRouter(
+        settings=RouterSettings(audit_log_path=str(tmp_path / "audit.jsonl")),
+        adapter_registry=AdapterRegistry(
+            {
+                "anthropic": MockProviderAdapter("anthropic"),
+                "google": MockProviderAdapter("google"),
+                "moonshot": MockProviderAdapter("moonshot"),
+            },
+        ),
+    )
+
+    response = await router.complete(
+        RouterRequest(
+            request_id="req-missing-openai",
+            messages=[ChatMessage(content="Debug this Python class with async retries and tests.")],
+            strategy=RoutingStrategyName.RULE_BASED,
+        ),
+    )
+
+    assert response.model_used == ANTHROPIC_SAFETY_MODEL
+    assert "fallback attempt" in response.rationale
+
+
+@pytest.mark.asyncio
 async def test_cost_optimal_respects_quality_floor(tmp_path: Path) -> None:
     """Cost-optimal routing should choose the cheapest model above quality floor."""
     router = NexusRouter(
