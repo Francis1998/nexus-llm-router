@@ -4,6 +4,13 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from router.model_ids import (
+    ANTHROPIC_SAFETY_MODEL,
+    GEMINI_FLASH_MODEL,
+    OPENAI_BALANCED_MODEL,
+    OPENAI_FRONTIER_MODEL,
+)
+
 WIDTH = 1120
 HEIGHT = 520
 PADDING = 24
@@ -29,43 +36,46 @@ def demo_lines() -> list[tuple[str, tuple[int, int, int]]]:
     return [
         ("$ PYTHONPATH=src python scripts/benchmark.py", PROMPT),
         (
-            '{"request_id":"demo-medical","model":"claude-3-5-sonnet",'
+            f'{{"request_id":"demo-medical","model":"{ANTHROPIC_SAFETY_MODEL}",'
             '"strategy":"rule-based","rationale":"medical domain requires highest safety prior"}',
             MUTED,
         ),
         (
-            "medical: strategy=rule-based model=claude-3-5-sonnet "
+            f"medical: strategy=rule-based model={ANTHROPIC_SAFETY_MODEL} "
             "cost=$0.000026 rationale=medical domain requires highest safety prior",
             TEXT,
         ),
         (
-            '{"request_id":"demo-code","model":"gpt-4o","strategy":"classifier",'
+            f'{{"request_id":"demo-code","model":"{OPENAI_FRONTIER_MODEL}",'
+            '"strategy":"classifier",'
             '"rationale":"classifier detected code domain"}',
             MUTED,
         ),
         (
-            "code: strategy=classifier model=gpt-4o "
+            f"code: strategy=classifier model={OPENAI_FRONTIER_MODEL} "
             "cost=$0.000028 rationale=classifier detected code domain",
             TEXT,
         ),
         (
-            '{"request_id":"demo-cost","model":"gpt-4o-mini","strategy":"cost-optimal",'
+            f'{{"request_id":"demo-cost","model":"{OPENAI_BALANCED_MODEL}",'
+            '"strategy":"cost-optimal",'
             '"rationale":"LP objective minimized estimated cost with quality floor"}',
             MUTED,
         ),
         (
-            "cost: strategy=cost-optimal model=gpt-4o-mini "
+            f"cost: strategy=cost-optimal model={OPENAI_BALANCED_MODEL} "
             "cost=$0.000027 rationale=LP objective minimized estimated cost $0.000309",
             TEXT,
         ),
         (
-            '{"request_id":"demo-ab","model":"gpt-4o-mini","strategy":"ab",'
-            '"rationale":"A/B bucket=0.3442 routed to gpt-4o-mini"}',
+            f'{{"request_id":"demo-ab","model":"{OPENAI_BALANCED_MODEL}",'
+            '"strategy":"ab",'
+            f'"rationale":"A/B bucket=0.3442 routed to {OPENAI_BALANCED_MODEL}"}}',
             MUTED,
         ),
         (
-            "ab: strategy=ab model=gpt-4o-mini "
-            "cost=$0.000023 rationale=A/B bucket=0.3442 routed to gpt-4o-mini",
+            f"ab: strategy=ab model={OPENAI_BALANCED_MODEL} "
+            f"cost=$0.000023 rationale=A/B bucket=0.3442 routed to {OPENAI_BALANCED_MODEL}",
             TEXT,
         ),
     ]
@@ -82,7 +92,7 @@ def use_case_slides() -> list[Slide]:
             "Issue: frontier model spend is growing faster than traffic",
             [
                 ("signal: simple summarization, realtime, low risk", MUTED),
-                ("decision: route to gemini-1.5-flash", ACCENT),
+                (f"decision: route to {GEMINI_FLASH_MODEL}", ACCENT),
                 ("result: lower cost while preserving latency target", SUCCESS),
             ],
         ),
@@ -90,7 +100,7 @@ def use_case_slides() -> list[Slide]:
             "Issue: medical/legal prompts need conservative defaults",
             [
                 ("signal: domain=medical/legal, complexity=0.73", MUTED),
-                ("decision: route to claude-3-5-sonnet", ACCENT),
+                (f"decision: route to {ANTHROPIC_SAFETY_MODEL}", ACCENT),
                 ("result: deterministic rationale and audit trail", SUCCESS),
             ],
         ),
@@ -140,7 +150,7 @@ def decision_flow_slides() -> list[Slide]:
             "CLASSIFIED -> ROUTED",
             [
                 ("strategy = classifier", MUTED),
-                ("chosen_model = gpt-4o", ACCENT),
+                (f"chosen_model = {OPENAI_FRONTIER_MODEL}", ACCENT),
                 ("rationale = classifier detected code domain", SUCCESS),
             ],
         ),
