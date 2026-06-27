@@ -1,5 +1,6 @@
 """Regression tests for cost-optimal routing with restricted catalogs."""
 
+from router.model_ids import MOONSHOT_BALANCED_MODEL, OPENAI_BALANCED_MODEL
 from router.schemas import (
     ChatMessage,
     DomainTag,
@@ -14,16 +15,16 @@ from router.strategies import CostOptimalStrategy
 def _general_only_catalog() -> dict[str, ModelCandidate]:
     """Build a catalog whose models only support the general domain."""
     return {
-        "gpt-4o-mini": ModelCandidate(
-            model="gpt-4o-mini",
+        OPENAI_BALANCED_MODEL: ModelCandidate(
+            model=OPENAI_BALANCED_MODEL,
             provider="openai",
             quality_score=0.82,
             input_cost_per_1k=0.00015,
             output_cost_per_1k=0.0006,
             supports_domains={DomainTag.GENERAL},
         ),
-        "kimi-k2": ModelCandidate(
-            model="kimi-k2",
+        MOONSHOT_BALANCED_MODEL: ModelCandidate(
+            model=MOONSHOT_BALANCED_MODEL,
             provider="moonshot",
             quality_score=0.90,
             input_cost_per_1k=0.0005,
@@ -56,7 +57,7 @@ def test_cost_optimal_falls_back_when_no_model_supports_domain() -> None:
 
     decision = strategy.choose(request, signals)
 
-    assert decision.chosen_model == "kimi-k2"
+    assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
     assert "quality floor forced" in decision.rationale
 
 
@@ -78,5 +79,5 @@ def test_cost_optimal_falls_back_when_quality_floor_unreachable() -> None:
 
     decision = strategy.choose(request, signals)
 
-    assert decision.chosen_model == "kimi-k2"
+    assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
     assert "quality floor forced" in decision.rationale
