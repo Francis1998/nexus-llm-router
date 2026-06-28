@@ -5,6 +5,7 @@ Nexus uses `pydantic-settings`. Application settings use the `NEXUS_` prefix. Pr
 ## Core Settings
 
 ```dotenv
+NEXUS_ENVIRONMENT=development
 NEXUS_DEFAULT_STRATEGY=rule-based
 NEXUS_AUDIT_LOG_PATH=migrations/audit-log.jsonl
 NEXUS_BUDGET_CAP_USD=25.0
@@ -24,6 +25,18 @@ MOONSHOT_API_KEY=
 MOONSHOT_BASE_URL=https://api.moonshot.ai/v1
 REQUEST_TIMEOUT_SECONDS=30
 ```
+
+## A/B Routing Settings
+
+The `ab` strategy assigns a stable bucket from the request ID and compares two configured model arms without changing application code.
+
+```dotenv
+NEXUS_AB_MODEL_A=gpt-4.1-mini
+NEXUS_AB_MODEL_B=claude-haiku-4-5
+NEXUS_AB_MODEL_A_WEIGHT=0.5
+```
+
+Use `gpt-5.5`, `claude-sonnet-4-6`, `gemini-3.1-pro-preview`, or `kimi-k2` for higher-quality evaluation arms when the experiment budget allows it.
 
 ## Per-Request Strategy Selection
 

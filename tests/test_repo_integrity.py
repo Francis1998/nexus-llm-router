@@ -42,14 +42,28 @@ def test_ci_targets_supported_python_versions() -> None:
     ci_config = (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     assert "3.10" not in ci_config
     assert "3.11" in ci_config
-    assert 'ruff check src/' in ci_config
+    assert "ruff check src/" in ci_config
     assert "mypy src/" in ci_config
+
+
+def test_nexus_env_example_keys_are_documented() -> None:
+    """Every NEXUS-prefixed environment example key should be documented."""
+    env_example = (REPO_ROOT / ".env.example").read_text(encoding="utf-8")
+    configuration_doc = (REPO_ROOT / "CONFIGURATION.md").read_text(encoding="utf-8")
+    nexus_keys = {
+        line.split("=", maxsplit=1)[0]
+        for line in env_example.splitlines()
+        if line.startswith("NEXUS_")
+    }
+
+    missing_keys = sorted(key for key in nexus_keys if key not in configuration_doc)
+    assert missing_keys == []
 
 
 def test_dockerfile_uses_production_dependencies() -> None:
     """Production image should not install dev extras."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
-    assert '.[dev]' not in dockerfile
+    assert ".[dev]" not in dockerfile
     assert "pip install" in dockerfile
 
 
