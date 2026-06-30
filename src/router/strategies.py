@@ -294,13 +294,21 @@ class ABRoutingStrategy(RoutingStrategy):
             model_catalog: Available model candidates by model name.
             model_a: First experiment arm.
             model_b: Second experiment arm.
-            model_a_weight: Bucket weight for model A.
+            model_a_weight: Bucket weight for model A, within ``[0.0, 1.0]``.
+
+        Raises:
+            ValueError: If an arm is missing from the catalog or the weight is
+                outside the ``[0.0, 1.0]`` range.
         """
         super().__init__(model_catalog)
         unknown_arms = [arm for arm in (model_a, model_b) if arm not in model_catalog]
         if unknown_arms:
             raise ValueError(
                 f"A/B experiment arms not in model catalog: {', '.join(sorted(unknown_arms))}"
+            )
+        if not 0.0 <= model_a_weight <= 1.0:
+            raise ValueError(
+                f"A/B model_a_weight must be within [0.0, 1.0], got {model_a_weight}"
             )
         self._model_a = model_a
         self._model_b = model_b

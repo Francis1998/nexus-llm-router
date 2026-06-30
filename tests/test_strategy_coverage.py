@@ -132,6 +132,17 @@ def test_ab_strategy_rejects_unknown_experiment_models() -> None:
         )
 
 
+def test_ab_strategy_rejects_out_of_range_weight() -> None:
+    """A/B weights outside [0.0, 1.0] should fail fast at construction."""
+    with pytest.raises(ValueError, match="model_a_weight must be within"):
+        ABRoutingStrategy(
+            default_model_catalog(),
+            model_a=OPENAI_BALANCED_MODEL,
+            model_b=ANTHROPIC_SAFETY_MODEL,
+            model_a_weight=1.5,
+        )
+
+
 def test_ab_strategy_routes_to_in_catalog_arms() -> None:
     """A/B routing should resolve to a configured, in-catalog arm."""
     strategy = ABRoutingStrategy(
