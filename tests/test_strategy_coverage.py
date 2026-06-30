@@ -5,6 +5,8 @@ the rule-based priority matrix, the classifier complexity tiers, the
 cost-optimal quality-floor fallback, and complexity-score monotonicity.
 """
 
+import pytest
+
 from classifier.complexity import LogisticComplexityClassifier
 from classifier.features import extract_prompt_features
 from router.config import default_model_catalog
@@ -24,6 +26,7 @@ from router.schemas import (
     TaskSignals,
 )
 from router.strategies import (
+    ABRoutingStrategy,
     ClassifierStrategy,
     CostOptimalStrategy,
     RuleBasedStrategy,
@@ -116,6 +119,29 @@ def test_cost_optimal_forces_fallback_when_floor_unreachable() -> None:
     decision = strategy.choose(_request(), _signals(0.5, DomainTag.GENERAL))
     assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
     assert "quality floor forced" in decision.rationale
+
+
+def test_ab_strategy_rejects_unknown_experiment_models() -> None:
+    """A/B arms outside the catalog should fail fast at construction."""
+    with pytest.raises(ValueError, match="not in model catalog"):
+        ABRoutingStrategy(
+            default_model_catalog(),
+            model_a="nonexistent-model",
+            model_b=OPENAI_BALANCED_MODEL,
+            model_a_weight=0.5,
+        )
+
+
+def test_ab_strategy_routes_to_in_catalog_arms() -> None:
+    """A/B routing should resolve to a configured, in-catalog arm."""
+    strategy = ABRoutingStrategy(
+        default_model_catalog(),
+        model_a=OPENAI_BALANCED_MODEL,
+        model_b=ANTHROPIC_SAFETY_MODEL,
+        model_a_weight=0.5,
+    )
+    decision = strategy.choose(_request(), _signals(0.5, DomainTag.GENERAL))
+    assert decision.chosen_model in {OPENAI_BALANCED_MODEL, ANTHROPIC_SAFETY_MODEL}
 
 
 def test_complexity_score_increases_with_instruction_hits() -> None:

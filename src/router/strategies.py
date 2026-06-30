@@ -297,6 +297,11 @@ class ABRoutingStrategy(RoutingStrategy):
             model_a_weight: Bucket weight for model A.
         """
         super().__init__(model_catalog)
+        unknown_arms = [arm for arm in (model_a, model_b) if arm not in model_catalog]
+        if unknown_arms:
+            raise ValueError(
+                f"A/B experiment arms not in model catalog: {', '.join(sorted(unknown_arms))}"
+            )
         self._model_a = model_a
         self._model_b = model_b
         self._model_a_weight = model_a_weight
