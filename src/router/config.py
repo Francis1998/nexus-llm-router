@@ -47,7 +47,7 @@ class RouterSettings(BaseSettings):
     enable_pii_scrubbing: bool = False
     ab_model_a: str = OPENAI_BALANCED_MODEL
     ab_model_b: str = ANTHROPIC_FAST_MODEL
-    ab_model_a_weight: float = 0.5
+    ab_model_a_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.5
     quality_floor: Annotated[float, Field(ge=0.0, le=1.0)] = 0.72
 
 
