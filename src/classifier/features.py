@@ -6,6 +6,9 @@ from dataclasses import dataclass
 CODE_PATTERN = re.compile(r"```|def |class |import |SELECT |function |const |async ")
 MEDICAL_PATTERN = re.compile(r"\b(patient|diagnosis|clinical|medical|symptom|treatment)\b", re.I)
 LEGAL_PATTERN = re.compile(r"\b(contract|clause|statute|liability|legal|compliance)\b", re.I)
+INSTRUCTION_PATTERN = re.compile(
+    r"\b(analyze|debug|prove|design|optimize|compare)\w*", re.I
+)
 
 
 @dataclass(frozen=True)
@@ -31,10 +34,7 @@ def extract_prompt_features(prompt_text: str) -> PromptFeatures:
         Feature vector derived from the prompt.
     """
     words = re.findall(r"\w+", prompt_text)
-    instruction_hits = sum(
-        prompt_text.lower().count(keyword)
-        for keyword in ("analyze", "debug", "prove", "design", "optimize", "compare")
-    )
+    instruction_hits = len(INSTRUCTION_PATTERN.findall(prompt_text))
     return PromptFeatures(
         character_count=len(prompt_text),
         word_count=len(words),

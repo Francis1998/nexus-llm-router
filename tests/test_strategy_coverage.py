@@ -163,3 +163,17 @@ def test_complexity_score_increases_with_instruction_hits() -> None:
         extract_prompt_features("Analyze, debug, optimize, and compare these approaches.")
     )
     assert complex_prompt > simple
+
+
+def test_instruction_hits_ignore_substring_false_positives() -> None:
+    """Words that merely contain a keyword must not count as instructions."""
+    features = extract_prompt_features(
+        "Please improve and approve the paragraph about the province."
+    )
+    assert features.instruction_hits == 0
+
+
+def test_instruction_hits_count_keyword_inflections() -> None:
+    """Inflected instruction verbs anchored at a word start should count."""
+    features = extract_prompt_features("It optimizes throughput and debugged the parser.")
+    assert features.instruction_hits == 2
