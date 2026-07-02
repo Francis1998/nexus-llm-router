@@ -24,8 +24,8 @@ from router.schemas import (
 )
 from router.state import RequestState, RoutingStateMachine
 from router.strategies import LatencyStats, RoutingStrategy, build_strategies
-from safety.budget import BudgetGuardrail
-from safety.circuit_breaker import CircuitBreakerRegistry
+from safety.budget import BudgetExceededError, BudgetGuardrail
+from safety.circuit_breaker import CircuitBreakerRegistry, CircuitOpenError
 from safety.pii import PiiScrubber
 from safety.rate_limiter import TokenBucketRateLimiter
 
@@ -110,13 +110,34 @@ class NexusRouter:
 
         for attempt_index, model_name in enumerate(attempts):
             candidate = self._model_catalog[model_name]
+            is_last_attempt = attempt_index == len(attempts) - 1
+
+            # Client-side guardrails (budget cap, open circuit) are not provider
+            # faults. Skipping a candidate for these reasons must not record a
+            # provider failure or trip its circuit breaker, otherwise repeated
+            # budget rejections could open a healthy provider's circuit and
+            # degrade unrelated traffic.
             try:
-                adapter = self._adapter_registry.get(candidate.provider)
                 estimated_cost = candidate.estimate_cost(
                     signals.prompt_tokens_estimate, request.max_tokens
                 )
                 self._budget_guardrail.assert_can_spend(request.user_id, estimated_cost)
                 self._circuit_breakers.assert_available(candidate.provider)
+            except (BudgetExceededError, CircuitOpenError) as guardrail_error:
+                last_error = guardrail_error
+                self._logger.warning(
+                    "provider_attempt_skipped",
+                    request_id=request.request_id,
+                    provider=candidate.provider,
+                    model=model_name,
+                    error=str(guardrail_error),
+                )
+                if is_last_attempt:
+                    state_machine.transition(RequestState.FAILED)
+                continue
+
+            try:
+                adapter = self._adapter_registry.get(candidate.provider)
                 dispatchable_state = state_machine.current_state in {
                     RequestState.ROUTED,
                     RequestState.FALLBACK,
@@ -148,7 +169,7 @@ class NexusRouter:
                     model=model_name,
                     error=str(exception),
                 )
-                if attempt_index < len(attempts) - 1:
+                if not is_last_attempt:
                     if state_machine.current_state is RequestState.DISPATCHED:
                         state_machine.transition(RequestState.FALLBACK)
                     continue

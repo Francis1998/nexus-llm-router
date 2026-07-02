@@ -10,7 +10,7 @@ import pytest
 from adapters.mock import MockProviderAdapter
 from adapters.registry import AdapterRegistry
 from router.config import RouterSettings
-from router.engine import NexusRouter
+from router.engine import NexusRouter, RoutingFailedError
 from router.model_ids import ANTHROPIC_SAFETY_MODEL, OPENAI_BALANCED_MODEL
 from router.schemas import ChatMessage, RouterRequest, RoutingStrategyName
 from router.state import RequestState
@@ -38,6 +38,21 @@ class FakeRouterRequestsMetric:
         """Record labels and return an incrementable metric child."""
 
         self.labels_seen.append((strategy, state))
+        return FakeMetricIncrementer()
+
+
+class FakeProviderErrorRate:
+    """Test double for the provider error-rate counter."""
+
+    def __init__(self) -> None:
+        """Initialize captured label values."""
+
+        self.labels_seen: list[tuple[str, str]] = []
+
+    def labels(self, provider: str, model: str) -> FakeMetricIncrementer:
+        """Record provider/model labels and return an incrementable child."""
+
+        self.labels_seen.append((provider, model))
         return FakeMetricIncrementer()
 
 
@@ -182,3 +197,50 @@ async def test_request_metrics_use_selected_strategy_label(
         (RoutingStrategyName.RULE_BASED.value, RequestState.RECEIVED.value),
         (RoutingStrategyName.RULE_BASED.value, RequestState.RESPONDED.value),
     ]
+
+
+@pytest.mark.asyncio
+async def test_budget_rejection_is_not_counted_as_provider_error(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """A budget-cap rejection must not be recorded as a provider fault.
+
+    A budget cap is a client-side guardrail, not a provider outage. Recording it
+    as a provider error (and tripping the circuit breaker) would let repeated
+    budget rejections open a healthy provider's circuit and degrade unrelated
+    traffic. With the cap set to zero every candidate is over budget, so the
+    request fails without any provider-error metric or circuit-breaker failure.
+    """
+
+    error_rate = FakeProviderErrorRate()
+    monkeypatch.setattr("router.engine.provider_error_rate", error_rate)
+    router = NexusRouter(
+        settings=RouterSettings(
+            audit_log_path=str(tmp_path / "audit.jsonl"),
+            budget_cap_usd=0.0,
+        ),
+        adapter_registry=AdapterRegistry(
+            {
+                "openai": MockProviderAdapter("openai"),
+                "anthropic": MockProviderAdapter("anthropic"),
+                "google": MockProviderAdapter("google"),
+                "moonshot": MockProviderAdapter("moonshot"),
+            },
+        ),
+    )
+
+    with pytest.raises(RoutingFailedError):
+        await router.complete(
+            RouterRequest(
+                request_id="req-over-budget",
+                messages=[ChatMessage(content="Summarize this infrastructure incident.")],
+                strategy=RoutingStrategyName.RULE_BASED,
+            ),
+        )
+
+    assert error_rate.labels_seen == []
+    assert all(
+        state.consecutive_failures == 0 and state.opened_at is None
+        for state in router._circuit_breakers._states.values()
+    )
