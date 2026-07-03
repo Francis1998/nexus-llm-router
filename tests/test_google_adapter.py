@@ -47,3 +47,49 @@ async def test_complete_posts_system_instruction_to_gemini() -> None:
     payload = captured["json"]
     assert payload["systemInstruction"] == {"parts": [{"text": "Safety policy."}]}
     assert payload["contents"] == [{"role": "user", "parts": [{"text": "Hello."}]}]
+
+
+@pytest.mark.asyncio()
+async def test_complete_concatenates_all_gemini_text_parts() -> None:
+    """complete() must join every text part, not only the first.
+
+    Gemini's ``candidates[0].content.parts`` is a list that can hold multiple
+    text segments (and non-text parts). Reading only ``parts[0]`` silently
+    truncated multi-part completions. Non-text parts must be skipped and all
+    text parts concatenated in order.
+    """
+    adapter = GoogleGeminiAdapter(api_key="test-key", timeout_seconds=5.0)
+
+    async def fake_post(*args: object, **kwargs: object) -> MagicMock:
+        del args, kwargs
+        response = MagicMock()
+        response.status_code = 200
+        response.json.return_value = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"text": "Hello, "},
+                            {"functionCall": {"name": "noop"}},
+                            {"text": "world."},
+                        ]
+                    }
+                }
+            ],
+            "usageMetadata": {"promptTokenCount": 3, "candidatesTokenCount": 2},
+        }
+        return response
+
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = fake_post
+
+    with patch("adapters.google.httpx.AsyncClient", return_value=mock_client):
+        result = await adapter.complete(
+            GEMINI_FLASH_MODEL,
+            [ChatMessage(role="user", content="Hi.")],
+            max_tokens=32,
+        )
+
+    assert result.content == "Hello, world."
