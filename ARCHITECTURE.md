@@ -56,6 +56,16 @@ Strategies return `RoutingDecision`, which includes selected model, provider, st
 
 Concrete adapters live in `src/adapters/`.
 
+### Response normalization contract
+
+Each adapter normalizes a provider-specific payload into a `ProviderResponse`
+(`content`, `model`, `input_tokens`, `output_tokens`, `cost_usd`). Because
+provider content is a *list* (OpenAI `choices`, Gemini `content.parts`), an
+adapter must reconstruct the full text rather than reading only the first
+element: it concatenates every text segment in order and skips non-text parts
+(for example Gemini `functionCall` parts). Reading a single element silently
+truncates multi-part completions.
+
 ## Audit Log
 
 `AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, and final state.

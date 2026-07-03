@@ -16,6 +16,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Demo GIF gallery and offline benchmark/demo script.
 
 ### Fixed
+- Gemini adapter now concatenates all `content.parts` text segments (skipping non-text parts) instead of reading only the first, preventing silent truncation of multi-part completions.
 - Restored README positioning after generated documentation overwrote project-specific content.
 - Restored CI to supported Python versions and verified quality gates.
 - Restored the real offline routing demo script after a placeholder benchmark overwrite.
