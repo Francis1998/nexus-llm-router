@@ -50,9 +50,12 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
             candidate_content = candidates[0].get("content", {})
             if isinstance(candidate_content, dict):
                 parts = candidate_content.get("parts", [])
-                if isinstance(parts, list) and parts and isinstance(parts[0], dict):
-                    raw_text = parts[0].get("text", "")
-                    content = raw_text if isinstance(raw_text, str) else ""
+                if isinstance(parts, list):
+                    content = "".join(
+                        part["text"]
+                        for part in parts
+                        if isinstance(part, dict) and isinstance(part.get("text"), str)
+                    )
         input_tokens = nested_int(body, ["usageMetadata", "promptTokenCount"])
         output_tokens = nested_int(body, ["usageMetadata", "candidatesTokenCount"])
         return ProviderResponse(
