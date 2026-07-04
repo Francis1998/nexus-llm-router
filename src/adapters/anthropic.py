@@ -9,6 +9,37 @@ from adapters.http_utils import json_object, nested_int
 from router.schemas import ChatMessage, ProviderResponse
 
 
+def _extract_anthropic_text(content_blocks: object) -> str:
+    """Concatenate text from all text blocks in an Anthropic response.
+
+    The Messages API returns ``content`` as an ordered list of typed blocks. A
+    response may contain several ``text`` blocks, and a non-text block (for
+    example a ``thinking`` block when extended thinking is enabled, or a
+    ``tool_use`` block) can precede the answer. Reading only ``content[0].text``
+    therefore returned an empty string whenever the first block was not text and
+    truncated multi-block answers to their first segment. All ``text`` blocks
+    are joined in order to faithfully reconstruct the completion.
+
+    Args:
+        content_blocks: The ``content`` field of an Anthropic response body.
+
+    Returns:
+        The concatenated text of every text block, or an empty string.
+    """
+    if not isinstance(content_blocks, list):
+        return ""
+    segments: list[str] = []
+    for block in content_blocks:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") not in (None, "text"):
+            continue
+        text_value = block.get("text")
+        if isinstance(text_value, str):
+            segments.append(text_value)
+    return "".join(segments)
+
+
 def _build_anthropic_payload(
     model: str, messages: list[ChatMessage], max_tokens: int
 ) -> dict[str, object]:
@@ -68,15 +99,7 @@ class AnthropicAdapter(BaseProviderAdapter):
         if response.status_code >= 400:
             raise ProviderError(f"anthropic request failed with status {response.status_code}")
         body = json_object(response)
-        content_blocks = body.get("content", [])
-        content = ""
-        if (
-            isinstance(content_blocks, list)
-            and content_blocks
-            and isinstance(content_blocks[0], dict)
-        ):
-            raw_text = content_blocks[0].get("text", "")
-            content = raw_text if isinstance(raw_text, str) else ""
+        content = _extract_anthropic_text(body.get("content", []))
         input_tokens = nested_int(body, ["usage", "input_tokens"])
         output_tokens = nested_int(body, ["usage", "output_tokens"])
         return ProviderResponse(

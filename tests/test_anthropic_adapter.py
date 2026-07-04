@@ -7,9 +7,31 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from adapters.anthropic import AnthropicAdapter, _build_anthropic_payload
+from adapters.anthropic import (
+    AnthropicAdapter,
+    _build_anthropic_payload,
+    _extract_anthropic_text,
+)
 from router.model_ids import ANTHROPIC_SAFETY_MODEL
 from router.schemas import ChatMessage
+
+
+def test_extract_text_joins_blocks_after_leading_thinking_block() -> None:
+    """Text must survive a leading non-text block and span multiple text blocks.
+
+    Anthropic returns ``content`` as ordered typed blocks. Reading only
+    ``content[0].text`` yielded an empty answer when a ``thinking`` (or other
+    non-text) block came first, and dropped later segments when the answer was
+    split across several ``text`` blocks. Every ``text`` block must be joined in
+    order.
+    """
+    blocks = [
+        {"type": "thinking", "thinking": "internal reasoning"},
+        {"type": "text", "text": "Hello "},
+        {"type": "tool_use", "id": "t1", "input": {}},
+        {"type": "text", "text": "world"},
+    ]
+    assert _extract_anthropic_text(blocks) == "Hello world"
 
 
 def test_build_payload_extracts_system_to_top_level() -> None:
