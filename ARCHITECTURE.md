@@ -60,11 +60,13 @@ Concrete adapters live in `src/adapters/`.
 
 Each adapter normalizes a provider-specific payload into a `ProviderResponse`
 (`content`, `model`, `input_tokens`, `output_tokens`, `cost_usd`). Because
-provider content is a *list* (OpenAI `choices`, Gemini `content.parts`), an
-adapter must reconstruct the full text rather than reading only the first
-element: it concatenates every text segment in order and skips non-text parts
-(for example Gemini `functionCall` parts). Reading a single element silently
-truncates multi-part completions.
+provider content is a *list* (OpenAI `choices`, Gemini `content.parts`,
+Anthropic `content` blocks), an adapter must reconstruct the full text rather
+than reading only the first element: it concatenates every text segment in
+order and skips non-text parts (for example Gemini `functionCall` parts, or
+Anthropic `thinking`/`tool_use` blocks that can precede the answer). Reading a
+single element silently truncates multi-part completions and returns an empty
+string whenever the leading element is not itself a text segment.
 
 ## Audit Log
 
