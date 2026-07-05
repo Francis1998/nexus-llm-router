@@ -44,6 +44,38 @@ def nested_str(payload: JsonObject, path: list[str], default: str = "") -> str:
     return value if isinstance(value, str) else default
 
 
+def message_text(message: object) -> str:
+    """Extract assistant text from an OpenAI-compatible message object.
+
+    The base Chat Completions contract returns ``content`` as a string, but
+    several OpenAI-compatible gateways (LiteLLM, vLLM, OpenRouter) return it as a
+    list of ``{"type": "text", "text": ...}`` parts. Both shapes are supported;
+    unrecognized shapes yield an empty string.
+
+    Args:
+        message: The ``choices[i].message`` object.
+
+    Returns:
+        Concatenated assistant text, or an empty string when absent.
+    """
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        segments: list[str] = []
+        for part in content:
+            if isinstance(part, str) and part:
+                segments.append(part)
+            elif isinstance(part, dict):
+                text_value = part.get("text")
+                if isinstance(text_value, str) and text_value:
+                    segments.append(text_value)
+        return "".join(segments)
+    return ""
+
+
 def nested_int(payload: JsonObject, path: list[str], default: int = 0) -> int:
     """Read a nested integer field.
 
