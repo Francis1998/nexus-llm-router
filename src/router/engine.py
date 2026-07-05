@@ -57,6 +57,7 @@ class NexusRouter:
         self._analyzer = analyzer or RequestAnalyzer()
         self._model_catalog = dict(model_catalog or default_model_catalog())
         self._latency_stats = LatencyStats()
+        self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
             self._latency_stats,
@@ -64,10 +65,10 @@ class NexusRouter:
             settings.ab_model_a,
             settings.ab_model_b,
             settings.ab_model_a_weight,
+            self._circuit_breakers,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
-        self._circuit_breakers = CircuitBreakerRegistry()
         self._pii_scrubber = PiiScrubber(settings.enable_pii_scrubbing)
         self._rate_limiter = TokenBucketRateLimiter(
             settings.rate_limit_capacity,

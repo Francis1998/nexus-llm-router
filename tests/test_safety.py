@@ -26,6 +26,21 @@ def test_circuit_breaker_opens_after_three_failures() -> None:
         circuit_breakers.assert_available("openai")
 
 
+def test_circuit_breaker_is_available_reports_open_state_without_mutation() -> None:
+    """``is_available`` reflects an open circuit and never resets its state."""
+    circuit_breakers = CircuitBreakerRegistry(failure_threshold=2, recovery_window_seconds=60.0)
+
+    assert circuit_breakers.is_available("openai") is True
+
+    circuit_breakers.record_failure("openai")
+    circuit_breakers.record_failure("openai")
+
+    assert circuit_breakers.is_available("openai") is False
+    # The read must not recover the circuit, so assert_available still trips.
+    with pytest.raises(CircuitOpenError):
+        circuit_breakers.assert_available("openai")
+
+
 def test_pii_scrubber_redacts_email_and_phone() -> None:
     """PII scrubber should redact email addresses and US phone numbers."""
     scrubber = PiiScrubber(enabled=True)
