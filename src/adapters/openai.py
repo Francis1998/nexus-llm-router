@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
-from adapters.http_utils import json_object, nested_int
+from adapters.http_utils import json_object, message_text, nested_int
 from router.schemas import ChatMessage, ProviderResponse
 
 
@@ -52,10 +52,7 @@ class OpenAIAdapter(BaseProviderAdapter):
         choices = body.get("choices", [])
         content = ""
         if isinstance(choices, list) and choices and isinstance(choices[0], dict):
-            message = choices[0].get("message", {})
-            if isinstance(message, dict):
-                raw_content = message.get("content", "")
-                content = raw_content if isinstance(raw_content, str) else ""
+            content = message_text(choices[0].get("message"))
         input_tokens = nested_int(body, ["usage", "prompt_tokens"])
         output_tokens = nested_int(body, ["usage", "completion_tokens"])
         return ProviderResponse(

@@ -68,6 +68,12 @@ Anthropic `thinking`/`tool_use` blocks that can precede the answer). Reading a
 single element silently truncates multi-part completions and returns an empty
 string whenever the leading element is not itself a text segment.
 
+The same rule applies to a single message's `content`: OpenAI-compatible
+gateways may return `message.content` as a structured list of
+`{"type": "text", "text": ...}` parts rather than a string. The shared
+`adapters.http_utils.message_text` helper accepts either shape and joins the
+text parts, so the OpenAI and Moonshot adapters never drop a valid completion.
+
 ## Audit Log
 
 `AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, and final state.

@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `reliability-aware` routing strategy: routes to the highest-quality model whose provider circuit breaker is closed and orders the fallback chain healthy-providers-first, backed by a non-mutating `CircuitBreakerRegistry.is_available()` read.
 - OpenAI-compatible FastAPI router API.
 - Observe -> Decide -> Act routing engine.
 - Rule-based, classifier, cost-optimal, latency-aware, and A/B routing strategies.
@@ -16,6 +17,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Demo GIF gallery and offline benchmark/demo script.
 
 ### Fixed
+- OpenAI and Moonshot adapters now join structured `message.content` part lists (returned by OpenAI-compatible gateways such as LiteLLM, vLLM, and OpenRouter) via a shared `message_text()` helper, instead of silently returning an empty completion for the non-string shape.
 - Anthropic adapter now joins all `content` text blocks (skipping non-text blocks such as `thinking`/`tool_use`) instead of reading only `content[0].text`, which returned an empty completion when a non-text block came first and truncated multi-block answers.
 - Gemini adapter now concatenates all `content.parts` text segments (skipping non-text parts) instead of reading only the first, preventing silent truncation of multi-part completions.
 - Restored README positioning after generated documentation overwrote project-specific content.

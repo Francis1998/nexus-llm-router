@@ -29,6 +29,7 @@ class RoutingStrategyName(StrEnum):
     CLASSIFIER = "classifier"
     COST_OPTIMAL = "cost-optimal"
     LATENCY_AWARE = "latency-aware"
+    RELIABILITY_AWARE = "reliability-aware"
     AB_TEST = "ab"
 
 

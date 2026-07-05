@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from hashlib import sha256
+from typing import Protocol
 
 from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
@@ -20,6 +21,20 @@ from router.schemas import (
     RoutingStrategyName,
     TaskSignals,
 )
+
+
+class ProviderHealth(Protocol):
+    """Read-only view of provider circuit health used by reliability routing."""
+
+    def is_available(self, provider: str) -> bool:
+        """Return whether a provider may currently be routed to.
+
+        Args:
+            provider: Provider name.
+
+        Returns:
+            True when the provider is routable.
+        """
 
 
 class RoutingStrategy(ABC):
@@ -106,9 +121,7 @@ class RuleBasedStrategy(RoutingStrategy):
             signals.complexity_score <= 0.35
             and signals.latency_requirement is LatencyRequirement.REALTIME
         ):
-            return self._decision(
-                GEMINI_FLASH_MODEL, "simple realtime prompt favors low latency"
-            )
+            return self._decision(GEMINI_FLASH_MODEL, "simple realtime prompt favors low latency")
         requested_model = request.requested_model
         if requested_model and requested_model in self._model_catalog:
             return self._decision(requested_model, "explicit compatible model request honored")
@@ -125,18 +138,14 @@ class ClassifierStrategy(RoutingStrategy):
     def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
         """Choose a model based on classifier scores."""
         if signals.complexity_score >= 0.8:
-            return self._decision(
-                ANTHROPIC_SAFETY_MODEL, "classifier marked task high complexity"
-            )
+            return self._decision(ANTHROPIC_SAFETY_MODEL, "classifier marked task high complexity")
         if signals.domain_tag is DomainTag.CODE:
             return self._decision(OPENAI_FRONTIER_MODEL, "classifier detected code domain")
         if signals.complexity_score <= 0.4:
             return self._decision(
                 MOONSHOT_BALANCED_MODEL, "classifier marked task simple and cost-sensitive"
             )
-        return self._decision(
-            OPENAI_BALANCED_MODEL, "classifier selected balanced middle tier"
-        )
+        return self._decision(OPENAI_BALANCED_MODEL, "classifier selected balanced middle tier")
 
 
 class CostOptimalStrategy(RoutingStrategy):
@@ -276,6 +285,88 @@ class LatencyAwareStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class ReliabilityAwareStrategy(RoutingStrategy):
+    """Route to healthy providers first, avoiding open circuit breakers.
+
+    Cost- and latency-aware strategies optimize for price or speed but can keep
+    selecting a provider whose circuit breaker has tripped, wasting the primary
+    attempt on a known-unhealthy provider before the engine falls back. This
+    strategy consults live circuit-breaker health: it selects the
+    highest-quality model whose provider is currently available, and orders the
+    fallback chain healthy-providers-first so recovery attempts prefer working
+    providers.
+    """
+
+    strategy_name = RoutingStrategyName.RELIABILITY_AWARE
+
+    def __init__(
+        self, model_catalog: Mapping[str, ModelCandidate], provider_health: ProviderHealth
+    ) -> None:
+        """Initialize the reliability-aware strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+        """
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best-quality model whose provider circuit is closed."""
+        domain_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        healthy_candidates = [
+            candidate
+            for candidate in domain_candidates
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        selection_pool = healthy_candidates or domain_candidates
+        selected_candidate = max(
+            selection_pool,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+            ),
+        )
+        if healthy_candidates:
+            rationale = (
+                f"reliability-aware selected healthy provider {selected_candidate.provider} "
+                f"(quality {selected_candidate.quality_score:.2f})"
+            )
+        else:
+            rationale = (
+                "reliability-aware found no healthy provider for the domain; "
+                "routed to the highest-quality candidate"
+            )
+        return self._decision(selected_candidate.model, rationale)
+
+    def _fallback_chain(self, chosen_model: str) -> list[str]:
+        """Order the fallback chain by provider health, then quality.
+
+        Args:
+            chosen_model: Primary selected model.
+
+        Returns:
+            Ordered fallback model names preferring healthy providers.
+        """
+        candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if candidate.model != chosen_model
+        ]
+        candidates.sort(
+            key=lambda candidate: (
+                not self._provider_health.is_available(candidate.provider),
+                -candidate.quality_score,
+            )
+        )
+        return [candidate.model for candidate in candidates][:3]
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -307,9 +398,7 @@ class ABRoutingStrategy(RoutingStrategy):
                 f"A/B experiment arms not in model catalog: {', '.join(sorted(unknown_arms))}"
             )
         if not 0.0 <= model_a_weight <= 1.0:
-            raise ValueError(
-                f"A/B model_a_weight must be within [0.0, 1.0], got {model_a_weight}"
-            )
+            raise ValueError(f"A/B model_a_weight must be within [0.0, 1.0], got {model_a_weight}")
         self._model_a = model_a
         self._model_b = model_b
         self._model_a_weight = model_a_weight
@@ -330,6 +419,7 @@ def build_strategies(
     ab_model_a: str,
     ab_model_b: str,
     ab_model_a_weight: float,
+    provider_health: ProviderHealth,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -340,6 +430,7 @@ def build_strategies(
         ab_model_a: First A/B model arm.
         ab_model_b: Second A/B model arm.
         ab_model_a_weight: Bucket weight for model A.
+        provider_health: Live provider health view for reliability routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -349,6 +440,9 @@ def build_strategies(
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
         RoutingStrategyName.COST_OPTIMAL: CostOptimalStrategy(model_catalog, quality_floor),
         RoutingStrategyName.LATENCY_AWARE: LatencyAwareStrategy(model_catalog, latency_stats),
+        RoutingStrategyName.RELIABILITY_AWARE: ReliabilityAwareStrategy(
+            model_catalog, provider_health
+        ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
             ab_model_a,
