@@ -30,6 +30,7 @@ class RoutingStrategyName(StrEnum):
     COST_OPTIMAL = "cost-optimal"
     LATENCY_AWARE = "latency-aware"
     RELIABILITY_AWARE = "reliability-aware"
+    WEIGHTED_BLEND = "weighted-blend"
     AB_TEST = "ab"
 
 
