@@ -38,6 +38,20 @@ NEXUS_AB_MODEL_A_WEIGHT=0.5
 
 Use `gpt-5.5`, `claude-sonnet-4-6`, `gemini-3.1-pro-preview`, or `kimi-k2` for higher-quality evaluation arms when the experiment budget allows it.
 
+## Weighted-Blend Routing Settings
+
+The `weighted-blend` strategy selects the model that maximizes a tunable
+composite of normalized quality, cost, and rolling p95 latency (cost and latency
+are min-max inverted, so cheaper and faster candidates score higher). Weights are
+normalized to sum to one, so only their ratios matter; all-zero weights fall back
+to pure quality.
+
+```dotenv
+NEXUS_BLEND_QUALITY_WEIGHT=0.5
+NEXUS_BLEND_COST_WEIGHT=0.3
+NEXUS_BLEND_LATENCY_WEIGHT=0.2
+```
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -46,6 +60,8 @@ Set `X-Router-Strategy` to one of:
 - `classifier`
 - `cost-optimal`
 - `latency-aware`
+- `reliability-aware`
+- `weighted-blend`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
