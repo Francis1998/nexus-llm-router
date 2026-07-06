@@ -3,7 +3,9 @@
 import re
 from dataclasses import dataclass
 
-CODE_PATTERN = re.compile(r"```|def |class |import |SELECT |function |const |async ")
+CODE_PATTERN = re.compile(
+    r"```|\bdef |\bclass |\bimport |\bSELECT |\bfunction |\bconst |\basync "
+)
 MEDICAL_PATTERN = re.compile(r"\b(patient|diagnosis|clinical|medical|symptom|treatment)\b", re.I)
 LEGAL_PATTERN = re.compile(r"\b(contract|clause|statute|liability|legal|compliance)\b", re.I)
 INSTRUCTION_PATTERN = re.compile(

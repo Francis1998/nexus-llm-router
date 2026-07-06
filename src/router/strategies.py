@@ -367,6 +367,127 @@ class ReliabilityAwareStrategy(RoutingStrategy):
         return [candidate.model for candidate in candidates][:3]
 
 
+class WeightedBlendStrategy(RoutingStrategy):
+    """Route by a tunable weighted blend of quality, cost, and latency.
+
+    The rule-based, cost-optimal, and latency-aware strategies each optimize a
+    single axis (or a hard-coded mix). Operators frequently want an explicit,
+    tunable trade-off instead: "favour quality but keep cost and latency in the
+    picture". This strategy computes, for every domain-eligible candidate, a
+    composite score from three normalized components and selects the highest:
+
+    * quality: the candidate ``quality_score`` (already in ``[0, 1]``);
+    * cost: min-max normalized so the cheapest candidate scores ``1.0``;
+    * latency: min-max normalized so the lowest rolling p95 scores ``1.0``.
+
+    Weights are normalized to sum to one, so only their ratios matter. When all
+    weights are zero the strategy falls back to pure quality.
+    """
+
+    strategy_name = RoutingStrategyName.WEIGHTED_BLEND
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        quality_weight: float,
+        cost_weight: float,
+        latency_weight: float,
+    ) -> None:
+        """Initialize the weighted-blend strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_stats: Rolling provider latency observations.
+            quality_weight: Non-negative weight for the quality component.
+            cost_weight: Non-negative weight for the (inverted) cost component.
+            latency_weight: Non-negative weight for the (inverted) latency
+                component.
+
+        Raises:
+            ValueError: If any weight is negative.
+        """
+        super().__init__(model_catalog)
+        weights = (quality_weight, cost_weight, latency_weight)
+        if any(weight < 0.0 for weight in weights):
+            raise ValueError(f"weighted-blend weights must be non-negative, got {weights}")
+        self._latency_stats = latency_stats
+        total_weight = sum(weights)
+        if total_weight <= 0.0:
+            self._quality_weight, self._cost_weight, self._latency_weight = 1.0, 0.0, 0.0
+        else:
+            self._quality_weight = quality_weight / total_weight
+            self._cost_weight = cost_weight / total_weight
+            self._latency_weight = latency_weight / total_weight
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the candidate with the highest weighted composite score."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+        latencies = {
+            candidate.model: self._latency_stats.p95(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        cost_scores = _inverse_min_max(costs)
+        latency_scores = _inverse_min_max(latencies)
+
+        def blended_score(candidate: ModelCandidate) -> float:
+            return (
+                self._quality_weight * candidate.quality_score
+                + self._cost_weight * cost_scores[candidate.model]
+                + self._latency_weight * latency_scores[candidate.model]
+            )
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                blended_score(candidate),
+                candidate.quality_score,
+                -costs[candidate.model],
+            ),
+        )
+        rationale = (
+            f"weighted-blend score {blended_score(selected_candidate):.3f} "
+            f"(quality={self._quality_weight:.2f}, cost={self._cost_weight:.2f}, "
+            f"latency={self._latency_weight:.2f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
+def _inverse_min_max(values: Mapping[str, float]) -> dict[str, float]:
+    """Min-max normalize values so the smallest maps to ``1.0``.
+
+    Lower is better for cost and latency, so the minimum value is the most
+    desirable and scores ``1.0`` while the maximum scores ``0.0``. When every
+    value is equal, all candidates are equally good and score ``1.0`` (a neutral
+    component that lets the other weighted terms decide the winner).
+
+    Args:
+        values: Mapping of model name to a lower-is-better metric.
+
+    Returns:
+        Mapping of model name to a normalized score in ``[0.0, 1.0]``.
+    """
+    if not values:
+        return {}
+    lowest = min(values.values())
+    highest = max(values.values())
+    if highest == lowest:
+        return dict.fromkeys(values, 1.0)
+    span = highest - lowest
+    return {model: (highest - value) / span for model, value in values.items()}
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -420,6 +541,9 @@ def build_strategies(
     ab_model_b: str,
     ab_model_a_weight: float,
     provider_health: ProviderHealth,
+    blend_quality_weight: float,
+    blend_cost_weight: float,
+    blend_latency_weight: float,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -431,6 +555,9 @@ def build_strategies(
         ab_model_b: Second A/B model arm.
         ab_model_a_weight: Bucket weight for model A.
         provider_health: Live provider health view for reliability routing.
+        blend_quality_weight: Weighted-blend quality component weight.
+        blend_cost_weight: Weighted-blend cost component weight.
+        blend_latency_weight: Weighted-blend latency component weight.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -442,6 +569,13 @@ def build_strategies(
         RoutingStrategyName.LATENCY_AWARE: LatencyAwareStrategy(model_catalog, latency_stats),
         RoutingStrategyName.RELIABILITY_AWARE: ReliabilityAwareStrategy(
             model_catalog, provider_health
+        ),
+        RoutingStrategyName.WEIGHTED_BLEND: WeightedBlendStrategy(
+            model_catalog,
+            latency_stats,
+            blend_quality_weight,
+            blend_cost_weight,
+            blend_latency_weight,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

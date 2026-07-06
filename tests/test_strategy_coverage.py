@@ -177,3 +177,23 @@ def test_instruction_hits_count_keyword_inflections() -> None:
     """Inflected instruction verbs anchored at a word start should count."""
     features = extract_prompt_features("It optimizes throughput and debugged the parser.")
     assert features.instruction_hits == 2
+
+
+def test_code_hits_ignore_substring_false_positives() -> None:
+    """Words that merely contain a code keyword must not count as code hits.
+
+    The code pattern matched bare keyword substrings, so plain-English words
+    such as ``masterclass`` or ``subclass`` (which contain ``class``) were
+    counted as code, inflating the complexity score and biasing the domain
+    classifier toward code. Only keywords at a word boundary should count.
+    """
+    features = extract_prompt_features(
+        "Give a masterclass on public speaking and discuss the subclass of birds."
+    )
+    assert features.code_hits == 0
+
+
+def test_code_hits_count_real_code_keywords() -> None:
+    """Genuine code keywords at a word boundary must still be detected."""
+    features = extract_prompt_features("def run(): pass  # a class helper and import os")
+    assert features.code_hits >= 3

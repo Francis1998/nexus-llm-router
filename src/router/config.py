@@ -49,6 +49,9 @@ class RouterSettings(BaseSettings):
     ab_model_b: str = ANTHROPIC_FAST_MODEL
     ab_model_a_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.5
     quality_floor: Annotated[float, Field(ge=0.0, le=1.0)] = 0.72
+    blend_quality_weight: Annotated[float, Field(ge=0.0)] = 0.5
+    blend_cost_weight: Annotated[float, Field(ge=0.0)] = 0.3
+    blend_latency_weight: Annotated[float, Field(ge=0.0)] = 0.2
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
