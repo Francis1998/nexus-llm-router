@@ -31,6 +31,7 @@ class RoutingStrategyName(StrEnum):
     LATENCY_AWARE = "latency-aware"
     RELIABILITY_AWARE = "reliability-aware"
     WEIGHTED_BLEND = "weighted-blend"
+    BUDGET_AWARE = "budget-aware"
     AB_TEST = "ab"
 
 
