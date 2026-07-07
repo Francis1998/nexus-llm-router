@@ -488,6 +488,88 @@ def _inverse_min_max(values: Mapping[str, float]) -> dict[str, float]:
     return {model: (highest - value) / span for model, value in values.items()}
 
 
+class BudgetAwareStrategy(RoutingStrategy):
+    """Route to the highest-quality model within a per-request cost ceiling.
+
+    ``CostOptimalStrategy`` minimizes cost subject to a *quality floor*; this
+    strategy is its dual: it maximizes quality subject to a hard *cost ceiling*.
+    Given a per-request USD ceiling, it selects the highest-quality
+    domain-eligible candidate whose estimated request cost stays within the
+    ceiling. When no candidate fits the ceiling (for example a very long prompt
+    or a domain served only by premium models), it falls back to the cheapest
+    eligible candidate and records that the ceiling could not be met, so the
+    request still routes deterministically rather than failing.
+    """
+
+    strategy_name = RoutingStrategyName.BUDGET_AWARE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        request_cost_ceiling_usd: float,
+    ) -> None:
+        """Initialize the budget-aware strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            request_cost_ceiling_usd: Maximum acceptable estimated cost per
+                request, in USD.
+
+        Raises:
+            ValueError: If the cost ceiling is negative.
+        """
+        super().__init__(model_catalog)
+        if request_cost_ceiling_usd < 0.0:
+            raise ValueError(
+                f"request_cost_ceiling_usd must be non-negative, got {request_cost_ceiling_usd}"
+            )
+        self._request_cost_ceiling_usd = request_cost_ceiling_usd
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best-quality model whose estimated cost fits the ceiling."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+        affordable_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if costs[candidate.model] <= self._request_cost_ceiling_usd
+        ]
+        if affordable_candidates:
+            selected_candidate = max(
+                affordable_candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                ),
+            )
+            rationale = (
+                f"budget-aware selected highest quality {selected_candidate.quality_score:.2f} "
+                f"within ${self._request_cost_ceiling_usd:.4f} ceiling "
+                f"(est ${costs[selected_candidate.model]:.6f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = min(
+            eligible_candidates,
+            key=lambda candidate: (costs[candidate.model], -candidate.quality_score),
+        )
+        rationale = (
+            f"budget-aware found no model within ${self._request_cost_ceiling_usd:.4f} ceiling; "
+            f"routed to cheapest eligible model (est ${costs[selected_candidate.model]:.6f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -544,6 +626,7 @@ def build_strategies(
     blend_quality_weight: float,
     blend_cost_weight: float,
     blend_latency_weight: float,
+    request_cost_ceiling_usd: float,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -558,6 +641,7 @@ def build_strategies(
         blend_quality_weight: Weighted-blend quality component weight.
         blend_cost_weight: Weighted-blend cost component weight.
         blend_latency_weight: Weighted-blend latency component weight.
+        request_cost_ceiling_usd: Budget-aware per-request cost ceiling in USD.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -576,6 +660,10 @@ def build_strategies(
             blend_quality_weight,
             blend_cost_weight,
             blend_latency_weight,
+        ),
+        RoutingStrategyName.BUDGET_AWARE: BudgetAwareStrategy(
+            model_catalog,
+            request_cost_ceiling_usd,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

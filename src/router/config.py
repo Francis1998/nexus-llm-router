@@ -52,6 +52,7 @@ class RouterSettings(BaseSettings):
     blend_quality_weight: Annotated[float, Field(ge=0.0)] = 0.5
     blend_cost_weight: Annotated[float, Field(ge=0.0)] = 0.3
     blend_latency_weight: Annotated[float, Field(ge=0.0)] = 0.2
+    request_cost_ceiling_usd: Annotated[float, Field(ge=0.0)] = 0.05
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

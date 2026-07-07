@@ -69,6 +69,7 @@ class NexusRouter:
             settings.blend_quality_weight,
             settings.blend_cost_weight,
             settings.blend_latency_weight,
+            settings.request_cost_ceiling_usd,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

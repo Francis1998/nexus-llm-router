@@ -92,4 +92,10 @@ def nested_int(payload: JsonObject, path: list[str], default: int = 0) -> int:
         if not isinstance(value, dict):
             return default
         value = value.get(key, default)
-    return value if isinstance(value, int) else default
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return default
