@@ -52,6 +52,18 @@ NEXUS_BLEND_COST_WEIGHT=0.3
 NEXUS_BLEND_LATENCY_WEIGHT=0.2
 ```
 
+## Budget-Aware Routing Settings
+
+The `budget-aware` strategy is the dual of `cost-optimal`: instead of minimizing
+cost subject to a quality floor, it maximizes quality subject to a hard
+per-request cost ceiling. It selects the highest-quality domain-eligible model
+whose estimated request cost stays within `NEXUS_REQUEST_COST_CEILING_USD`, and
+falls back to the cheapest eligible model when nothing fits the ceiling.
+
+```dotenv
+NEXUS_REQUEST_COST_CEILING_USD=0.05
+```
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -62,6 +74,7 @@ Set `X-Router-Strategy` to one of:
 - `latency-aware`
 - `reliability-aware`
 - `weighted-blend`
+- `budget-aware`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

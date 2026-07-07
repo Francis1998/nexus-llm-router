@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `budget-aware` routing strategy: the dual of `cost-optimal`, it maximizes quality subject to a hard per-request cost ceiling. It selects the highest-quality domain-eligible model whose estimated cost stays within `NEXUS_REQUEST_COST_CEILING_USD`, and falls back to the cheapest eligible model when nothing fits the ceiling.
 - `weighted-blend` routing strategy: selects the model maximizing a tunable composite of normalized quality, cost, and latency (min-max inverted so cheaper/faster scores higher). Weights are configurable via `NEXUS_BLEND_QUALITY_WEIGHT`, `NEXUS_BLEND_COST_WEIGHT`, and `NEXUS_BLEND_LATENCY_WEIGHT`, are normalized to sum to one, and fall back to pure quality when all are zero.
 - `reliability-aware` routing strategy: routes to the highest-quality model whose provider circuit breaker is closed and orders the fallback chain healthy-providers-first, backed by a non-mutating `CircuitBreakerRegistry.is_available()` read.
 - OpenAI-compatible FastAPI router API.
@@ -18,6 +19,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Demo GIF gallery and offline benchmark/demo script.
 
 ### Fixed
+- Provider token-usage parsing (`nested_int`) now coerces integral JSON floats (for example `12.0`) to `int` instead of returning `0`. Some OpenAI-compatible gateways serialize usage counts with a decimal point, which previously zeroed token accounting, the cost estimate, and the audit record.
 - Prompt code-feature detection now word-anchors its language keywords (`def`, `class`, `import`, `function`, `const`, `async`), so plain-English words that merely contain a keyword (e.g. `masterclass`, `subclass`) are no longer counted as code, which previously inflated complexity scores and biased the domain classifier toward code.
 - OpenAI and Moonshot adapters now join structured `message.content` part lists (returned by OpenAI-compatible gateways such as LiteLLM, vLLM, and OpenRouter) via a shared `message_text()` helper, instead of silently returning an empty completion for the non-string shape.
 - Anthropic adapter now joins all `content` text blocks (skipping non-text blocks such as `thinking`/`tool_use`) instead of reading only `content[0].text`, which returned an empty completion when a non-text block came first and truncated multi-block answers.
