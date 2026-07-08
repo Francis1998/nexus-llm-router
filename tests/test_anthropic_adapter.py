@@ -48,6 +48,30 @@ def test_build_payload_extracts_system_to_top_level() -> None:
     assert payload["messages"] == [{"role": "user", "content": "Summarize this case."}]
 
 
+def test_build_payload_maps_tool_role_to_user() -> None:
+    """Tool turns must map to Anthropic's ``user`` role, not a raw ``tool`` role.
+
+    The Anthropic Messages API rejects any turn whose role is not ``user`` or
+    ``assistant`` (tool results are carried on a ``user`` turn). Forwarding a
+    ``{"role": "tool"}`` entry verbatim caused the whole request to fail with a
+    400, so tool turns must be remapped to ``user``.
+    """
+    payload = _build_anthropic_payload(
+        ANTHROPIC_SAFETY_MODEL,
+        [
+            ChatMessage(role="user", content="What is the weather?"),
+            ChatMessage(role="assistant", content="Calling a tool."),
+            ChatMessage(role="tool", content='{"temp_c": 21}'),
+        ],
+        max_tokens=128,
+    )
+
+    roles = [message["role"] for message in payload["messages"]]
+    assert "tool" not in roles
+    assert roles == ["user", "assistant", "user"]
+    assert payload["messages"][-1]["content"] == '{"temp_c": 21}'
+
+
 def test_build_payload_joins_multiple_system_messages() -> None:
     """Multiple system messages are joined for Anthropic's single system field."""
     payload = _build_anthropic_payload(

@@ -43,10 +43,20 @@ def _extract_anthropic_text(content_blocks: object) -> str:
 def _build_anthropic_payload(
     model: str, messages: list[ChatMessage], max_tokens: int
 ) -> dict[str, object]:
-    """Build Anthropic Messages API payload with system text extracted."""
+    """Build Anthropic Messages API payload with system text extracted.
+
+    The Anthropic Messages API accepts only ``user`` and ``assistant`` turn
+    roles; tool results are carried on a ``user`` turn. An incoming ``tool``
+    message was previously forwarded verbatim, producing a ``{"role": "tool"}``
+    entry that Anthropic rejects with a 400 and fails the whole request. Tool
+    turns are therefore mapped to the ``user`` role here.
+    """
     system_parts = [message.content for message in messages if message.role == "system"]
     conversation_messages = [
-        {"role": message.role, "content": message.content}
+        {
+            "role": "user" if message.role == "tool" else message.role,
+            "content": message.content,
+        }
         for message in messages
         if message.role in {"user", "assistant", "tool"}
     ]

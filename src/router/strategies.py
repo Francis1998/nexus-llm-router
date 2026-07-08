@@ -570,6 +570,45 @@ class BudgetAwareStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class StickySessionStrategy(RoutingStrategy):
+    """Pin every request in a session to one model via consistent hashing.
+
+    Multi-turn conversations degrade when successive turns hop between models:
+    context handling shifts, provider prompt-caches miss, and rationale traces
+    become harder to audit. Cost-, latency-, and quality-optimizing strategies
+    all make per-request decisions and can switch models mid-session.
+
+    This strategy instead deterministically maps a request's ``session_id`` onto
+    one of the domain-eligible candidates using a stable hash. Two properties
+    follow: every request sharing a ``session_id`` routes to the same model
+    (intra-session consistency and prompt-cache affinity), while distinct
+    sessions spread roughly uniformly across the eligible pool (session-level
+    load balancing). Candidates are ordered deterministically by model name so
+    the mapping is stable across processes and does not depend on catalog
+    iteration order.
+    """
+
+    strategy_name = RoutingStrategyName.STICKY_SESSION
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Pin the request's session to a deterministically hashed model."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        ordered_candidates = sorted(eligible_candidates, key=lambda candidate: candidate.model)
+        digest = sha256(request.session_id.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) % len(ordered_candidates)
+        selected_candidate = ordered_candidates[bucket]
+        rationale = (
+            f"sticky-session pinned session '{request.session_id}' to "
+            f"{selected_candidate.model} (bucket {bucket}/{len(ordered_candidates)})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -665,6 +704,7 @@ def build_strategies(
             model_catalog,
             request_cost_ceiling_usd,
         ),
+        RoutingStrategyName.STICKY_SESSION: StickySessionStrategy(model_catalog),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
             ab_model_a,

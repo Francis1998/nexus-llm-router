@@ -32,6 +32,7 @@ class RoutingStrategyName(StrEnum):
     RELIABILITY_AWARE = "reliability-aware"
     WEIGHTED_BLEND = "weighted-blend"
     BUDGET_AWARE = "budget-aware"
+    STICKY_SESSION = "sticky-session"
     AB_TEST = "ab"
 
 
