@@ -64,6 +64,15 @@ falls back to the cheapest eligible model when nothing fits the ceiling.
 NEXUS_REQUEST_COST_CEILING_USD=0.05
 ```
 
+## Sticky-Session Routing
+
+The `sticky-session` strategy pins every request that shares a `session_id` to a
+single model via consistent hashing over the domain-eligible candidates. This
+keeps multi-turn conversations on one model (stable context handling and
+provider prompt-cache affinity) while spreading distinct sessions roughly
+uniformly across the eligible pool for session-level load balancing. It requires
+no additional configuration; the pin is derived from the request's `session_id`.
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -75,6 +84,7 @@ Set `X-Router-Strategy` to one of:
 - `reliability-aware`
 - `weighted-blend`
 - `budget-aware`
+- `sticky-session`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
