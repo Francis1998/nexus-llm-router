@@ -609,6 +609,61 @@ class StickySessionStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class ValueStrategy(RoutingStrategy):
+    """Route to the model with the best quality-per-dollar (value) ratio.
+
+    ``CostOptimalStrategy`` minimizes cost subject to a quality *floor* and
+    ``BudgetAwareStrategy`` maximizes quality subject to a cost *ceiling*. Both
+    require the operator to pick a threshold. This strategy needs no threshold:
+    it maximizes the *efficiency* of the spend by selecting the domain-eligible
+    candidate with the highest ``quality_score`` per estimated request dollar.
+
+    This favours models that deliver strong quality cheaply (for example a
+    balanced mid-tier model on a general prompt) over premium models whose
+    marginal quality gain does not justify their marginal cost, while still
+    preferring a premium model when nothing cheaper is close in quality. Costs
+    are floored by a small epsilon so a zero-token estimate cannot divide by
+    zero, and ties break toward higher quality then lower cost.
+    """
+
+    strategy_name = RoutingStrategyName.VALUE
+
+    _COST_EPSILON_USD = 1e-9
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the candidate with the highest quality-per-dollar ratio."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+
+        def value_ratio(candidate: ModelCandidate) -> float:
+            return candidate.quality_score / max(costs[candidate.model], self._COST_EPSILON_USD)
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                value_ratio(candidate),
+                candidate.quality_score,
+                -costs[candidate.model],
+            ),
+        )
+        rationale = (
+            f"value routing selected best quality-per-dollar "
+            f"(quality {selected_candidate.quality_score:.2f}, "
+            f"est ${costs[selected_candidate.model]:.6f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -705,6 +760,7 @@ def build_strategies(
             request_cost_ceiling_usd,
         ),
         RoutingStrategyName.STICKY_SESSION: StickySessionStrategy(model_catalog),
+        RoutingStrategyName.VALUE: ValueStrategy(model_catalog),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
             ab_model_a,
