@@ -73,6 +73,16 @@ provider prompt-cache affinity) while spreading distinct sessions roughly
 uniformly across the eligible pool for session-level load balancing. It requires
 no additional configuration; the pin is derived from the request's `session_id`.
 
+## Value Routing
+
+The `value` strategy selects the domain-eligible model with the highest
+quality-per-dollar ratio (`quality_score` divided by estimated request cost).
+Unlike `cost-optimal` (minimize cost subject to a quality *floor*) and
+`budget-aware` (maximize quality subject to a cost *ceiling*), it needs no
+threshold to tune: it maximizes spend *efficiency* directly, favouring models
+whose quality justifies their price while still choosing a premium model when
+nothing cheaper is close in quality. It requires no additional configuration.
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -85,6 +95,7 @@ Set `X-Router-Strategy` to one of:
 - `weighted-blend`
 - `budget-aware`
 - `sticky-session`
+- `value`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
