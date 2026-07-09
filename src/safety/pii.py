@@ -6,7 +6,12 @@ from typing import Protocol
 from router.schemas import ChatMessage
 
 EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
-PHONE_PATTERN = re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
+# A leading ``\b`` cannot match before a ``(`` or ``+`` (non-word characters), so
+# numbers written as ``(415) 555-1234`` or ``+1 415 555 1234`` had their leading
+# ``(``/``+`` left dangling outside the redaction. Use non-consuming
+# ``(?<!\w)``/``(?!\w)`` boundaries that hold whether the number starts with a
+# digit, a ``(``, or a ``+`` so the whole number is replaced.
+PHONE_PATTERN = re.compile(r"(?<!\w)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\w)")
 
 
 class PresidioAnalyzerProtocol(Protocol):

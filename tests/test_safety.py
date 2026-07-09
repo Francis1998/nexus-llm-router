@@ -49,6 +49,20 @@ def test_pii_scrubber_redacts_email_and_phone() -> None:
     assert "[REDACTED_PHONE]" in redacted
 
 
+def test_pii_scrubber_fully_redacts_parenthesized_and_prefixed_phone() -> None:
+    """Numbers starting with ``(`` or ``+`` must be redacted whole, with no leak.
+
+    A leading ``\\b`` could not match before the ``(`` of ``(415) 555-1234`` or
+    the ``+`` of ``+1 415 555 1234``, so the redaction started mid-number and
+    left the ``(``/``+`` dangling outside the placeholder. The whole number,
+    including its leading boundary character, must be replaced.
+    """
+    scrubber = PiiScrubber(enabled=True)
+
+    assert scrubber.scrub_text("call (415) 555-1234 now") == "call [REDACTED_PHONE] now"
+    assert scrubber.scrub_text("intl +1 415 555 1234 line") == "intl [REDACTED_PHONE] line"
+
+
 def test_rate_limiter_rejects_empty_bucket() -> None:
     """Token bucket should reject when insufficient tokens remain."""
     limiter = TokenBucketRateLimiter(capacity=1, refill_per_second=0.0)
