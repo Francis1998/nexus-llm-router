@@ -53,6 +53,9 @@ class RouterSettings(BaseSettings):
     blend_cost_weight: Annotated[float, Field(ge=0.0)] = 0.3
     blend_latency_weight: Annotated[float, Field(ge=0.0)] = 0.2
     request_cost_ceiling_usd: Annotated[float, Field(ge=0.0)] = 0.05
+    canary_stable_model: str = OPENAI_BALANCED_MODEL
+    canary_model: str = OPENAI_FRONTIER_MODEL
+    canary_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.1
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

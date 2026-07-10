@@ -34,6 +34,7 @@ class RoutingStrategyName(StrEnum):
     BUDGET_AWARE = "budget-aware"
     STICKY_SESSION = "sticky-session"
     VALUE = "value"
+    CANARY = "canary"
     AB_TEST = "ab"
 
 

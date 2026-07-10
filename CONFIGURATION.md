@@ -83,6 +83,26 @@ threshold to tune: it maximizes spend *efficiency* directly, favouring models
 whose quality justifies their price while still choosing a premium model when
 nothing cheaper is close in quality. It requires no additional configuration.
 
+## Canary Routing
+
+The `canary` strategy supports progressive delivery: it routes a configurable
+fraction of traffic to a new *canary* model while the rest stays on a proven
+*stable* model, so a regression is caught on a slice of requests before a full
+cutover. Bucketing is a stable hash of `request_id`, so a given request always
+lands on the same arm. Unlike the symmetric `ab` strategy, canary routing is
+**health-gated**: whenever the canary provider's circuit breaker is open, all
+traffic is routed to the stable model so a failing canary cannot keep drawing
+its share of live traffic.
+
+```dotenv
+NEXUS_CANARY_STABLE_MODEL=gpt-4.1-mini
+NEXUS_CANARY_MODEL=gpt-5.5
+NEXUS_CANARY_WEIGHT=0.1
+```
+
+`NEXUS_CANARY_WEIGHT` is the fraction of traffic (within `[0.0, 1.0]`) sent to
+the canary model; both model names must exist in the catalog.
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -96,6 +116,7 @@ Set `X-Router-Strategy` to one of:
 - `budget-aware`
 - `sticky-session`
 - `value`
+- `canary`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
