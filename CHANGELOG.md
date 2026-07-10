@@ -6,6 +6,12 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `canary` routing strategy: progressive delivery that routes a configurable traffic fraction (`NEXUS_CANARY_WEIGHT`) onto a canary model (`NEXUS_CANARY_MODEL`) while the rest stays on a stable model (`NEXUS_CANARY_STABLE_MODEL`), bucketed by a stable hash of `request_id`. Unlike the symmetric `ab` strategy it is health-gated: when the canary provider's circuit breaker is open, all traffic falls back to the stable model, and the fallback chain is anchored on the stable model.
+
+### Fixed
+- `nested_int` now coerces integer-valued usage counts serialized as JSON strings (for example `"12"`) instead of dropping them to the default. Some OpenAI-compatible gateways serialize usage token counts as strings, which previously zeroed token accounting, the cost estimate, and the audit record. Non-numeric strings still yield the default.
+
+### Added (earlier this cycle)
 - `sticky-session` routing strategy: consistent-hashes a request's `session_id` onto one domain-eligible model, so every turn in a session routes to the same model (stable context handling and provider prompt-cache affinity) while distinct sessions spread roughly uniformly across the eligible pool for session-level load balancing. Requires no additional configuration.
 - `budget-aware` routing strategy: the dual of `cost-optimal`, it maximizes quality subject to a hard per-request cost ceiling. It selects the highest-quality domain-eligible model whose estimated cost stays within `NEXUS_REQUEST_COST_CEILING_USD`, and falls back to the cheapest eligible model when nothing fits the ceiling.
 - `weighted-blend` routing strategy: selects the model maximizing a tunable composite of normalized quality, cost, and latency (min-max inverted so cheaper/faster scores higher). Weights are configurable via `NEXUS_BLEND_QUALITY_WEIGHT`, `NEXUS_BLEND_COST_WEIGHT`, and `NEXUS_BLEND_LATENCY_WEIGHT`, are normalized to sum to one, and fall back to pure quality when all are zero.

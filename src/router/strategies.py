@@ -664,6 +664,101 @@ class ValueStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class CanaryStrategy(RoutingStrategy):
+    """Roll traffic onto a canary model gradually, pausing on ill health.
+
+    Progressive delivery routes a small, deterministic fraction of traffic to a
+    new *canary* model while the rest stays on the proven *stable* model, so a
+    regression is caught on a slice of requests before a full cutover. Unlike
+    :class:`ABRoutingStrategy` (a symmetric experiment that always honours its
+    split), this strategy is health-gated: whenever the canary provider's
+    circuit breaker is open it routes **all** traffic to the stable model, so a
+    failing canary cannot keep drawing its share of live traffic. Bucketing is a
+    stable hash of ``request_id`` so a given request always lands on the same
+    arm, and the fallback chain is anchored on the stable model.
+    """
+
+    strategy_name = RoutingStrategyName.CANARY
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        stable_model: str,
+        canary_model: str,
+        canary_weight: float,
+    ) -> None:
+        """Initialize the canary strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            stable_model: Proven model that serves the majority of traffic.
+            canary_model: New model under gradual rollout.
+            canary_weight: Fraction of traffic sent to the canary, within
+                ``[0.0, 1.0]``.
+
+        Raises:
+            ValueError: If a model is missing from the catalog or the weight is
+                outside the ``[0.0, 1.0]`` range.
+        """
+        super().__init__(model_catalog)
+        unknown_models = [
+            model for model in (stable_model, canary_model) if model not in model_catalog
+        ]
+        if unknown_models:
+            raise ValueError(
+                f"canary models not in model catalog: {', '.join(sorted(unknown_models))}"
+            )
+        if not 0.0 <= canary_weight <= 1.0:
+            raise ValueError(f"canary_weight must be within [0.0, 1.0], got {canary_weight}")
+        self._provider_health = provider_health
+        self._stable_model = stable_model
+        self._canary_model = canary_model
+        self._canary_weight = canary_weight
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Route to the canary for its traffic slice unless it is unhealthy."""
+        canary_provider = self._model_catalog[self._canary_model].provider
+        if not self._provider_health.is_available(canary_provider):
+            return self._decision(
+                self._stable_model,
+                f"canary paused: provider {canary_provider} is unhealthy; "
+                "routed to stable model",
+            )
+        digest = sha256(request.request_id.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) / 0xFFFFFFFF
+        if bucket < self._canary_weight:
+            return self._decision(
+                self._canary_model,
+                f"canary bucket={bucket:.4f} < weight {self._canary_weight:.2f}; "
+                "routed to canary model",
+            )
+        return self._decision(
+            self._stable_model,
+            f"canary bucket={bucket:.4f} >= weight {self._canary_weight:.2f}; "
+            "routed to stable model",
+        )
+
+    def _fallback_chain(self, chosen_model: str) -> list[str]:
+        """Anchor the fallback chain on the stable model.
+
+        When the canary is chosen, the stable model is the safest first
+        fallback; otherwise fall back by quality as usual.
+
+        Args:
+            chosen_model: Primary selected model.
+
+        Returns:
+            Ordered fallback model names.
+        """
+        quality_ordered = super()._fallback_chain(chosen_model)
+        if chosen_model == self._canary_model and self._stable_model != chosen_model:
+            remainder = [model for model in quality_ordered if model != self._stable_model]
+            return [self._stable_model, *remainder][:3]
+        return quality_ordered
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -721,6 +816,9 @@ def build_strategies(
     blend_cost_weight: float,
     blend_latency_weight: float,
     request_cost_ceiling_usd: float,
+    canary_stable_model: str,
+    canary_model: str,
+    canary_weight: float,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -736,6 +834,9 @@ def build_strategies(
         blend_cost_weight: Weighted-blend cost component weight.
         blend_latency_weight: Weighted-blend latency component weight.
         request_cost_ceiling_usd: Budget-aware per-request cost ceiling in USD.
+        canary_stable_model: Canary strategy stable (majority) model.
+        canary_model: Canary strategy model under gradual rollout.
+        canary_weight: Fraction of traffic routed to the canary model.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -761,6 +862,13 @@ def build_strategies(
         ),
         RoutingStrategyName.STICKY_SESSION: StickySessionStrategy(model_catalog),
         RoutingStrategyName.VALUE: ValueStrategy(model_catalog),
+        RoutingStrategyName.CANARY: CanaryStrategy(
+            model_catalog,
+            provider_health,
+            canary_stable_model,
+            canary_model,
+            canary_weight,
+        ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
             ab_model_a,
