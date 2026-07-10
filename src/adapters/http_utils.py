@@ -98,4 +98,9 @@ def nested_int(payload: JsonObject, path: list[str], default: int = 0) -> int:
         return value
     if isinstance(value, float) and value.is_integer():
         return int(value)
+    # Some OpenAI-compatible gateways serialize usage counts as strings
+    # (for example ``"12"``); a whitespace-trimmed non-negative integer string
+    # is a valid count and must not be dropped to the default.
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
     return default
