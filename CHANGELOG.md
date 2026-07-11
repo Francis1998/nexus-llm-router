@@ -6,9 +6,11 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `latency-budget` routing strategy: the latency-domain dual of `budget-aware`, it maximizes quality subject to a hard latency ceiling. It selects the highest-quality domain-eligible model whose provider rolling p95 latency stays within `NEXUS_LATENCY_SLA_MS`, treats providers with no observations yet as within the SLA (so a cold start routes to the best model), and falls back to the lowest-p95 eligible model when nothing meets the SLA. Unlike `latency-aware` (which always minimizes latency), it trades quality for speed only when the SLA requires it.
 - `canary` routing strategy: progressive delivery that routes a configurable traffic fraction (`NEXUS_CANARY_WEIGHT`) onto a canary model (`NEXUS_CANARY_MODEL`) while the rest stays on a stable model (`NEXUS_CANARY_STABLE_MODEL`), bucketed by a stable hash of `request_id`. Unlike the symmetric `ab` strategy it is health-gated: when the canary provider's circuit breaker is open, all traffic falls back to the stable model, and the fallback chain is anchored on the stable model.
 
 ### Fixed
+- Google Gemini adapter now skips thought-summary parts (`{"thought": true}`) when reconstructing the completion text. Gemini 2.5/3-series thinking models interleave thought parts carrying internal reasoning with the answer parts, so joining every `text` part leaked the model's reasoning into the user-facing content (the same class of bug fixed earlier for Anthropic `thinking` blocks). Only non-thought answer text is now returned.
 - `nested_int` now coerces integer-valued usage counts serialized as JSON strings (for example `"12"`) instead of dropping them to the default. Some OpenAI-compatible gateways serialize usage token counts as strings, which previously zeroed token accounting, the cost estimate, and the audit record. Non-numeric strings still yield the default.
 
 ### Added (earlier this cycle)

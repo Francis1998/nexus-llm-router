@@ -570,6 +570,95 @@ class BudgetAwareStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class LatencyBudgetStrategy(RoutingStrategy):
+    """Route to the highest-quality model within a rolling latency SLA.
+
+    This strategy is the latency-domain dual of :class:`BudgetAwareStrategy`.
+    Where ``BudgetAwareStrategy`` maximizes quality subject to a hard *cost*
+    ceiling and :class:`LatencyAwareStrategy` simply minimizes a blended latency
+    score (picking the fastest option regardless of how much quality it gives
+    up), this strategy maximizes *quality* subject to a hard *latency* ceiling:
+    it selects the highest-quality domain-eligible model whose provider rolling
+    p95 latency stays within a configured SLA, so a request only trades quality
+    for speed when the SLA actually requires it.
+
+    Providers with no recorded latency yet report a p95 of ``0.0`` and are
+    treated as within the SLA, so a cold start still routes to the best model and
+    the SLA tightens as observations accrue. When no candidate meets the SLA (for
+    example every provider is degraded), it falls back to the lowest-p95 eligible
+    candidate and records that the SLA could not be met, so the request still
+    routes deterministically rather than failing.
+    """
+
+    strategy_name = RoutingStrategyName.LATENCY_BUDGET
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        latency_sla_ms: float,
+    ) -> None:
+        """Initialize the latency-budget strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_stats: Rolling provider latency observations.
+            latency_sla_ms: Maximum acceptable provider p95 latency per request,
+                in milliseconds.
+
+        Raises:
+            ValueError: If the latency SLA is negative.
+        """
+        super().__init__(model_catalog)
+        if latency_sla_ms < 0.0:
+            raise ValueError(f"latency_sla_ms must be non-negative, got {latency_sla_ms}")
+        self._latency_stats = latency_stats
+        self._latency_sla_ms = latency_sla_ms
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best-quality model whose provider p95 fits the SLA."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        p95_by_model = {
+            candidate.model: self._latency_stats.p95(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        within_sla = [
+            candidate
+            for candidate in eligible_candidates
+            if p95_by_model[candidate.model] <= self._latency_sla_ms
+        ]
+        if within_sla:
+            selected_candidate = max(
+                within_sla,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -p95_by_model[candidate.model],
+                ),
+            )
+            rationale = (
+                f"latency-budget selected highest quality {selected_candidate.quality_score:.2f} "
+                f"within {self._latency_sla_ms:.0f}ms SLA "
+                f"(provider p95 {p95_by_model[selected_candidate.model]:.1f}ms)"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = min(
+            eligible_candidates,
+            key=lambda candidate: (p95_by_model[candidate.model], -candidate.quality_score),
+        )
+        rationale = (
+            f"latency-budget found no provider within {self._latency_sla_ms:.0f}ms SLA; "
+            f"routed to lowest-latency model "
+            f"(provider p95 {p95_by_model[selected_candidate.model]:.1f}ms)"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class StickySessionStrategy(RoutingStrategy):
     """Pin every request in a session to one model via consistent hashing.
 
@@ -723,8 +812,7 @@ class CanaryStrategy(RoutingStrategy):
         if not self._provider_health.is_available(canary_provider):
             return self._decision(
                 self._stable_model,
-                f"canary paused: provider {canary_provider} is unhealthy; "
-                "routed to stable model",
+                f"canary paused: provider {canary_provider} is unhealthy; routed to stable model",
             )
         digest = sha256(request.request_id.encode("utf-8")).hexdigest()
         bucket = int(digest[:8], 16) / 0xFFFFFFFF
@@ -819,6 +907,7 @@ def build_strategies(
     canary_stable_model: str,
     canary_model: str,
     canary_weight: float,
+    latency_sla_ms: float,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -837,6 +926,8 @@ def build_strategies(
         canary_stable_model: Canary strategy stable (majority) model.
         canary_model: Canary strategy model under gradual rollout.
         canary_weight: Fraction of traffic routed to the canary model.
+        latency_sla_ms: Latency-budget per-request provider p95 SLA in
+            milliseconds.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -861,6 +952,11 @@ def build_strategies(
             request_cost_ceiling_usd,
         ),
         RoutingStrategyName.STICKY_SESSION: StickySessionStrategy(model_catalog),
+        RoutingStrategyName.LATENCY_BUDGET: LatencyBudgetStrategy(
+            model_catalog,
+            latency_stats,
+            latency_sla_ms,
+        ),
         RoutingStrategyName.VALUE: ValueStrategy(model_catalog),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,

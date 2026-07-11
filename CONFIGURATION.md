@@ -103,6 +103,25 @@ NEXUS_CANARY_WEIGHT=0.1
 `NEXUS_CANARY_WEIGHT` is the fraction of traffic (within `[0.0, 1.0]`) sent to
 the canary model; both model names must exist in the catalog.
 
+## Latency-Budget Routing
+
+The `latency-budget` strategy is the latency-domain dual of `budget-aware`:
+instead of maximizing quality subject to a cost ceiling, it maximizes quality
+subject to a hard *latency* ceiling. It selects the highest-quality
+domain-eligible model whose provider rolling p95 latency stays within
+`NEXUS_LATENCY_SLA_MS`, so a request only trades quality for speed when the SLA
+requires it (unlike `latency-aware`, which always minimizes latency). Providers
+with no recorded latency yet are treated as within the SLA so a cold start still
+routes to the best model; when no provider meets the SLA it falls back to the
+lowest-p95 eligible model.
+
+```dotenv
+NEXUS_LATENCY_SLA_MS=750.0
+```
+
+`NEXUS_LATENCY_SLA_MS` is the maximum acceptable provider p95 latency per
+request, in milliseconds (non-negative).
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -117,6 +136,7 @@ Set `X-Router-Strategy` to one of:
 - `sticky-session`
 - `value`
 - `canary`
+- `latency-budget`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
