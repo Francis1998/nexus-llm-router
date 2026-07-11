@@ -9,6 +9,44 @@ from adapters.http_utils import json_object, nested_int
 from router.schemas import ChatMessage, ProviderResponse
 
 
+def _extract_gemini_text(candidates: object) -> str:
+    """Concatenate answer text from a Gemini ``candidates`` list.
+
+    A candidate's ``content.parts`` is an ordered list of typed parts. When a
+    thinking model (the Gemini 2.5 and 3 series) is asked for thought summaries,
+    the response interleaves *thought* parts \u2014 marked ``{"thought": true}`` and
+    carrying the model's internal reasoning \u2014 with the answer parts. Joining
+    every part with a ``text`` field therefore leaked that reasoning into the
+    user-facing completion. Thought parts are skipped so only the answer text is
+    returned, mirroring the Anthropic adapter's handling of ``thinking`` blocks.
+
+    Args:
+        candidates: The ``candidates`` field of a Gemini response body.
+
+    Returns:
+        The concatenated answer text, or an empty string when absent.
+    """
+    if not isinstance(candidates, list) or not candidates:
+        return ""
+    first_candidate = candidates[0]
+    if not isinstance(first_candidate, dict):
+        return ""
+    candidate_content = first_candidate.get("content", {})
+    if not isinstance(candidate_content, dict):
+        return ""
+    parts = candidate_content.get("parts", [])
+    if not isinstance(parts, list):
+        return ""
+    segments: list[str] = []
+    for part in parts:
+        if not isinstance(part, dict) or part.get("thought") is True:
+            continue
+        text_value = part.get("text")
+        if isinstance(text_value, str):
+            segments.append(text_value)
+    return "".join(segments)
+
+
 class GoogleGeminiAdapter(BaseProviderAdapter):
     """Adapter for Google Gemini generateContent."""
 
@@ -44,18 +82,7 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         if response.status_code >= 400:
             raise ProviderError(f"google request failed with status {response.status_code}")
         body = json_object(response)
-        candidates = body.get("candidates", [])
-        content = ""
-        if isinstance(candidates, list) and candidates and isinstance(candidates[0], dict):
-            candidate_content = candidates[0].get("content", {})
-            if isinstance(candidate_content, dict):
-                parts = candidate_content.get("parts", [])
-                if isinstance(parts, list):
-                    content = "".join(
-                        part["text"]
-                        for part in parts
-                        if isinstance(part, dict) and isinstance(part.get("text"), str)
-                    )
+        content = _extract_gemini_text(body.get("candidates", []))
         input_tokens = nested_int(body, ["usageMetadata", "promptTokenCount"])
         output_tokens = nested_int(body, ["usageMetadata", "candidatesTokenCount"])
         return ProviderResponse(
