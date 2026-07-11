@@ -7,9 +7,32 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from adapters.google import GoogleGeminiAdapter
+from adapters.google import GoogleGeminiAdapter, _extract_gemini_text
 from router.model_ids import GEMINI_FLASH_MODEL
 from router.schemas import ChatMessage
+
+
+def test_extract_gemini_text_skips_thought_summary_parts() -> None:
+    """Thought-summary parts (``thought: true``) must not leak into the answer.
+
+    Gemini 2.5/3-series thinking models interleave thought parts \u2014 marked
+    ``{"thought": true}`` and carrying internal reasoning \u2014 with the answer
+    parts. Concatenating every ``text`` part surfaced that reasoning in the
+    user-facing completion; only non-thought answer text must be returned.
+    """
+    candidates = [
+        {
+            "content": {
+                "parts": [
+                    {"thought": True, "text": "The user wants a greeting; I will be brief."},
+                    {"text": "Hello, "},
+                    {"text": "world."},
+                ]
+            }
+        }
+    ]
+
+    assert _extract_gemini_text(candidates) == "Hello, world."
 
 
 @pytest.mark.asyncio()

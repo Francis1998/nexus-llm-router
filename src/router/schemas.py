@@ -35,6 +35,7 @@ class RoutingStrategyName(StrEnum):
     STICKY_SESSION = "sticky-session"
     VALUE = "value"
     CANARY = "canary"
+    LATENCY_BUDGET = "latency-budget"
     AB_TEST = "ab"
 
 
