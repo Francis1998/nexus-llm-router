@@ -753,6 +753,74 @@ class ValueStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class ComplexityTierStrategy(RoutingStrategy):
+    """Escalate model quality in proportion to the task's complexity score.
+
+    The rule-based and classifier strategies also branch on complexity, but they
+    do so against *hard-coded model names*, so they silently misroute whenever
+    the catalog changes (a renamed or dropped model breaks the branch). This
+    strategy instead treats the classifier's ``complexity_score`` (already in
+    ``[0, 1]``) directly as a *required quality target* and picks the **cheapest**
+    domain-eligible candidate whose ``quality_score`` meets that target. A
+    trivial prompt (complexity near ``0``) accepts any model and therefore routes
+    to the cheapest, while a hard prompt (complexity near ``1``) admits only the
+    top-quality models — a deterministic quality-for-cost escalation ladder that
+    adapts to whatever catalog is configured, with no thresholds to tune.
+
+    When no candidate meets the target (for example a very hard prompt in a
+    catalog with a modest ceiling), it falls back to the single highest-quality
+    eligible candidate, so the request still routes deterministically. Ties among
+    admitted candidates break toward higher quality, then lower cost.
+    """
+
+    strategy_name = RoutingStrategyName.COMPLEXITY_TIER
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the cheapest model whose quality meets the complexity target."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        required_quality = signals.complexity_score
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+        admitted = [
+            candidate
+            for candidate in eligible_candidates
+            if candidate.quality_score >= required_quality
+        ]
+        if admitted:
+            selected_candidate = min(
+                admitted,
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                ),
+            )
+            rationale = (
+                f"complexity-tier admitted quality>={required_quality:.2f} and picked cheapest "
+                f"(quality {selected_candidate.quality_score:.2f}, "
+                f"est ${costs[selected_candidate.model]:.6f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (candidate.quality_score, -costs[candidate.model]),
+        )
+        rationale = (
+            f"complexity-tier found no model meeting quality>={required_quality:.2f}; "
+            f"routed to highest-quality candidate (quality {selected_candidate.quality_score:.2f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class CanaryStrategy(RoutingStrategy):
     """Roll traffic onto a canary model gradually, pausing on ill health.
 
@@ -958,6 +1026,7 @@ def build_strategies(
             latency_sla_ms,
         ),
         RoutingStrategyName.VALUE: ValueStrategy(model_catalog),
+        RoutingStrategyName.COMPLEXITY_TIER: ComplexityTierStrategy(model_catalog),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,
             provider_health,
