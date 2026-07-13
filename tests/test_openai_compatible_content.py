@@ -74,6 +74,44 @@ async def test_openai_adapter_joins_structured_content_parts() -> None:
     assert result.content == "Hello, world."
 
 
+_REFUSAL_BODY: dict[str, object] = {
+    "choices": [
+        {
+            "message": {
+                "role": "assistant",
+                "content": None,
+                "refusal": "I cannot help with that request.",
+            }
+        }
+    ],
+    "usage": {"prompt_tokens": 5, "completion_tokens": 8},
+}
+
+
+@pytest.mark.asyncio()
+async def test_openai_adapter_surfaces_refusal_when_content_is_null() -> None:
+    """A refusal must be surfaced, not dropped, when content is null.
+
+    When a model declines a request, OpenAI sets ``message.content`` to ``null``
+    and carries the explanation in a sibling ``refusal`` string. The adapter
+    previously read only ``content`` and returned an empty completion, silently
+    discarding the model's stated reason for refusing. The refusal text must be
+    surfaced as the completion instead.
+    """
+    adapter = OpenAIAdapter(api_key="test-key", timeout_seconds=5.0)
+
+    with patch(
+        "adapters.openai.httpx.AsyncClient", return_value=_mock_client_returning(_REFUSAL_BODY)
+    ):
+        result = await adapter.complete(
+            OPENAI_FRONTIER_MODEL,
+            [ChatMessage(role="user", content="Do something disallowed.")],
+            max_tokens=32,
+        )
+
+    assert result.content == "I cannot help with that request."
+
+
 @pytest.mark.asyncio()
 async def test_moonshot_adapter_joins_structured_content_parts() -> None:
     """Moonshot (OpenAI-compatible) must also join structured content parts."""
