@@ -49,19 +49,24 @@ def message_text(message: object) -> str:
 
     The base Chat Completions contract returns ``content`` as a string, but
     several OpenAI-compatible gateways (LiteLLM, vLLM, OpenRouter) return it as a
-    list of ``{"type": "text", "text": ...}`` parts. Both shapes are supported;
-    unrecognized shapes yield an empty string.
+    list of ``{"type": "text", "text": ...}`` parts. Both shapes are supported.
+
+    When the model declines a request, OpenAI sets ``content`` to ``null`` and
+    carries the explanation in a sibling ``refusal`` string instead. Ignoring it
+    would surface an empty completion and silently drop the model's stated reason
+    for refusing, so the ``refusal`` text is returned when no content is present.
 
     Args:
         message: The ``choices[i].message`` object.
 
     Returns:
-        Concatenated assistant text, or an empty string when absent.
+        Concatenated assistant text (or the refusal text when content is
+        absent), or an empty string when neither is present.
     """
     if not isinstance(message, dict):
         return ""
     content = message.get("content")
-    if isinstance(content, str):
+    if isinstance(content, str) and content:
         return content
     if isinstance(content, list):
         segments: list[str] = []
@@ -72,8 +77,12 @@ def message_text(message: object) -> str:
                 text_value = part.get("text")
                 if isinstance(text_value, str) and text_value:
                     segments.append(text_value)
-        return "".join(segments)
-    return ""
+        if segments:
+            return "".join(segments)
+    refusal = message.get("refusal")
+    if isinstance(refusal, str) and refusal:
+        return refusal
+    return content if isinstance(content, str) else ""
 
 
 def nested_int(payload: JsonObject, path: list[str], default: int = 0) -> int:
