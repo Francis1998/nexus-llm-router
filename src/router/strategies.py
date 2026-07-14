@@ -915,6 +915,61 @@ class CanaryStrategy(RoutingStrategy):
         return quality_ordered
 
 
+class RoundRobinStrategy(RoutingStrategy):
+    """Spread traffic evenly across every domain-eligible provider.
+
+    The cost-, latency-, quality-, and value-optimizing strategies all converge
+    on whichever single model currently scores best, so under steady traffic
+    they hammer one provider — concentrating rate-limit pressure and correlated
+    failure on it while other configured providers sit idle. This strategy is a
+    load-balancer: it distributes requests as evenly as possible across the
+    distinct providers that offer a domain-eligible model, then routes each
+    request to that provider's highest-quality eligible model.
+
+    Balancing uses a stable hash of ``request_id`` rather than a mutable
+    round-robin counter so the mapping is **deterministic and replayable** — the
+    same request always resolves to the same provider, which keeps audit records
+    reproducible and avoids shared cross-request state — while distinct requests
+    still spread uniformly across the provider pool (consistent-hash balancing).
+    Providers are ordered deterministically by name so the bucketing is stable
+    across processes and independent of catalog iteration order.
+    """
+
+    strategy_name = RoutingStrategyName.ROUND_ROBIN
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Route to a hash-balanced provider's best domain-eligible model."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        providers = sorted({candidate.provider for candidate in eligible_candidates})
+        digest = sha256(request.request_id.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) % len(providers)
+        selected_provider = providers[bucket]
+
+        provider_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if candidate.provider == selected_provider
+        ]
+        selected_candidate = max(
+            provider_candidates,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+            ),
+        )
+        rationale = (
+            f"round-robin balanced to provider '{selected_provider}' "
+            f"(bucket {bucket}/{len(providers)}); picked its best eligible model "
+            f"{selected_candidate.model} (quality {selected_candidate.quality_score:.2f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -1027,6 +1082,7 @@ def build_strategies(
         ),
         RoutingStrategyName.VALUE: ValueStrategy(model_catalog),
         RoutingStrategyName.COMPLEXITY_TIER: ComplexityTierStrategy(model_catalog),
+        RoutingStrategyName.ROUND_ROBIN: RoundRobinStrategy(model_catalog),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,
             provider_health,

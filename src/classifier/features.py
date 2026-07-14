@@ -3,14 +3,19 @@
 import re
 from dataclasses import dataclass
 
+# Each keyword is bounded by ``\b`` on both sides rather than a trailing literal
+# space. Requiring a following space silently missed keywords immediately
+# followed by a newline, colon, or parenthesis — for example an idiomatic SQL
+# query beginning ``SELECT\n`` or a Python ``class Foo:`` — which are unmistakably
+# code. ``SELECT`` stays upper-case only (matching the deliberately
+# case-sensitive intent), and the trailing ``\b`` still excludes substrings such
+# as ``subclass`` or ``important``.
 CODE_PATTERN = re.compile(
-    r"```|\bdef |\bclass |\bimport |\bSELECT |\bfunction |\bconst |\basync "
+    r"```|\bdef\b|\bclass\b|\bimport\b|\bSELECT\b|\bfunction\b|\bconst\b|\basync\b"
 )
 MEDICAL_PATTERN = re.compile(r"\b(patient|diagnosis|clinical|medical|symptom|treatment)\b", re.I)
 LEGAL_PATTERN = re.compile(r"\b(contract|clause|statute|liability|legal|compliance)\b", re.I)
-INSTRUCTION_PATTERN = re.compile(
-    r"\b(analyze|debug|prove|design|optimize|compare)\w*", re.I
-)
+INSTRUCTION_PATTERN = re.compile(r"\b(analyze|debug|prove|design|optimize|compare)\w*", re.I)
 
 
 @dataclass(frozen=True)

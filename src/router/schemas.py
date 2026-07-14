@@ -37,6 +37,7 @@ class RoutingStrategyName(StrEnum):
     CANARY = "canary"
     LATENCY_BUDGET = "latency-budget"
     COMPLEXITY_TIER = "complexity-tier"
+    ROUND_ROBIN = "round-robin"
     AB_TEST = "ab"
 
 

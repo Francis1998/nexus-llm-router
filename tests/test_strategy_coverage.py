@@ -7,7 +7,7 @@ cost-optimal quality-floor fallback, and complexity-score monotonicity.
 
 import pytest
 
-from classifier.complexity import LogisticComplexityClassifier
+from classifier.complexity import DomainClassifier, LogisticComplexityClassifier
 from classifier.features import extract_prompt_features
 from router.config import default_model_catalog
 from router.model_ids import (
@@ -197,3 +197,20 @@ def test_code_hits_count_real_code_keywords() -> None:
     """Genuine code keywords at a word boundary must still be detected."""
     features = extract_prompt_features("def run(): pass  # a class helper and import os")
     assert features.code_hits >= 3
+
+
+def test_code_hits_detect_keyword_followed_by_non_space() -> None:
+    """Code keywords followed by a newline, colon, or paren must be detected.
+
+    The pattern previously required a trailing literal space, so a keyword
+    immediately followed by a newline (an idiomatic SQL ``SELECT\\n``), a colon
+    (``class Foo:``), or a paren was missed entirely and the prompt fell through
+    to the ``general`` domain. A ``\\b`` boundary detects the token regardless of
+    the following character.
+    """
+    sql_features = extract_prompt_features("SELECT\n  name\nFROM customers")
+    assert sql_features.code_hits >= 1
+    assert DomainClassifier().classify(sql_features) is DomainTag.CODE
+
+    class_features = extract_prompt_features("class Foo:\n    pass")
+    assert class_features.code_hits >= 1
