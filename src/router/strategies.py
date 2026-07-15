@@ -970,6 +970,85 @@ class RoundRobinStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class CascadeStrategy(RoutingStrategy):
+    """Route to the cheapest capable model with a cost-ascending escalation ladder.
+
+    ``CostOptimalStrategy`` also starts from the cheapest model, but it enforces
+    a fixed operator quality *floor* and then inherits the base quality-ordered
+    fallback chain, so a first-attempt failure jumps straight to the globally
+    highest-quality (and usually priciest) model. This strategy instead models a
+    *cascade*: it routes the primary attempt to the cheapest domain-eligible
+    model and then orders the fallback chain by **ascending cost**, so each retry
+    escalates one rung up the price/capability ladder rather than leaping to the
+    top. That minimizes expected spend on the common (first-attempt-succeeds)
+    path while still climbing toward stronger models when a cheaper one fails,
+    with no thresholds to tune.
+
+    Eligibility mirrors the sibling optimizers: candidates must support the
+    request domain and (unless the request is batch) real-time serving; if none
+    qualify the filter relaxes to domain-only, then to the whole catalog, so a
+    request always routes deterministically. Costs are estimated from the prompt
+    and ``max_tokens``; ties break toward higher quality then model name so the
+    ladder is stable across processes.
+    """
+
+    strategy_name = RoutingStrategyName.CASCADE
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Route to the cheapest eligible model with a cost-ascending ladder."""
+        ordered = self._cost_ordered_candidates(request, signals)
+        selected_candidate = ordered[0]
+        cost = selected_candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens)
+        rationale = (
+            f"cascade routed to cheapest eligible model {selected_candidate.model} "
+            f"(quality {selected_candidate.quality_score:.2f}, est ${cost:.6f}); "
+            f"fallback escalates by ascending cost"
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in ordered[1:4]],
+        )
+
+    def _cost_ordered_candidates(
+        self, request: RouterRequest, signals: TaskSignals
+    ) -> list[ModelCandidate]:
+        """Return eligible candidates ordered by ascending estimated cost.
+
+        Args:
+            request: Router request.
+            signals: Observed task signals.
+
+        Returns:
+            Eligible candidates sorted by (cost asc, quality desc, model name).
+        """
+        realtime_eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+            and (
+                candidate.supports_realtime
+                or signals.latency_requirement is LatencyRequirement.BATCH
+            )
+        ]
+        domain_eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ]
+        eligible = realtime_eligible or domain_eligible or list(self._model_catalog.values())
+        return sorted(
+            eligible,
+            key=lambda candidate: (
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                -candidate.quality_score,
+                candidate.model,
+            ),
+        )
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -1083,6 +1162,7 @@ def build_strategies(
         RoutingStrategyName.VALUE: ValueStrategy(model_catalog),
         RoutingStrategyName.COMPLEXITY_TIER: ComplexityTierStrategy(model_catalog),
         RoutingStrategyName.ROUND_ROBIN: RoundRobinStrategy(model_catalog),
+        RoutingStrategyName.CASCADE: CascadeStrategy(model_catalog),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,
             provider_health,

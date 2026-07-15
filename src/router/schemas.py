@@ -38,6 +38,7 @@ class RoutingStrategyName(StrEnum):
     LATENCY_BUDGET = "latency-budget"
     COMPLEXITY_TIER = "complexity-tier"
     ROUND_ROBIN = "round-robin"
+    CASCADE = "cascade"
     AB_TEST = "ab"
 
 
