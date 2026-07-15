@@ -15,7 +15,26 @@ CODE_PATTERN = re.compile(
 )
 MEDICAL_PATTERN = re.compile(r"\b(patient|diagnosis|clinical|medical|symptom|treatment)\b", re.I)
 LEGAL_PATTERN = re.compile(r"\b(contract|clause|statute|liability|legal|compliance)\b", re.I)
-INSTRUCTION_PATTERN = re.compile(r"\b(analyze|debug|prove|design|optimize|compare)\w*", re.I)
+# Instruction verbs plus their inflections, matched with explicit inflectional
+# endings rather than a permissive trailing ``\w*``. The ``\w*`` form both
+# over-matched unrelated words that merely *start* with a verb (``prove`` ->
+# ``proverb``, ``design`` -> ``designated``/``designation``) and, because it
+# could not model the silent-``e`` drop, *under*-matched genuine ``-ing`` forms
+# (``analyzing``/``optimizing``/``proving``/``comparing`` were missed). Listing
+# the real endings (with British ``-ise``/``-yse`` spellings and the
+# consonant-doubling ``debugged``/``debugging``) fixes both, and the trailing
+# ``\b`` keeps unrelated longer words out.
+INSTRUCTION_PATTERN = re.compile(
+    r"\b(?:"
+    r"analy[sz]e[sd]?|analy[sz]ing|"
+    r"debug(?:s|ged|ging)?|"
+    r"prove[nsd]?|proving|"
+    r"design(?:s|ed|ing)?|"
+    r"optimi[sz]e[sd]?|optimi[sz]ing|"
+    r"compare[sd]?|comparing"
+    r")\b",
+    re.I,
+)
 
 
 @dataclass(frozen=True)

@@ -179,6 +179,30 @@ def test_instruction_hits_count_keyword_inflections() -> None:
     assert features.instruction_hits == 2
 
 
+def test_instruction_hits_ignore_words_that_start_with_a_keyword() -> None:
+    """A longer, unrelated word that *begins* with a verb must not count.
+
+    The previous permissive ``\\w*`` suffix matched any word starting with an
+    instruction verb, so ``proverb`` (from ``prove``) and ``designated`` /
+    ``designation`` (from ``design``) were miscounted as instructions, inflating
+    the complexity score and misrouting the request. Only the verb and its real
+    inflections should count.
+    """
+    features = extract_prompt_features("Explain the proverb and the designated clause.")
+    assert features.instruction_hits == 0
+
+
+def test_instruction_hits_count_silent_e_ing_inflections() -> None:
+    """``-ing`` forms of silent-``e`` verbs must count.
+
+    The previous pattern kept the trailing ``e`` of ``analyze``/``optimize``/
+    ``prove``/``compare`` and so could not match the e-dropped ``-ing`` forms,
+    silently under-counting genuine instructions.
+    """
+    features = extract_prompt_features("Start by analyzing, optimizing, and comparing the results.")
+    assert features.instruction_hits == 3
+
+
 def test_code_hits_ignore_substring_false_positives() -> None:
     """Words that merely contain a code keyword must not count as code hits.
 
