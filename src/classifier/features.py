@@ -13,8 +13,10 @@ from dataclasses import dataclass
 CODE_PATTERN = re.compile(
     r"```|\bdef\b|\bclass\b|\bimport\b|\bSELECT\b|\bfunction\b|\bconst\b|\basync\b"
 )
-MEDICAL_PATTERN = re.compile(r"\b(patient|diagnosis|clinical|medical|symptom|treatment)\b", re.I)
-LEGAL_PATTERN = re.compile(r"\b(contract|clause|statute|liability|legal|compliance)\b", re.I)
+MEDICAL_PATTERN = re.compile(
+    r"\b(patients?|diagnoses|diagnosis|clinical|medical|symptoms?|treatments?)\b", re.I
+)
+LEGAL_PATTERN = re.compile(r"\b(contracts?|clauses?|statutes?|liability|legal|compliance)\b", re.I)
 # Instruction verbs plus their inflections, matched with explicit inflectional
 # endings rather than a permissive trailing ``\w*``. The ``\w*`` form both
 # over-matched unrelated words that merely *start* with a verb (``prove`` ->
