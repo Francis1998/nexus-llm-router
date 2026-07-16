@@ -238,3 +238,26 @@ def test_code_hits_detect_keyword_followed_by_non_space() -> None:
 
     class_features = extract_prompt_features("class Foo:\n    pass")
     assert class_features.code_hits >= 1
+
+
+def test_medical_hits_count_common_plurals() -> None:
+    """Plural medical keywords must count toward medical_hits.
+
+    The medical pattern previously listed only singular forms (``patient``,
+    ``symptom``, ``treatment``, ``diagnosis``), so prompts that used everyday
+    plurals such as ``patients`` / ``symptoms`` / ``treatments`` scored zero
+    medical hits and fell through to the general domain.
+    """
+    features = extract_prompt_features("Multiple patients share symptoms after treatments.")
+    assert features.medical_hits >= 1
+
+
+def test_legal_hits_count_common_plurals() -> None:
+    """Plural legal keywords must count toward legal_hits.
+
+    The legal pattern previously listed only singular forms (``contract``,
+    ``clause``, ``statute``), so prompts referring to ``contracts`` /
+    ``statutes`` scored zero legal hits and missed legal-domain routing.
+    """
+    features = extract_prompt_features("Review the contracts and statutes carefully.")
+    assert features.legal_hits >= 1

@@ -1049,6 +1049,90 @@ class CascadeStrategy(RoutingStrategy):
         )
 
 
+class EpsilonGreedyStrategy(RoutingStrategy):
+    """Explore randomly with probability epsilon; otherwise exploit quality.
+
+    Pure quality-maximizing strategies never sample lower-ranked models, so a
+    catalog that is slightly mis-calibrated (or a new model whose prior is
+    conservative) never gets live traffic. This strategy borrows the classic
+    epsilon-greedy bandit policy: with probability ``epsilon`` it *explores* by
+    picking uniformly among domain-eligible candidates, and otherwise *exploits*
+    by selecting the highest-``quality_score`` eligible model.
+
+    Both the explore/exploit coin flip and the explore arm are derived from
+    stable hashes of ``request_id`` (matching canary/A/B bucketing), so a given
+    request always resolves to the same decision for replay and auditability
+    while distinct requests still explore at the configured rate.
+    """
+
+    strategy_name = RoutingStrategyName.EPSILON_GREEDY
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        epsilon: float = 0.1,
+    ) -> None:
+        """Initialize the epsilon-greedy strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            epsilon: Explore probability within ``[0.0, 1.0]``. Defaults to
+                ``0.1`` (10% exploration).
+
+        Raises:
+            ValueError: If ``epsilon`` is outside the ``[0.0, 1.0]`` range.
+        """
+        super().__init__(model_catalog)
+        if not 0.0 <= epsilon <= 1.0:
+            raise ValueError(f"epsilon must be within [0.0, 1.0], got {epsilon}")
+        self._epsilon = epsilon
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Explore or exploit among domain-eligible candidates."""
+        eligible = self._domain_eligible(signals)
+        digest = sha256(request.request_id.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) / 0xFFFFFFFF
+        if bucket < self._epsilon:
+            explore_digest = sha256(f"{request.request_id}:explore".encode()).hexdigest()
+            index = int(explore_digest[:8], 16) % len(eligible)
+            # Stable order so the explore arm does not depend on dict iteration.
+            ordered = sorted(eligible, key=lambda candidate: candidate.model)
+            selected_candidate = ordered[index]
+            rationale = (
+                f"epsilon-greedy explore bucket={bucket:.4f} < epsilon {self._epsilon:.2f}; "
+                f"uniform arm {index}/{len(ordered)} -> {selected_candidate.model} "
+                f"(quality {selected_candidate.quality_score:.2f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(
+            eligible,
+            key=lambda candidate: (candidate.quality_score, candidate.model),
+        )
+        rationale = (
+            f"epsilon-greedy exploit bucket={bucket:.4f} >= epsilon {self._epsilon:.2f}; "
+            f"routed to highest-quality eligible model {selected_candidate.model} "
+            f"(quality {selected_candidate.quality_score:.2f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+    def _domain_eligible(self, signals: TaskSignals) -> list[ModelCandidate]:
+        """Return domain-eligible candidates, or the full catalog as fallback.
+
+        Args:
+            signals: Observed task signals.
+
+        Returns:
+            Non-empty list of candidates to choose among.
+        """
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ]
+        return eligible or list(self._model_catalog.values())
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -1110,6 +1194,7 @@ def build_strategies(
     canary_model: str,
     canary_weight: float,
     latency_sla_ms: float,
+    epsilon: float = 0.1,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -1130,6 +1215,7 @@ def build_strategies(
         canary_weight: Fraction of traffic routed to the canary model.
         latency_sla_ms: Latency-budget per-request provider p95 SLA in
             milliseconds.
+        epsilon: Epsilon-greedy explore probability within ``[0.0, 1.0]``.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -1163,6 +1249,7 @@ def build_strategies(
         RoutingStrategyName.COMPLEXITY_TIER: ComplexityTierStrategy(model_catalog),
         RoutingStrategyName.ROUND_ROBIN: RoundRobinStrategy(model_catalog),
         RoutingStrategyName.CASCADE: CascadeStrategy(model_catalog),
+        RoutingStrategyName.EPSILON_GREEDY: EpsilonGreedyStrategy(model_catalog, epsilon),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,
             provider_health,

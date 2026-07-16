@@ -39,6 +39,7 @@ class RoutingStrategyName(StrEnum):
     COMPLEXITY_TIER = "complexity-tier"
     ROUND_ROBIN = "round-robin"
     CASCADE = "cascade"
+    EPSILON_GREEDY = "epsilon-greedy"
     AB_TEST = "ab"
 
 

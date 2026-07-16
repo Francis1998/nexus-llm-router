@@ -74,6 +74,7 @@ class NexusRouter:
             settings.canary_model,
             settings.canary_weight,
             settings.latency_sla_ms,
+            settings.epsilon,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

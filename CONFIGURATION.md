@@ -122,6 +122,25 @@ NEXUS_LATENCY_SLA_MS=750.0
 `NEXUS_LATENCY_SLA_MS` is the maximum acceptable provider p95 latency per
 request, in milliseconds (non-negative).
 
+## Epsilon-Greedy Routing
+
+The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:
+with probability `NEXUS_EPSILON` it *explores* by picking uniformly among
+domain-eligible candidates (via a second stable hash of `request_id`), and
+otherwise *exploits* by selecting the highest-`quality_score` eligible model.
+Bucketing matches canary/A/B (`sha256(request_id)[:8] / 0xFFFFFFFF`), so a given
+request always resolves to the same arm for replay and auditability while
+distinct requests still explore at the configured rate. Useful when quality
+priors are mostly trusted but you still want a small live sample across
+GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2.
+
+```dotenv
+NEXUS_EPSILON=0.1
+```
+
+`NEXUS_EPSILON` is the explore probability within `[0.0, 1.0]` (default `0.1`).
+See [docs/guides/EPSILON_GREEDY_GUIDE.md](docs/guides/EPSILON_GREEDY_GUIDE.md).
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -137,6 +156,10 @@ Set `X-Router-Strategy` to one of:
 - `value`
 - `canary`
 - `latency-budget`
+- `complexity-tier`
+- `round-robin`
+- `cascade`
+- `epsilon-greedy`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
