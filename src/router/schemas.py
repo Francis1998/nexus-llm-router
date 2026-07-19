@@ -42,6 +42,7 @@ class RoutingStrategyName(StrEnum):
     EPSILON_GREEDY = "epsilon-greedy"
     TOKEN_BUDGET = "token-budget"  # noqa: S105  # strategy name, not a secret
     GEO_REGION = "geo-region"
+    SLO_AWARE = "slo-aware"
     AB_TEST = "ab"
 
 

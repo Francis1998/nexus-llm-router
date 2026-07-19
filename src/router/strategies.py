@@ -1303,6 +1303,128 @@ class GeoRegionStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+
+class SuccessStats:
+    """Rolling success/failure summary used by SLO-aware routing."""
+
+    def __init__(self) -> None:
+        """Initialize empty success observations."""
+        self._successes: dict[str, int] = {}
+        self._attempts: dict[str, int] = {}
+
+    def observe(self, provider: str, *, success: bool) -> None:
+        """Record a provider attempt outcome.
+
+        Args:
+            provider: Provider name.
+            success: Whether the attempt succeeded.
+        """
+        self._attempts[provider] = self._attempts.get(provider, 0) + 1
+        if success:
+            self._successes[provider] = self._successes.get(provider, 0) + 1
+
+    def success_rate(self, provider: str) -> float:
+        """Return the rolling success rate for a provider.
+
+        Providers with no observations yet are treated as fully healthy
+        (``1.0``) so a cold start still admits every candidate under the SLO.
+
+        Args:
+            provider: Provider name.
+
+        Returns:
+            Success rate in ``[0.0, 1.0]``.
+        """
+        attempts = self._attempts.get(provider, 0)
+        if attempts == 0:
+            return 1.0
+        return self._successes.get(provider, 0) / attempts
+
+
+class SloAwareStrategy(RoutingStrategy):
+    """Route to models whose providers meet a rolling availability SLO.
+
+    Latency- and reliability-aware strategies react to p95 delay or open
+    circuit breakers, but neither tracks soft degradation: a provider can stay
+    below an availability SLO (for example 99%) while its circuit is still
+    closed. This strategy consults rolling success stats and selects the
+    highest-quality domain-eligible model whose provider success rate meets the
+    configured availability SLO. When no candidate meets the SLO it falls back
+    to the highest success-rate eligible model so the request still routes.
+    """
+
+    strategy_name = RoutingStrategyName.SLO_AWARE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        success_stats: SuccessStats,
+        availability_slo: float,
+    ) -> None:
+        """Initialize the SLO-aware strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            success_stats: Rolling provider success observations.
+            availability_slo: Minimum acceptable success rate in ``[0.0, 1.0]``.
+
+        Raises:
+            ValueError: If the availability SLO is outside ``[0.0, 1.0]``.
+        """
+        super().__init__(model_catalog)
+        if not 0.0 <= availability_slo <= 1.0:
+            raise ValueError(f"availability_slo must be within [0.0, 1.0], got {availability_slo}")
+        self._success_stats = success_stats
+        self._availability_slo = availability_slo
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best-quality model whose provider meets the availability SLO."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        rates = {
+            candidate.model: self._success_stats.success_rate(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        within_slo = [
+            candidate
+            for candidate in eligible_candidates
+            if rates[candidate.model] >= self._availability_slo
+        ]
+        if within_slo:
+            selected_candidate = max(
+                within_slo,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    rates[candidate.model],
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                ),
+            )
+            rationale = (
+                f"slo-aware selected highest quality {selected_candidate.quality_score:.2f} "
+                f"meeting availability SLO {self._availability_slo:.2%} "
+                f"(provider success {rates[selected_candidate.model]:.2%})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                rates[candidate.model],
+                candidate.quality_score,
+            ),
+        )
+        rationale = (
+            f"slo-aware found no provider meeting availability SLO "
+            f"{self._availability_slo:.2%}; routed to highest success-rate model "
+            f"(provider success {rates[selected_candidate.model]:.2%})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -1320,6 +1442,8 @@ def build_strategies(
     canary_weight: float,
     latency_sla_ms: float,
     epsilon: float = 0.1,
+    availability_slo: float = 0.99,
+    success_stats: SuccessStats | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -1341,10 +1465,15 @@ def build_strategies(
         latency_sla_ms: Latency-budget per-request provider p95 SLA in
             milliseconds.
         epsilon: Epsilon-greedy explore probability within ``[0.0, 1.0]``.
+        availability_slo: SLO-aware minimum provider success rate within
+            ``[0.0, 1.0]``.
+        success_stats: Optional rolling provider success observations for
+            SLO-aware routing. When omitted a fresh empty stats window is used.
 
     Returns:
         Routing strategies keyed by strategy name.
     """
+    resolved_success_stats = success_stats or SuccessStats()
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -1377,6 +1506,11 @@ def build_strategies(
         RoutingStrategyName.EPSILON_GREEDY: EpsilonGreedyStrategy(model_catalog, epsilon),
         RoutingStrategyName.TOKEN_BUDGET: TokenBudgetStrategy(model_catalog),
         RoutingStrategyName.GEO_REGION: GeoRegionStrategy(model_catalog),
+        RoutingStrategyName.SLO_AWARE: SloAwareStrategy(
+            model_catalog,
+            resolved_success_stats,
+            availability_slo,
+        ),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,
             provider_health,
