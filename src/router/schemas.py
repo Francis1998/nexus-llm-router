@@ -41,6 +41,7 @@ class RoutingStrategyName(StrEnum):
     CASCADE = "cascade"
     EPSILON_GREEDY = "epsilon-greedy"
     TOKEN_BUDGET = "token-budget"  # noqa: S105  # strategy name, not a secret
+    GEO_REGION = "geo-region"
     AB_TEST = "ab"
 
 
@@ -64,6 +65,7 @@ class RouterRequest(BaseModel):
     requested_model: str | None = None
     strategy: RoutingStrategyName | None = None
     token_budget: int = Field(default=4096, ge=1)
+    region: str | None = None
     max_tokens: int = Field(default=512, ge=1)
     stream: bool = False
 
@@ -94,6 +96,7 @@ class ModelCandidate(BaseModel):
     supports_domains: set[DomainTag]
     supports_realtime: bool = True
     context_window: int = Field(default=128_000, ge=1)
+    supported_regions: set[str] = Field(default_factory=lambda: {"global"})
 
     def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """Estimate request cost in USD for this candidate.

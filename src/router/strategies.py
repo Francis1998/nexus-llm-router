@@ -1245,6 +1245,64 @@ class ABRoutingStrategy(RoutingStrategy):
         return self._decision(selected_model, rationale)
 
 
+class GeoRegionStrategy(RoutingStrategy):
+    """Prefer domain-eligible models that match the request's geo region.
+
+    Data-residency and latency-affinity deployments often need traffic to stay
+    on models whose providers serve a specific region (for example ``eu`` or
+    ``cn``). Quality- and cost-optimizing strategies ignore geography entirely
+    and can route an EU request to a US-only SKU. This strategy first restricts
+    the pool to domain-eligible candidates whose ``supported_regions`` include
+    the request ``region`` (or ``global`` when the request omits a region), then
+    selects the highest-quality match. When no candidate advertises the
+    requested region it falls back to the highest-quality domain-eligible model
+    so the request still routes deterministically.
+    """
+
+    strategy_name = RoutingStrategyName.GEO_REGION
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best-quality model matching the request region."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        requested_region = (request.region or "global").strip().lower()
+        region_matches = [
+            candidate
+            for candidate in eligible_candidates
+            if requested_region in {region.lower() for region in candidate.supported_regions}
+        ]
+        if region_matches:
+            selected_candidate = max(
+                region_matches,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                ),
+            )
+            rationale = (
+                f"geo-region matched region '{requested_region}' to "
+                f"{selected_candidate.model} (quality {selected_candidate.quality_score:.2f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+            ),
+        )
+        rationale = (
+            f"geo-region found no model for region '{requested_region}'; "
+            f"fell back to highest-quality eligible model {selected_candidate.model}"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -1318,6 +1376,7 @@ def build_strategies(
         RoutingStrategyName.CASCADE: CascadeStrategy(model_catalog),
         RoutingStrategyName.EPSILON_GREEDY: EpsilonGreedyStrategy(model_catalog, epsilon),
         RoutingStrategyName.TOKEN_BUDGET: TokenBudgetStrategy(model_catalog),
+        RoutingStrategyName.GEO_REGION: GeoRegionStrategy(model_catalog),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,
             provider_health,

@@ -45,6 +45,17 @@ class LogisticComplexityClassifier:
 class DomainClassifier:
     """Deterministic domain classifier for supported routing domains."""
 
+    # When keyword-hit counts tie, prefer higher-stakes domains first. Dict
+    # insertion order previously made ``max(...)`` always return ``CODE`` on a
+    # tie (CODE is listed first), so a prompt with equal medical and code hits
+    # was misrouted away from the safety-critical medical path.
+    _TIEBREAK_PRIORITY: dict[DomainTag, int] = {
+        DomainTag.MEDICAL: 3,
+        DomainTag.LEGAL: 2,
+        DomainTag.CODE: 1,
+        DomainTag.GENERAL: 0,
+    }
+
     def classify(self, features: PromptFeatures) -> DomainTag:
         """Classify a prompt domain from extracted features.
 
@@ -60,7 +71,13 @@ class DomainClassifier:
             DomainTag.LEGAL: features.legal_hits,
             DomainTag.GENERAL: 0,
         }
-        chosen_domain = max(domain_scores, key=lambda domain: domain_scores[domain])
+        chosen_domain = max(
+            domain_scores,
+            key=lambda domain: (
+                domain_scores[domain],
+                self._TIEBREAK_PRIORITY[domain],
+            ),
+        )
         return chosen_domain if domain_scores[chosen_domain] > 0 else DomainTag.GENERAL
 
 

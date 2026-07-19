@@ -172,6 +172,7 @@ Set `X-Router-Strategy` to one of:
 - `round-robin`
 - `cascade`
 - `epsilon-greedy`
+- `geo-region`
 - `token-budget`
 - `ab`
 
