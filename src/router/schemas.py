@@ -40,6 +40,7 @@ class RoutingStrategyName(StrEnum):
     ROUND_ROBIN = "round-robin"
     CASCADE = "cascade"
     EPSILON_GREEDY = "epsilon-greedy"
+    TOKEN_BUDGET = "token-budget"  # noqa: S105  # strategy name, not a secret
     AB_TEST = "ab"
 
 
@@ -92,6 +93,7 @@ class ModelCandidate(BaseModel):
     output_cost_per_1k: float = Field(ge=0.0)
     supports_domains: set[DomainTag]
     supports_realtime: bool = True
+    context_window: int = Field(default=128_000, ge=1)
 
     def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """Estimate request cost in USD for this candidate.

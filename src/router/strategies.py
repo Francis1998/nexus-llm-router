@@ -1133,6 +1133,73 @@ class EpsilonGreedyStrategy(RoutingStrategy):
         return eligible or list(self._model_catalog.values())
 
 
+class TokenBudgetStrategy(RoutingStrategy):
+    """Route to the highest-quality model that fits the request token budget.
+
+    Long prompts and large ``max_tokens`` caps can exceed a model's
+    ``context_window``, causing provider 400s even when the chosen model would
+    otherwise be ideal on quality. Cost- and quality-optimizing strategies ignore
+    context capacity entirely. This strategy maximizes quality subject to a hard
+    *token* ceiling: it selects the highest-quality domain-eligible candidate
+    whose context window can hold the estimated prompt plus completion tokens
+    *and* whose window is at least as large as the request's ``token_budget``.
+
+    The effective capacity for a candidate is
+    ``min(candidate.context_window, request.token_budget)``. A candidate fits when
+    ``prompt_tokens_estimate + max_tokens <=`` that capacity. When no candidate
+    fits (for example an oversized prompt against a tight budget), it falls back
+    to the largest-context eligible model so the request still routes
+    deterministically rather than failing at decide time.
+    """
+
+    strategy_name = RoutingStrategyName.TOKEN_BUDGET
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best-quality model whose context fits the token budget."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        tokens_needed = signals.prompt_tokens_estimate + request.max_tokens
+
+        def effective_capacity(candidate: ModelCandidate) -> int:
+            return min(candidate.context_window, request.token_budget)
+
+        fitting_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if tokens_needed <= effective_capacity(candidate)
+        ]
+        if fitting_candidates:
+            selected_candidate = max(
+                fitting_candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    candidate.context_window,
+                ),
+            )
+            rationale = (
+                f"token-budget selected highest quality {selected_candidate.quality_score:.2f} "
+                f"fitting {tokens_needed} tokens within "
+                f"min(context={selected_candidate.context_window}, "
+                f"budget={request.token_budget})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (candidate.context_window, candidate.quality_score),
+        )
+        rationale = (
+            f"token-budget found no model fitting {tokens_needed} tokens within "
+            f"budget {request.token_budget}; routed to largest-context model "
+            f"(context {selected_candidate.context_window})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class ABRoutingStrategy(RoutingStrategy):
     """Route deterministic request-id buckets between two models."""
 
@@ -1250,6 +1317,7 @@ def build_strategies(
         RoutingStrategyName.ROUND_ROBIN: RoundRobinStrategy(model_catalog),
         RoutingStrategyName.CASCADE: CascadeStrategy(model_catalog),
         RoutingStrategyName.EPSILON_GREEDY: EpsilonGreedyStrategy(model_catalog, epsilon),
+        RoutingStrategyName.TOKEN_BUDGET: TokenBudgetStrategy(model_catalog),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,
             provider_health,

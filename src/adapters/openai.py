@@ -34,11 +34,17 @@ class OpenAIAdapter(BaseProviderAdapter):
         """Return a normalized OpenAI completion."""
         if not self._api_key:
             raise ProviderError("OPENAI_API_KEY is not configured")
-        payload = {
+        payload: dict[str, object] = {
             "model": model,
             "messages": [message.model_dump() for message in messages],
-            "max_tokens": max_tokens,
         }
+        # GPT-5.x chat completions reject ``max_tokens`` and require
+        # ``max_completion_tokens`` instead (same pattern as o-series reasoning
+        # models). Older GPT-4.x / mini SKUs still expect ``max_tokens``.
+        if model.startswith("gpt-5"):
+            payload["max_completion_tokens"] = max_tokens
+        else:
+            payload["max_tokens"] = max_tokens
         headers = {"Authorization": f"Bearer {self._api_key}"}
         async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
             response = await client.post(

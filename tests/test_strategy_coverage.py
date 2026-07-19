@@ -30,6 +30,7 @@ from router.strategies import (
     ClassifierStrategy,
     CostOptimalStrategy,
     RuleBasedStrategy,
+    TokenBudgetStrategy,
 )
 
 
@@ -261,3 +262,19 @@ def test_legal_hits_count_common_plurals() -> None:
     """
     features = extract_prompt_features("Review the contracts and statutes carefully.")
     assert features.legal_hits >= 1
+
+
+def test_token_budget_strategy_is_registered_and_selects_fitting_model() -> None:
+    """Token-budget coverage: generous budget selects the top-quality eligible model."""
+    strategy = TokenBudgetStrategy(default_model_catalog())
+    decision = strategy.choose(
+        RouterRequest(
+            request_id="req-tb-coverage",
+            messages=[ChatMessage(content="Hello")],
+            token_budget=200_000,
+            max_tokens=256,
+        ),
+        _signals(0.5, DomainTag.GENERAL),
+    )
+    assert decision.routing_strategy is RoutingStrategyName.TOKEN_BUDGET
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
