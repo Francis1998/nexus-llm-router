@@ -23,7 +23,7 @@ from router.schemas import (
     RouterResponse,
 )
 from router.state import RequestState, RoutingStateMachine
-from router.strategies import LatencyStats, RoutingStrategy, build_strategies
+from router.strategies import LatencyStats, RoutingStrategy, SuccessStats, build_strategies
 from safety.budget import BudgetExceededError, BudgetGuardrail
 from safety.circuit_breaker import CircuitBreakerRegistry, CircuitOpenError
 from safety.pii import PiiScrubber
@@ -57,6 +57,7 @@ class NexusRouter:
         self._analyzer = analyzer or RequestAnalyzer()
         self._model_catalog = dict(model_catalog or default_model_catalog())
         self._latency_stats = LatencyStats()
+        self._success_stats = SuccessStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -75,6 +76,8 @@ class NexusRouter:
             settings.canary_weight,
             settings.latency_sla_ms,
             settings.epsilon,
+            settings.availability_slo,
+            self._success_stats,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -171,6 +174,7 @@ class NexusRouter:
             except Exception as exception:
                 last_error = exception
                 self._circuit_breakers.record_failure(candidate.provider)
+                self._success_stats.observe(candidate.provider, success=False)
                 provider_error_rate.labels(candidate.provider, model_name).inc()
                 self._logger.warning(
                     "provider_attempt_failed",
@@ -200,6 +204,7 @@ class NexusRouter:
     ) -> RouterResponse:
         """Build the router response and persist observability side effects."""
         self._circuit_breakers.record_success(provider)
+        self._success_stats.observe(provider, success=True)
         state_machine.transition(RequestState.RESPONDED)
         latency_ms = (time.perf_counter() - started_at) * 1000.0
         latency_seconds = latency_ms / 1000.0

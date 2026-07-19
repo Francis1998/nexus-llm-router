@@ -141,6 +141,21 @@ NEXUS_EPSILON=0.1
 `NEXUS_EPSILON` is the explore probability within `[0.0, 1.0]` (default `0.1`).
 See [docs/guides/EPSILON_GREEDY_GUIDE.md](docs/guides/EPSILON_GREEDY_GUIDE.md).
 
+## SLO-Aware Routing
+
+The `slo-aware` strategy maximizes quality subject to a rolling availability SLO:
+it selects the highest-quality domain-eligible model whose provider success rate
+meets `NEXUS_AVAILABILITY_SLO` (default `0.99`). Useful when soft degradation
+would otherwise keep routing to GPT-5.5 / Claude Sonnet 4.6 / Gemini 2.5 / Kimi
+K2 providers that are burning error budget. Providers with no observations yet
+are treated as healthy; when nothing meets the SLO it falls back to the highest
+success-rate eligible model. See
+[docs/guides/SLO_AWARE_GUIDE.md](docs/guides/SLO_AWARE_GUIDE.md).
+
+```dotenv
+NEXUS_AVAILABILITY_SLO=0.99
+```
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -160,6 +175,7 @@ Set `X-Router-Strategy` to one of:
 - `round-robin`
 - `cascade`
 - `epsilon-greedy`
+- `slo-aware`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

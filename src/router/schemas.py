@@ -40,6 +40,7 @@ class RoutingStrategyName(StrEnum):
     ROUND_ROBIN = "round-robin"
     CASCADE = "cascade"
     EPSILON_GREEDY = "epsilon-greedy"
+    SLO_AWARE = "slo-aware"
     AB_TEST = "ab"
 
 
