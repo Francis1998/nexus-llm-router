@@ -75,6 +75,7 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             output_cost_per_1k=0.018,
             supports_domains={DomainTag.CODE, DomainTag.LEGAL, DomainTag.GENERAL},
             context_window=200_000,
+            supported_regions={"us", "global"},
         ),
         OPENAI_BALANCED_MODEL: ModelCandidate(
             model=OPENAI_BALANCED_MODEL,
@@ -84,6 +85,7 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             output_cost_per_1k=0.0008,
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
             context_window=128_000,
+            supported_regions={"us", "global"},
         ),
         ANTHROPIC_SAFETY_MODEL: ModelCandidate(
             model=ANTHROPIC_SAFETY_MODEL,
@@ -98,6 +100,7 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
                 DomainTag.GENERAL,
             },
             context_window=200_000,
+            supported_regions={"us", "eu", "global"},
         ),
         ANTHROPIC_FAST_MODEL: ModelCandidate(
             model=ANTHROPIC_FAST_MODEL,
@@ -107,6 +110,7 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             output_cost_per_1k=0.004,
             supports_domains={DomainTag.GENERAL, DomainTag.LEGAL},
             context_window=200_000,
+            supported_regions={"us", "eu", "global"},
         ),
         GEMINI_PRO_MODEL: ModelCandidate(
             model=GEMINI_PRO_MODEL,
@@ -122,6 +126,7 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             },
             supports_realtime=False,
             context_window=1_000_000,
+            supported_regions={"us", "eu", "global"},
         ),
         GEMINI_FLASH_MODEL: ModelCandidate(
             model=GEMINI_FLASH_MODEL,
@@ -131,6 +136,7 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             output_cost_per_1k=0.009,
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
             context_window=1_000_000,
+            supported_regions={"us", "eu", "global"},
         ),
         MOONSHOT_BALANCED_MODEL: ModelCandidate(
             model=MOONSHOT_BALANCED_MODEL,
@@ -140,6 +146,7 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             output_cost_per_1k=0.002,
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
             context_window=128_000,
+            supported_regions={"cn", "global"},
         ),
     }
 
