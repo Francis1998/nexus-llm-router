@@ -113,6 +113,82 @@ async def test_openai_adapter_surfaces_refusal_when_content_is_null() -> None:
 
 
 @pytest.mark.asyncio()
+async def test_openai_adapter_uses_max_completion_tokens_for_gpt5() -> None:
+    """GPT-5.x completions must send ``max_completion_tokens``, not ``max_tokens``.
+
+    OpenAI's GPT-5 chat-completions API rejects the legacy ``max_tokens`` field
+    (returning 400) and requires ``max_completion_tokens`` instead. Sending the
+    wrong key silently broke every GPT-5.5 primary route. Legacy GPT-4.x / mini
+    SKUs must keep ``max_tokens``.
+    """
+    adapter = OpenAIAdapter(api_key="test-key", timeout_seconds=5.0)
+    captured: dict[str, object] = {}
+
+    async def fake_post(*args: object, **kwargs: object) -> MagicMock:
+        del args
+        captured["json"] = kwargs.get("json")
+        response = MagicMock()
+        response.status_code = 200
+        response.json.return_value = {
+            "choices": [{"message": {"content": "ok"}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+        }
+        return response
+
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = fake_post
+
+    with patch("adapters.openai.httpx.AsyncClient", return_value=mock_client):
+        await adapter.complete(
+            OPENAI_FRONTIER_MODEL,
+            [ChatMessage(role="user", content="Hi.")],
+            max_tokens=64,
+        )
+
+    payload = captured["json"]
+    assert isinstance(payload, dict)
+    assert payload.get("max_completion_tokens") == 64
+    assert "max_tokens" not in payload
+
+
+@pytest.mark.asyncio()
+async def test_openai_adapter_keeps_max_tokens_for_non_gpt5() -> None:
+    """Non-GPT-5 OpenAI models must continue to send ``max_tokens``."""
+    adapter = OpenAIAdapter(api_key="test-key", timeout_seconds=5.0)
+    captured: dict[str, object] = {}
+
+    async def fake_post(*args: object, **kwargs: object) -> MagicMock:
+        del args
+        captured["json"] = kwargs.get("json")
+        response = MagicMock()
+        response.status_code = 200
+        response.json.return_value = {
+            "choices": [{"message": {"content": "ok"}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+        }
+        return response
+
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.post = fake_post
+
+    with patch("adapters.openai.httpx.AsyncClient", return_value=mock_client):
+        await adapter.complete(
+            "gpt-4.1-mini",
+            [ChatMessage(role="user", content="Hi.")],
+            max_tokens=32,
+        )
+
+    payload = captured["json"]
+    assert isinstance(payload, dict)
+    assert payload.get("max_tokens") == 32
+    assert "max_completion_tokens" not in payload
+
+
+@pytest.mark.asyncio()
 async def test_moonshot_adapter_joins_structured_content_parts() -> None:
     """Moonshot (OpenAI-compatible) must also join structured content parts."""
     adapter = MoonshotAdapter(

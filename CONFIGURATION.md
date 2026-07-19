@@ -141,6 +141,18 @@ NEXUS_EPSILON=0.1
 `NEXUS_EPSILON` is the explore probability within `[0.0, 1.0]` (default `0.1`).
 See [docs/guides/EPSILON_GREEDY_GUIDE.md](docs/guides/EPSILON_GREEDY_GUIDE.md).
 
+## Token-Budget Routing
+
+The `token-budget` strategy maximizes quality subject to a hard token ceiling: it
+selects the highest-quality domain-eligible model whose
+`min(context_window, request.token_budget)` can hold
+`prompt_tokens_estimate + max_tokens`. Useful for long RAG contexts across
+GPT-5.5, Claude Sonnet 4.6, Gemini 2.5, and Kimi K2 without risking provider
+context overflows. When no model fits it falls back to the largest-context
+eligible candidate. Requires no additional env vars; set `token_budget` on the
+request (default `4096`). See
+[docs/guides/TOKEN_BUDGET_GUIDE.md](docs/guides/TOKEN_BUDGET_GUIDE.md).
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -160,6 +172,7 @@ Set `X-Router-Strategy` to one of:
 - `round-robin`
 - `cascade`
 - `epsilon-greedy`
+- `token-budget`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
