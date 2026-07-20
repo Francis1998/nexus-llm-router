@@ -17,6 +17,5 @@ def test_chat_completion_rejects_streaming_until_sse_is_supported() -> None:
     )
     assert response.status_code == 400
     assert (
-        response.json()["detail"]
-        == "streaming responses are not supported by the API endpoint yet"
+        response.json()["detail"] == "streaming responses are not supported by the API endpoint yet"
     )

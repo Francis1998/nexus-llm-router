@@ -73,9 +73,7 @@ def test_complexity_tier_escalates_quality_with_complexity() -> None:
     trivial = strategy.choose(_request(), _signals(0.1))
     hard = strategy.choose(_request(), _signals(0.9))
 
-    assert (
-        catalog[hard.chosen_model].quality_score >= catalog[trivial.chosen_model].quality_score
-    )
+    assert catalog[hard.chosen_model].quality_score >= catalog[trivial.chosen_model].quality_score
     # A 0.9 target must admit only models at or above that quality.
     assert catalog[hard.chosen_model].quality_score >= 0.9
 
@@ -92,8 +90,7 @@ def test_complexity_tier_admits_cheapest_model_meeting_target() -> None:
         (
             candidate
             for candidate in catalog.values()
-            if DomainTag.GENERAL in candidate.supports_domains
-            and candidate.quality_score >= 0.9
+            if DomainTag.GENERAL in candidate.supports_domains and candidate.quality_score >= 0.9
         ),
         key=lambda candidate: candidate.estimate_cost(100, 256),
     )
