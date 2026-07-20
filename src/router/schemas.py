@@ -1,7 +1,7 @@
 """Shared request, response, and decision schemas."""
 
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -42,7 +42,7 @@ class RoutingStrategyName(StrEnum):
     EPSILON_GREEDY = "epsilon-greedy"
     TOKEN_BUDGET = "token-budget"  # noqa: S105  # strategy name, not a secret
     GEO_REGION = "geo-region"
-    SLO_AWARE = "slo-aware"
+    SEMANTIC_CACHE = "semantic-cache"
     AB_TEST = "ab"
 
 
@@ -69,6 +69,7 @@ class RouterRequest(BaseModel):
     region: str | None = None
     max_tokens: int = Field(default=512, ge=1)
     stream: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def prompt_text(self) -> str:
