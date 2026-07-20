@@ -16,6 +16,25 @@ def test_budget_guardrail_hard_rejects_excess_spend() -> None:
         guardrail.assert_can_spend("user-a", 0.30)
 
 
+def test_budget_guardrail_allows_float_epsilon_near_cap() -> None:
+    """Spend that lands a hair over the cap via float drift must still be allowed.
+
+    Recording many small charges that sum *mathematically* to the cap can leave
+    ``current_spend`` slightly above the configured USD limit because of IEEE-754
+    rounding (for example three ``0.1`` increments totaling ``0.30000000000000004``).
+    A strict ``>`` comparison then rejected a zero-cost follow-up even though the
+    subject was still at the cap within floating-point noise. ``assert_can_spend``
+    must tolerate a tiny epsilon near the cap so legitimate at-cap traffic is not
+    blocked.
+    """
+    guardrail = BudgetGuardrail(cap_usd=0.3)
+    for _ in range(3):
+        guardrail.record_spend("user-float", 0.1)
+
+    assert guardrail.spent("user-float") > 0.3
+    guardrail.assert_can_spend("user-float", 0.0)
+
+
 def test_circuit_breaker_opens_after_three_failures() -> None:
     """Circuit breaker should open after three consecutive failures."""
     circuit_breakers = CircuitBreakerRegistry(failure_threshold=3, recovery_window_seconds=60.0)

@@ -153,6 +153,21 @@ eligible candidate. Requires no additional env vars; set `token_budget` on the
 request (default `4096`). See
 [docs/guides/TOKEN_BUDGET_GUIDE.md](docs/guides/TOKEN_BUDGET_GUIDE.md).
 
+## SLO-Aware Routing
+
+The `slo-aware` strategy maximizes quality subject to a rolling availability SLO:
+it selects the highest-quality domain-eligible model whose provider success rate
+meets `NEXUS_AVAILABILITY_SLO` (default `0.99`). Useful when soft degradation
+would otherwise keep routing to GPT-5.5 / Claude Sonnet 4.6 / Gemini 2.5 / Kimi
+K2 providers that are burning error budget. Providers with no observations yet
+are treated as healthy; when nothing meets the SLO it falls back to the highest
+success-rate eligible model. See
+[docs/guides/SLO_AWARE_GUIDE.md](docs/guides/SLO_AWARE_GUIDE.md).
+
+```dotenv
+NEXUS_AVAILABILITY_SLO=0.99
+```
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -174,6 +189,7 @@ Set `X-Router-Strategy` to one of:
 - `epsilon-greedy`
 - `geo-region`
 - `token-budget`
+- `slo-aware`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

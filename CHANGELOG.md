@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `slo-aware` routing strategy: selects the highest-quality domain-eligible model whose provider rolling success rate meets `NEXUS_AVAILABILITY_SLO` (default `0.99`). Providers with no observations yet are treated as fully healthy. When nothing meets the SLO it falls back to the highest success-rate eligible model. The engine records success/failure into shared `SuccessStats`. See `docs/guides/SLO_AWARE_GUIDE.md`.
 - `geo-region` routing strategy: prefers the highest-quality domain-eligible model whose `supported_regions` include the request `region` (defaults to `global`). See `docs/guides/GEO_REGION_GUIDE.md`.
 - `token-budget` routing strategy: selects the highest-quality domain-eligible model whose `context_window` can hold `prompt_tokens_estimate + max_tokens` within the request `token_budget` (`min(context_window, token_budget)`). Falls back to the largest-context eligible model when nothing fits. Catalog candidates now carry a `context_window` prior (GPT-5.5 / Claude Sonnet 4.6 at 200k, Gemini 2.5-class at 1M, Kimi K2 at 128k). See `docs/guides/TOKEN_BUDGET_GUIDE.md`.
 - `epsilon-greedy` routing strategy: with probability `NEXUS_EPSILON` (default `0.1`) explores by picking uniformly among domain-eligible models via a second stable hash of `request_id`; otherwise exploits the highest-quality eligible model. Bucketing matches canary/A/B hashing so decisions stay deterministic and replayable while under-prioritized catalog entries still receive live traffic. See `docs/guides/EPSILON_GREEDY_GUIDE.md`.
@@ -16,6 +17,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `canary` routing strategy: progressive delivery that routes a configurable traffic fraction (`NEXUS_CANARY_WEIGHT`) onto a canary model (`NEXUS_CANARY_MODEL`) while the rest stays on a stable model (`NEXUS_CANARY_STABLE_MODEL`), bucketed by a stable hash of `request_id`. Unlike the symmetric `ab` strategy it is health-gated: when the canary provider's circuit breaker is open, all traffic falls back to the stable model, and the fallback chain is anchored on the stable model.
 
 ### Fixed
+- `BudgetGuardrail.assert_can_spend` now tolerates a tiny float epsilon (`1e-9` USD) near the cap so IEEE-754 accumulation of many small charges that sum to the configured limit no longer rejects at-cap follow-up spend.
 - DomainClassifier tie-breaks now prefer MEDICAL > LEGAL > CODE > GENERAL when keyword-hit counts are equal.
 - OpenAI adapter now sends `max_completion_tokens` for GPT-5.x models instead of the legacy `max_tokens` field. GPT-5.5 chat completions reject `max_tokens` with a 400; non-GPT-5 SKUs (for example `gpt-4.1-mini`) continue to use `max_tokens`.
 - Medical and legal feature extraction now match common plurals (`patients`/`symptoms`/`treatments`, `contracts`/`clauses`/`statutes`, plus `diagnoses`). Singular-only patterns previously scored those prompts as zero domain hits and fell through to the general domain.
