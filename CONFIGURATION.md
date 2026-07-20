@@ -153,6 +153,16 @@ eligible candidate. Requires no additional env vars; set `token_budget` on the
 request (default `4096`). See
 [docs/guides/TOKEN_BUDGET_GUIDE.md](docs/guides/TOKEN_BUDGET_GUIDE.md).
 
+## Semantic-Cache Routing
+
+The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
+`request.metadata.cache_hit` is truthy it prefers the cheapest domain-eligible
+realtime model among GPT-5.5, Claude Sonnet 4.6, Gemini 2.5, and Kimi K2; on a
+miss it falls through to `cost-optimal` under `NEXUS_QUALITY_FLOOR`. Useful when
+an upstream semantic cache already resolved the answer and frontier spend would
+be wasted. See
+[docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md](docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md).
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -174,6 +184,7 @@ Set `X-Router-Strategy` to one of:
 - `epsilon-greedy`
 - `geo-region`
 - `token-budget`
+- `semantic-cache`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

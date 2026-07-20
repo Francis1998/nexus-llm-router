@@ -8,6 +8,11 @@ class BudgetExceededError(RuntimeError):
 class BudgetGuardrail:
     """Track spend and enforce hard budget caps."""
 
+    # IEEE-754 accumulation of many small USD costs can land a hair above the
+    # configured cap even when every individual charge was intended to fit.
+    # Treat overruns within this epsilon as still within budget.
+    _EPSILON_USD = 1e-9
+
     def __init__(self, cap_usd: float) -> None:
         """Initialize the budget guardrail.
 
@@ -28,7 +33,7 @@ class BudgetGuardrail:
             BudgetExceededError: If the spend cap would be exceeded.
         """
         current_spend = self._spend_by_subject.get(subject, 0.0)
-        if current_spend + estimated_cost_usd > self._cap_usd:
+        if current_spend + estimated_cost_usd > self._cap_usd + self._EPSILON_USD:
             raise BudgetExceededError(f"budget cap exceeded for {subject}")
 
     def record_spend(self, subject: str, cost_usd: float) -> None:
