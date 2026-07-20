@@ -43,6 +43,7 @@ class RoutingStrategyName(StrEnum):
     TOKEN_BUDGET = "token-budget"  # noqa: S105  # strategy name, not a secret
     GEO_REGION = "geo-region"
     SLO_AWARE = "slo-aware"
+    FAILOVER_PRIORITY = "failover-priority"
     AB_TEST = "ab"
 
 

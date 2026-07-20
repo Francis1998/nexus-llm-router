@@ -59,6 +59,14 @@ class RouterSettings(BaseSettings):
     latency_sla_ms: Annotated[float, Field(ge=0.0)] = 750.0
     epsilon: Annotated[float, Field(ge=0.0, le=1.0)] = 0.1
     availability_slo: Annotated[float, Field(ge=0.0, le=1.0)] = 0.99
+    failover_priority: list[str] = Field(
+        default_factory=lambda: [
+            OPENAI_FRONTIER_MODEL,
+            ANTHROPIC_SAFETY_MODEL,
+            GEMINI_PRO_MODEL,
+            MOONSHOT_BALANCED_MODEL,
+        ]
+    )
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
