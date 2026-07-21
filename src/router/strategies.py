@@ -1423,6 +1423,93 @@ class SloAwareStrategy(RoutingStrategy):
             f"(provider success {rates[selected_candidate.model]:.2%})"
         )
         return self._decision(selected_candidate.model, rationale)
+class SemanticCacheStrategy(RoutingStrategy):
+    """Route cache hits to the cheapest eligible model; miss falls to cost-optimal.
+
+    Portkey- and LiteLLM-style semantic caches often mark a request as a hit in
+    metadata when a prior embedding match can serve the answer. Serving a hit
+    through a frontier model wastes spend; the useful signal is already cached.
+    On ``metadata.cache_hit`` (truthy), this strategy picks the cheapest
+    domain-eligible realtime-capable model (ties break toward higher quality,
+    then model name) so GPT-5.5 / Claude Sonnet 4.6 / Gemini 2.5 / Kimi K2
+    traffic stays cheap on hits. On a miss it falls through to
+    :class:`CostOptimalStrategy` so cold requests still respect the quality
+    floor.
+    """
+
+    strategy_name = RoutingStrategyName.SEMANTIC_CACHE
+
+    def __init__(
+        self, model_catalog: Mapping[str, ModelCandidate], quality_floor: float
+    ) -> None:
+        """Initialize semantic-cache strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            quality_floor: Quality floor used on cache misses via cost-optimal.
+        """
+        super().__init__(model_catalog)
+        self._cost_optimal = CostOptimalStrategy(model_catalog, quality_floor)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a cheap model on cache hit; otherwise cost-optimal."""
+        if self._is_cache_hit(request):
+            eligible_candidates = [
+                candidate
+                for candidate in self._model_catalog.values()
+                if signals.domain_tag in candidate.supports_domains
+                and (
+                    candidate.supports_realtime
+                    or signals.latency_requirement is LatencyRequirement.BATCH
+                )
+            ] or [
+                candidate
+                for candidate in self._model_catalog.values()
+                if signals.domain_tag in candidate.supports_domains
+            ] or list(self._model_catalog.values())
+            selected_candidate = min(
+                eligible_candidates,
+                key=lambda candidate: (
+                    candidate.estimate_cost(
+                        signals.prompt_tokens_estimate,
+                        request.max_tokens,
+                    ),
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            estimated_cost = selected_candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            rationale = (
+                "semantic-cache hit; preferred cheapest eligible model "
+                f"{selected_candidate.model} at ${estimated_cost:.6f}"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        miss_decision = self._cost_optimal.choose(request, signals)
+        rationale = f"semantic-cache miss; {miss_decision.rationale}"
+        return self._decision(miss_decision.chosen_model, rationale)
+
+    @staticmethod
+    def _is_cache_hit(request: RouterRequest) -> bool:
+        """Return whether request metadata signals a semantic cache hit.
+
+        Args:
+            request: Router request that may carry ``metadata.cache_hit``.
+
+        Returns:
+            True when ``cache_hit`` is a truthy value (bool, ``\"true\"``, ``1``).
+        """
+        raw_value = request.metadata.get("cache_hit")
+        if isinstance(raw_value, bool):
+            return raw_value
+        if isinstance(raw_value, (int, float)):
+            return raw_value != 0
+        if isinstance(raw_value, str):
+            return raw_value.strip().lower() in {"1", "true", "yes", "hit"}
+        return False
 
 
 def build_strategies(
@@ -1511,6 +1598,7 @@ def build_strategies(
             resolved_success_stats,
             availability_slo,
         ),
+        RoutingStrategyName.SEMANTIC_CACHE: SemanticCacheStrategy(model_catalog, quality_floor),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,
             provider_health,
