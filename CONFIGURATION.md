@@ -177,6 +177,20 @@ an upstream semantic cache already resolved the answer and frontier spend would
 be wasted. See
 [docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md](docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md).
 
+## Least-Busy Routing
+
+The `least-busy` strategy selects the highest-quality domain-eligible model on
+the provider with the lowest live in-flight load score. The router increments
+the provider counter immediately before dispatch and decrements it in a
+completion/failure cleanup path, so concurrent requests spread away from
+currently saturated providers. If multiple providers have the same load, ties
+prefer higher `quality_score`, then lower estimated request cost.
+
+No additional `NEXUS_*` setting is required; select it with
+`NEXUS_DEFAULT_STRATEGY=least-busy` or per request with
+`X-Router-Strategy: least-busy`. See
+[docs/guides/LEAST_BUSY_GUIDE.md](docs/guides/LEAST_BUSY_GUIDE.md).
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -200,6 +214,7 @@ Set `X-Router-Strategy` to one of:
 - `token-budget`
 - `slo-aware`
 - `semantic-cache`
+- `least-busy`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

@@ -44,6 +44,7 @@ class RoutingStrategyName(StrEnum):
     GEO_REGION = "geo-region"
     SLO_AWARE = "slo-aware"
     SEMANTIC_CACHE = "semantic-cache"
+    LEAST_BUSY = "least-busy"
     AB_TEST = "ab"
 
 
