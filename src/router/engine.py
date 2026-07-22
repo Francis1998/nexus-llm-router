@@ -78,6 +78,7 @@ class NexusRouter:
             settings.epsilon,
             settings.availability_slo,
             self._success_stats,
+            settings.failover_priority,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
