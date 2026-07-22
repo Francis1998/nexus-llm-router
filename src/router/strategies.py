@@ -1423,6 +1423,107 @@ class SloAwareStrategy(RoutingStrategy):
             f"(provider success {rates[selected_candidate.model]:.2%})"
         )
         return self._decision(selected_candidate.model, rationale)
+
+
+class PromptPrefixCacheStrategy(RoutingStrategy):
+    """Route long shared system-prompt prefixes with sticky model affinity.
+
+    OpenRouter/LiteLLM-style prompt caching works best when requests that share
+    the same long prompt prefix keep hitting the same provider/model: provider KV
+    caches are usually scoped by model deployment, so spreading one prefix across
+    providers dilutes cache-hit probability. This strategy hashes the first
+    ``min_prefix_chars`` characters of the request's system prompt and uses that
+    digest to pick a deterministic domain-eligible candidate. Requests sharing
+    that long prefix therefore stick to the same provider/model, while unrelated
+    prefixes spread across the candidate pool.
+
+    Requests without a sufficiently long system prompt fall back to
+    :class:`CostOptimalStrategy`, because there is no useful prefix-cache signal
+    to optimize.
+    """
+
+    strategy_name = RoutingStrategyName.PROMPT_PREFIX_CACHE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        quality_floor: float,
+        min_prefix_chars: int,
+    ) -> None:
+        """Initialize prompt-prefix-cache routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            quality_floor: Quality floor used when no long prefix is present.
+            min_prefix_chars: Minimum system prompt prefix length to hash.
+
+        Raises:
+            ValueError: If ``min_prefix_chars`` is not positive.
+        """
+        super().__init__(model_catalog)
+        if min_prefix_chars < 1:
+            raise ValueError(f"min_prefix_chars must be positive, got {min_prefix_chars}")
+        self._cost_optimal = CostOptimalStrategy(model_catalog, quality_floor)
+        self._min_prefix_chars = min_prefix_chars
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a sticky model for long system-prompt prefixes."""
+        prefix = self._system_prompt_prefix(request)
+        if prefix is None:
+            fallback_decision = self._cost_optimal.choose(request, signals)
+            rationale = (
+                "prompt-prefix-cache found no system prompt prefix "
+                f">={self._min_prefix_chars} chars; {fallback_decision.rationale}"
+            )
+            return self._decision(fallback_decision.chosen_model, rationale)
+
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+            and (
+                candidate.supports_realtime
+                or signals.latency_requirement is LatencyRequirement.BATCH
+            )
+        ] or [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        ordered_candidates = sorted(
+            eligible_candidates,
+            key=lambda candidate: (candidate.provider, candidate.model),
+        )
+        digest = sha256(prefix.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) % len(ordered_candidates)
+        selected_candidate = ordered_candidates[bucket]
+        rationale = (
+            "prompt-prefix-cache routed prefix "
+            f"{digest[:12]} to {selected_candidate.provider}/{selected_candidate.model} "
+            f"(bucket {bucket}/{len(ordered_candidates)}, "
+            f"min_prefix_chars={self._min_prefix_chars})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+    def _system_prompt_prefix(self, request: RouterRequest) -> str | None:
+        """Return a hashable long system-prompt prefix, if present.
+
+        Args:
+            request: Router request with OpenAI-compatible messages.
+
+        Returns:
+            The first ``min_prefix_chars`` of joined system message content, or
+            ``None`` when the request has no sufficiently long system prompt.
+        """
+        system_prompt = "\n".join(
+            message.content for message in request.messages if message.role == "system"
+        )
+        if len(system_prompt) < self._min_prefix_chars:
+            return None
+        return system_prompt[: self._min_prefix_chars]
+
+
 class SemanticCacheStrategy(RoutingStrategy):
     """Route cache hits to the cheapest eligible model; miss falls to cost-optimal.
 
@@ -1609,6 +1710,7 @@ def build_strategies(
     canary_model: str,
     canary_weight: float,
     latency_sla_ms: float,
+    prompt_prefix_cache_min_chars: int,
     epsilon: float = 0.1,
     availability_slo: float = 0.99,
     success_stats: SuccessStats | None = None,
@@ -1633,6 +1735,8 @@ def build_strategies(
         canary_weight: Fraction of traffic routed to the canary model.
         latency_sla_ms: Latency-budget per-request provider p95 SLA in
             milliseconds.
+        prompt_prefix_cache_min_chars: Minimum system prompt prefix length for
+            prompt-prefix-cache affinity.
         epsilon: Epsilon-greedy explore probability within ``[0.0, 1.0]``.
         availability_slo: SLO-aware minimum provider success rate within
             ``[0.0, 1.0]``.
@@ -1685,6 +1789,11 @@ def build_strategies(
             availability_slo,
         ),
         RoutingStrategyName.SEMANTIC_CACHE: SemanticCacheStrategy(model_catalog, quality_floor),
+        RoutingStrategyName.PROMPT_PREFIX_CACHE: PromptPrefixCacheStrategy(
+            model_catalog,
+            quality_floor,
+            prompt_prefix_cache_min_chars,
+        ),
         RoutingStrategyName.FAILOVER_PRIORITY: FailoverPriorityStrategy(
             model_catalog,
             provider_health,

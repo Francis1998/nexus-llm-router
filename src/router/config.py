@@ -59,6 +59,7 @@ class RouterSettings(BaseSettings):
     latency_sla_ms: Annotated[float, Field(ge=0.0)] = 750.0
     epsilon: Annotated[float, Field(ge=0.0, le=1.0)] = 0.1
     availability_slo: Annotated[float, Field(ge=0.0, le=1.0)] = 0.99
+    prompt_prefix_cache_min_chars: Annotated[int, Field(ge=1)] = 512
     failover_priority: list[str] = Field(
         default_factory=lambda: [
             OPENAI_FRONTIER_MODEL,
