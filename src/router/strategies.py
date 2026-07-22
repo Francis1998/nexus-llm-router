@@ -237,6 +237,45 @@ class LatencyStats:
         return observations[index]
 
 
+class InflightStats:
+    """Provider in-flight counters used by least-busy routing."""
+
+    def __init__(self) -> None:
+        """Initialize empty in-flight counters."""
+        self._inflight: dict[str, int] = {}
+
+    def begin(self, provider: str) -> None:
+        """Record that a provider attempt has started.
+
+        Args:
+            provider: Provider name.
+        """
+        self._inflight[provider] = self._inflight.get(provider, 0) + 1
+
+    def finish(self, provider: str) -> None:
+        """Record that a provider attempt has finished.
+
+        Args:
+            provider: Provider name.
+        """
+        current = self._inflight.get(provider, 0)
+        if current <= 1:
+            self._inflight.pop(provider, None)
+        else:
+            self._inflight[provider] = current - 1
+
+    def load_score(self, provider: str) -> int:
+        """Return the provider's current in-flight load score.
+
+        Args:
+            provider: Provider name.
+
+        Returns:
+            Number of live attempts currently dispatched to the provider.
+        """
+        return self._inflight.get(provider, 0)
+
+
 class LatencyAwareStrategy(RoutingStrategy):
     """Route to low-latency models while penalizing degraded providers."""
 
@@ -283,6 +322,81 @@ class LatencyAwareStrategy(RoutingStrategy):
         p95_latency = self._latency_stats.p95(selected_candidate.provider)
         rationale = f"latency-aware score favored provider p95={p95_latency:.1f}ms"
         return self._decision(selected_candidate.model, rationale)
+
+
+class LeastBusyStrategy(RoutingStrategy):
+    """Route to the best model on the least-loaded eligible provider.
+
+    Quality-first strategies can converge on one high-scoring provider even while
+    it is already saturated. This strategy consults live in-flight counters and
+    first chooses among providers with the lowest current load score, then breaks
+    ties by candidate quality and estimated request cost.
+    """
+
+    strategy_name = RoutingStrategyName.LEAST_BUSY
+
+    def __init__(
+        self, model_catalog: Mapping[str, ModelCandidate], inflight_stats: InflightStats
+    ) -> None:
+        """Initialize the least-busy strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            inflight_stats: Live provider in-flight attempt counters.
+        """
+        super().__init__(model_catalog)
+        self._inflight_stats = inflight_stats
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the highest-quality candidate on the least-busy provider."""
+        ordered = self._load_ordered_candidates(request, signals)
+        selected_candidate = ordered[0]
+        load_score = self._inflight_stats.load_score(selected_candidate.provider)
+        estimated_cost = selected_candidate.estimate_cost(
+            signals.prompt_tokens_estimate,
+            request.max_tokens,
+        )
+        rationale = (
+            f"least-busy selected provider {selected_candidate.provider} "
+            f"with load {load_score}; picked highest-quality eligible model "
+            f"{selected_candidate.model} (quality {selected_candidate.quality_score:.2f}, "
+            f"est ${estimated_cost:.6f})"
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in ordered[1:4]],
+        )
+
+    def _load_ordered_candidates(
+        self, request: RouterRequest, signals: TaskSignals
+    ) -> list[ModelCandidate]:
+        """Return eligible candidates ordered by load, quality, and cost.
+
+        Args:
+            request: Router request.
+            signals: Observed task signals.
+
+        Returns:
+            Domain-eligible candidates ordered by (load asc, quality desc,
+            estimated cost asc, model name).
+        """
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        return sorted(
+            eligible_candidates,
+            key=lambda candidate: (
+                self._inflight_stats.load_score(candidate.provider),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
 
 
 class ReliabilityAwareStrategy(RoutingStrategy):
@@ -1596,6 +1710,7 @@ class FailoverPriorityStrategy(RoutingStrategy):
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
+    inflight_stats: InflightStats,
     quality_floor: float,
     ab_model_a: str,
     ab_model_b: str,
@@ -1619,6 +1734,7 @@ def build_strategies(
     Args:
         model_catalog: Available model candidates by model name.
         latency_stats: Rolling provider latency observations.
+        inflight_stats: Live provider in-flight attempt counters.
         quality_floor: Cost optimizer quality floor.
         ab_model_a: First A/B model arm.
         ab_model_b: Second A/B model arm.
@@ -1652,6 +1768,7 @@ def build_strategies(
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
         RoutingStrategyName.COST_OPTIMAL: CostOptimalStrategy(model_catalog, quality_floor),
         RoutingStrategyName.LATENCY_AWARE: LatencyAwareStrategy(model_catalog, latency_stats),
+        RoutingStrategyName.LEAST_BUSY: LeastBusyStrategy(model_catalog, inflight_stats),
         RoutingStrategyName.RELIABILITY_AWARE: ReliabilityAwareStrategy(
             model_catalog, provider_health
         ),

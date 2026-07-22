@@ -11,7 +11,11 @@ from adapters.mock import MockProviderAdapter
 from adapters.registry import AdapterRegistry
 from router.config import RouterSettings
 from router.engine import NexusRouter, RoutingFailedError
-from router.model_ids import ANTHROPIC_SAFETY_MODEL, OPENAI_BALANCED_MODEL
+from router.model_ids import (
+    ANTHROPIC_SAFETY_MODEL,
+    OPENAI_BALANCED_MODEL,
+    OPENAI_FRONTIER_MODEL,
+)
 from router.schemas import ChatMessage, RouterRequest, RoutingStrategyName
 from router.state import RequestState
 
@@ -243,4 +247,39 @@ async def test_budget_rejection_is_not_counted_as_provider_error(
     assert all(
         state.consecutive_failures == 0 and state.opened_at is None
         for state in router._circuit_breakers._states.values()
+    )
+
+
+@pytest.mark.asyncio
+async def test_inflight_counter_is_cleared_after_provider_failure(tmp_path: Path) -> None:
+    """A failed provider attempt must not leak least-busy load.
+
+    The least-busy strategy reads live in-flight counters. If a provider failure
+    left its counter incremented, future routing would incorrectly avoid that
+    provider after the request had already finished.
+    """
+    router = NexusRouter(
+        settings=RouterSettings(audit_log_path=str(tmp_path / "audit.jsonl")),
+        adapter_registry=AdapterRegistry(
+            {
+                "openai": MockProviderAdapter("openai"),
+                "anthropic": MockProviderAdapter("anthropic", fail=True),
+                "google": MockProviderAdapter("google"),
+                "moonshot": MockProviderAdapter("moonshot"),
+            },
+        ),
+    )
+
+    response = await router.complete(
+        RouterRequest(
+            request_id="req-least-busy-fallback",
+            messages=[ChatMessage(content="Summarize this infrastructure incident.")],
+            strategy=RoutingStrategyName.LEAST_BUSY,
+        ),
+    )
+
+    assert response.model_used == OPENAI_FRONTIER_MODEL
+    assert all(
+        router._inflight_stats.load_score(provider) == 0
+        for provider in {"openai", "anthropic", "google", "moonshot"}
     )

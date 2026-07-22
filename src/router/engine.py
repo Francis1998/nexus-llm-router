@@ -23,7 +23,13 @@ from router.schemas import (
     RouterResponse,
 )
 from router.state import RequestState, RoutingStateMachine
-from router.strategies import LatencyStats, RoutingStrategy, SuccessStats, build_strategies
+from router.strategies import (
+    InflightStats,
+    LatencyStats,
+    RoutingStrategy,
+    SuccessStats,
+    build_strategies,
+)
 from safety.budget import BudgetExceededError, BudgetGuardrail
 from safety.circuit_breaker import CircuitBreakerRegistry, CircuitOpenError
 from safety.pii import PiiScrubber
@@ -57,11 +63,13 @@ class NexusRouter:
         self._analyzer = analyzer or RequestAnalyzer()
         self._model_catalog = dict(model_catalog or default_model_catalog())
         self._latency_stats = LatencyStats()
+        self._inflight_stats = InflightStats()
         self._success_stats = SuccessStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
             self._latency_stats,
+            self._inflight_stats,
             settings.quality_floor,
             settings.ab_model_a,
             settings.ab_model_b,
@@ -159,10 +167,14 @@ class NexusRouter:
                 if dispatchable_state:
                     state_machine.transition(RequestState.DISPATCHED)
                 sanitized_messages = self._pii_scrubber.scrub_messages(request.messages)
-                provider_response = await asyncio.wait_for(
-                    adapter.complete(model_name, sanitized_messages, request.max_tokens),
-                    timeout=self._settings.provider_settings.request_timeout_seconds,
-                )
+                self._inflight_stats.begin(candidate.provider)
+                try:
+                    provider_response = await asyncio.wait_for(
+                        adapter.complete(model_name, sanitized_messages, request.max_tokens),
+                        timeout=self._settings.provider_settings.request_timeout_seconds,
+                    )
+                finally:
+                    self._inflight_stats.finish(candidate.provider)
                 return self._respond(
                     request=request,
                     provider_response=provider_response,
