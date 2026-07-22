@@ -1512,6 +1512,87 @@ class SemanticCacheStrategy(RoutingStrategy):
         return False
 
 
+
+class FailoverPriorityStrategy(RoutingStrategy):
+    """Walk an explicit ordered model list and pick the first healthy candidate.
+
+    LiteLLM-style failover uses an operator-defined preference order rather than
+    optimizing for cost or quality. This strategy consults
+    ``NEXUS_FAILOVER_PRIORITY`` (an ordered model list spanning GPT-5.5, Claude
+    Sonnet 4.6, Gemini 2.5, and Kimi K2 by default) and selects the first
+    catalog model whose provider circuit is closed. Unhealthy providers are
+    skipped; when every preference is unhealthy it still routes to the first
+    in-catalog preference so the request does not fail at decide time. The
+    fallback chain preserves the remaining priority order.
+    """
+
+    strategy_name = RoutingStrategyName.FAILOVER_PRIORITY
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        failover_priority: list[str],
+    ) -> None:
+        """Initialize failover-priority strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            failover_priority: Ordered preferred model names.
+
+        Raises:
+            ValueError: If the priority list is empty or contains no catalog models.
+        """
+        super().__init__(model_catalog)
+        if not failover_priority:
+            raise ValueError("failover_priority must contain at least one model")
+        resolved = [model for model in failover_priority if model in model_catalog]
+        if not resolved:
+            raise ValueError(
+                "failover_priority models not in catalog: "
+                + ", ".join(sorted(set(failover_priority)))
+            )
+        self._provider_health = provider_health
+        self._failover_priority = resolved
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the first healthy model in the configured priority order."""
+        del request, signals  # preference order is explicit; signals unused
+        healthy = [
+            model
+            for model in self._failover_priority
+            if self._provider_health.is_available(self._model_catalog[model].provider)
+        ]
+        if healthy:
+            selected_model = healthy[0]
+            rationale = (
+                f"failover-priority selected first healthy preference "
+                f"{selected_model} (provider {self._model_catalog[selected_model].provider})"
+            )
+            return self._decision(selected_model, rationale)
+
+        selected_model = self._failover_priority[0]
+        rationale = (
+            "failover-priority found no healthy preference; "
+            f"routed to first listed model {selected_model}"
+        )
+        return self._decision(selected_model, rationale)
+
+    def _fallback_chain(self, chosen_model: str) -> list[str]:
+        """Preserve remaining priority order after the chosen model.
+
+        Args:
+            chosen_model: Primary selected model.
+
+        Returns:
+            Ordered fallback model names following the preference list.
+        """
+        remaining = [model for model in self._failover_priority if model != chosen_model]
+        return remaining[:3]
+
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -1531,6 +1612,7 @@ def build_strategies(
     epsilon: float = 0.1,
     availability_slo: float = 0.99,
     success_stats: SuccessStats | None = None,
+    failover_priority: list[str] | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -1556,11 +1638,15 @@ def build_strategies(
             ``[0.0, 1.0]``.
         success_stats: Optional rolling provider success observations for
             SLO-aware routing. When omitted a fresh empty stats window is used.
+        failover_priority: Ordered model preference list for failover-priority
+            routing. When omitted, uses the first four catalog models by
+            insertion order as a deterministic default.
 
     Returns:
         Routing strategies keyed by strategy name.
     """
     resolved_success_stats = success_stats or SuccessStats()
+    resolved_failover_priority = failover_priority or list(model_catalog.keys())[:4]
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -1599,6 +1685,11 @@ def build_strategies(
             availability_slo,
         ),
         RoutingStrategyName.SEMANTIC_CACHE: SemanticCacheStrategy(model_catalog, quality_floor),
+        RoutingStrategyName.FAILOVER_PRIORITY: FailoverPriorityStrategy(
+            model_catalog,
+            provider_health,
+            resolved_failover_priority,
+        ),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,
             provider_health,

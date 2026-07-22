@@ -177,6 +177,20 @@ an upstream semantic cache already resolved the answer and frontier spend would
 be wasted. See
 [docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md](docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md).
 
+## Failover-Priority Routing
+
+The `failover-priority` strategy is LiteLLM-style ordered failover: it walks
+`NEXUS_FAILOVER_PRIORITY` (default GPT-5.5 → Claude Sonnet 4.6 → Gemini 2.5 →
+Kimi K2) and selects the first model whose provider circuit is closed. Unhealthy
+providers are skipped; when every preference is unhealthy it still routes to the
+first listed catalog model. The fallback chain preserves the remaining priority
+order. See
+[docs/guides/FAILOVER_PRIORITY_GUIDE.md](docs/guides/FAILOVER_PRIORITY_GUIDE.md).
+
+```dotenv
+NEXUS_FAILOVER_PRIORITY=["gpt-5.5","claude-sonnet-4-6","gemini-3.1-pro-preview","kimi-k2"]
+```
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -200,6 +214,7 @@ Set `X-Router-Strategy` to one of:
 - `token-budget`
 - `slo-aware`
 - `semantic-cache`
+- `failover-priority`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
