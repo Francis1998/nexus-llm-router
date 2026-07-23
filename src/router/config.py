@@ -59,6 +59,10 @@ class RouterSettings(BaseSettings):
     latency_sla_ms: Annotated[float, Field(ge=0.0)] = 750.0
     epsilon: Annotated[float, Field(ge=0.0, le=1.0)] = 0.1
     availability_slo: Annotated[float, Field(ge=0.0, le=1.0)] = 0.99
+    health_blend_success_weight: Annotated[float, Field(ge=0.0)] = 0.35
+    health_blend_latency_weight: Annotated[float, Field(ge=0.0)] = 0.25
+    health_blend_quality_weight: Annotated[float, Field(ge=0.0)] = 0.25
+    health_blend_cost_weight: Annotated[float, Field(ge=0.0)] = 0.15
     failover_priority: list[str] = Field(
         default_factory=lambda: [
             OPENAI_FRONTIER_MODEL,

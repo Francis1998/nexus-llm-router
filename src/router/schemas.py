@@ -45,6 +45,7 @@ class RoutingStrategyName(StrEnum):
     SLO_AWARE = "slo-aware"
     SEMANTIC_CACHE = "semantic-cache"
     FAILOVER_PRIORITY = "failover-priority"
+    PROVIDER_HEALTH_SCORE_BLEND = "provider-health-score-blend"
     AB_TEST = "ab"
 
 

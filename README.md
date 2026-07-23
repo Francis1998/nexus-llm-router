@@ -1,7 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-158%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-154%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -118,11 +117,12 @@ Select a strategy with `X-Router-Strategy`:
 - `round-robin`: load-balances across every provider offering a domain-eligible model (routing each to that provider's best eligible model), spreading rate-limit pressure instead of converging on one provider; balanced by a stable `request_id` hash so routing stays deterministic and replayable
 - `cascade`: routes the primary attempt to the cheapest domain-eligible model and orders the fallback chain by ascending cost, so a failure escalates one price/capability rung at a time instead of jumping to the top-quality model — minimizing expected spend on the common first-attempt-succeeds path with no thresholds to tune
 - `epsilon-greedy`: with probability `NEXUS_EPSILON` explores by picking uniformly among domain-eligible models (stable second hash of `request_id`); otherwise exploits the highest-quality eligible model — a replayable bandit policy so under-prioritized catalog entries still get live traffic
-- `geo-region`: prefers models whose `supported_regions` include the request region (GPT-5.5 / Claude Sonnet 4.6 / Gemini 2.5 / Kimi K2 catalog priors)
+- `geo-region`: prefers models whose `supported_regions` include the request region (GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog priors)
 - `token-budget`: selects the highest-quality domain-eligible model whose `context_window` fits `prompt_tokens_estimate + max_tokens` within the request `token_budget`; falls back to the largest-context model when nothing fits
 - `slo-aware`: selects the highest-quality domain-eligible model whose provider rolling success rate meets `NEXUS_AVAILABILITY_SLO`; falls back to the highest success-rate model when nothing meets the SLO
 - `semantic-cache`: on `metadata.cache_hit`, prefers the cheapest domain-eligible model; on miss, falls through to cost-optimal under the quality floor
 - `failover-priority`: walks an explicit ordered model preference list and picks the first healthy provider (LiteLLM-style ordered failover)
+- `provider-health-score-blend`: blends circuit availability, rolling success rate, inverse p95 latency, model quality, and inverse estimated cost; open circuits are skipped whenever a healthy provider exists (`NEXUS_HEALTH_BLEND_*`)
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
@@ -137,6 +137,7 @@ Select a strategy with `X-Router-Strategy`:
 | [SLO-aware guide](docs/guides/SLO_AWARE_GUIDE.md) | Availability-SLO quality routing |
 | [Semantic-cache guide](docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md) | Cache-hit cheapest / miss cost-optimal routing |
 | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md) | Ordered healthy-provider failover |
+| [Provider-health score blend guide](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md) | LiteLLM/Portkey-style health-aware blended routing |
 | [Quickstart](QUICKSTART.md) | Local setup and first request |
 | [Safety](SAFETY.md) | Guardrails, fallback, and PII controls |
 | [Contributing](CONTRIBUTING.md) | Development workflow and PR process |
