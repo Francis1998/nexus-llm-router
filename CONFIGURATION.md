@@ -147,7 +147,7 @@ The `token-budget` strategy maximizes quality subject to a hard token ceiling: i
 selects the highest-quality domain-eligible model whose
 `min(context_window, request.token_budget)` can hold
 `prompt_tokens_estimate + max_tokens`. Useful for long RAG contexts across
-GPT-5.5, Claude Sonnet 4.6, Gemini 2.5, and Kimi K2 without risking provider
+GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 without risking provider
 context overflows. When no model fits it falls back to the largest-context
 eligible candidate. Requires no additional env vars; set `token_budget` on the
 request (default `4096`). See
@@ -158,7 +158,7 @@ request (default `4096`). See
 The `slo-aware` strategy maximizes quality subject to a rolling availability SLO:
 it selects the highest-quality domain-eligible model whose provider success rate
 meets `NEXUS_AVAILABILITY_SLO` (default `0.99`). Useful when soft degradation
-would otherwise keep routing to GPT-5.5 / Claude Sonnet 4.6 / Gemini 2.5 / Kimi
+would otherwise keep routing to GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi
 K2 providers that are burning error budget. Providers with no observations yet
 are treated as healthy; when nothing meets the SLO it falls back to the highest
 success-rate eligible model. See
@@ -171,7 +171,7 @@ NEXUS_AVAILABILITY_SLO=0.99
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
 `request.metadata.cache_hit` is truthy it prefers the cheapest domain-eligible
-realtime model among GPT-5.5, Claude Sonnet 4.6, Gemini 2.5, and Kimi K2; on a
+realtime model among GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2; on a
 miss it falls through to `cost-optimal` under `NEXUS_QUALITY_FLOOR`. Useful when
 an upstream semantic cache already resolved the answer and frontier spend would
 be wasted. See
@@ -180,7 +180,7 @@ be wasted. See
 ## Failover-Priority Routing
 
 The `failover-priority` strategy is LiteLLM-style ordered failover: it walks
-`NEXUS_FAILOVER_PRIORITY` (default GPT-5.5 → Claude Sonnet 4.6 → Gemini 2.5 →
+`NEXUS_FAILOVER_PRIORITY` (default GPT-5.5 → Claude Sonnet 4.6 → Gemini 3.x →
 Kimi K2) and selects the first model whose provider circuit is closed. Unhealthy
 providers are skipped; when every preference is unhealthy it still routes to the
 first listed catalog model. The fallback chain preserves the remaining priority
@@ -190,6 +190,28 @@ order. See
 ```dotenv
 NEXUS_FAILOVER_PRIORITY=["gpt-5.5","claude-sonnet-4-6","gemini-3.1-pro-preview","kimi-k2"]
 ```
+
+## Provider-Health Score Blend Routing
+
+The `provider-health-score-blend` strategy is LiteLLM/Portkey-style
+health-aware routing for the default GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2 catalog mix. It scores domain-eligible models by blending rolling
+provider success rate, inverse normalized provider p95 latency, model
+`quality_score`, and inverse normalized estimated request cost. Provider circuit
+availability is a hard gate: when any candidate's circuit is closed, open
+circuits are excluded from primary scoring; when every circuit is open, Nexus
+still returns the best scored model so decide-time remains deterministic.
+
+```dotenv
+NEXUS_HEALTH_BLEND_SUCCESS_WEIGHT=0.35
+NEXUS_HEALTH_BLEND_LATENCY_WEIGHT=0.25
+NEXUS_HEALTH_BLEND_QUALITY_WEIGHT=0.25
+NEXUS_HEALTH_BLEND_COST_WEIGHT=0.15
+```
+
+Weights are non-negative and normalized to sum to one, so only ratios matter.
+All-zero weights fall back to pure quality. See
+[docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md).
 
 ## Per-Request Strategy Selection
 
@@ -215,6 +237,7 @@ Set `X-Router-Strategy` to one of:
 - `slo-aware`
 - `semantic-cache`
 - `failover-priority`
+- `provider-health-score-blend`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
