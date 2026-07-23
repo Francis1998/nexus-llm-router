@@ -192,7 +192,6 @@ NEXUS_FAILOVER_PRIORITY=["gpt-5.5","claude-sonnet-4-6","gemini-3.1-pro-preview",
 ```
 
 ## Provider-Health Score Blend Routing
-
 The `provider-health-score-blend` strategy is LiteLLM/Portkey-style
 health-aware routing for the default GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
 Kimi K2 catalog mix. It scores domain-eligible models by blending rolling
@@ -201,17 +200,26 @@ provider success rate, inverse normalized provider p95 latency, model
 availability is a hard gate: when any candidate's circuit is closed, open
 circuits are excluded from primary scoring; when every circuit is open, Nexus
 still returns the best scored model so decide-time remains deterministic.
-
 ```dotenv
 NEXUS_HEALTH_BLEND_SUCCESS_WEIGHT=0.35
 NEXUS_HEALTH_BLEND_LATENCY_WEIGHT=0.25
 NEXUS_HEALTH_BLEND_QUALITY_WEIGHT=0.25
 NEXUS_HEALTH_BLEND_COST_WEIGHT=0.15
 ```
-
 Weights are non-negative and normalized to sum to one, so only ratios matter.
 All-zero weights fall back to pure quality. See
 [docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md).
+## Least-Busy Routing
+The `least-busy` strategy selects the highest-quality domain-eligible model on
+the provider with the lowest live in-flight load score. The router increments
+the provider counter immediately before dispatch and decrements it in a
+completion/failure cleanup path, so concurrent requests spread away from
+currently saturated providers. If multiple providers have the same load, ties
+prefer higher `quality_score`, then lower estimated request cost.
+No additional `NEXUS_*` setting is required; select it with
+`NEXUS_DEFAULT_STRATEGY=least-busy` or per request with
+`X-Router-Strategy: least-busy`. See
+[docs/guides/LEAST_BUSY_GUIDE.md](docs/guides/LEAST_BUSY_GUIDE.md).
 
 ## Per-Request Strategy Selection
 
@@ -236,6 +244,7 @@ Set `X-Router-Strategy` to one of:
 - `token-budget`
 - `slo-aware`
 - `semantic-cache`
+- `least-busy`
 - `failover-priority`
 - `provider-health-score-blend`
 - `ab`
