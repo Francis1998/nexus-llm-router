@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_FLASH_MODEL,
+    MOONSHOT_BALANCED_MODEL,
     OPENAI_BALANCED_MODEL,
     OPENAI_FRONTIER_MODEL,
 )
@@ -78,6 +79,17 @@ def demo_lines() -> list[tuple[str, tuple[int, int, int]]]:
             f"cost=$0.000023 rationale=A/B bucket=0.3442 routed to {OPENAI_BALANCED_MODEL}",
             TEXT,
         ),
+        (
+            f'{{"request_id":"demo-timeout","model":"{GEMINI_FLASH_MODEL}",'
+            '"strategy":"adaptive-timeout",'
+            '"rationale":"adaptive-timeout selected fastest viable realtime provider"}}',
+            MUTED,
+        ),
+        (
+            f"timeout: strategy=adaptive-timeout model={GEMINI_FLASH_MODEL} "
+            "cost=$0.000011 rationale=provider p95=180.0ms within adaptive timeout budget",
+            TEXT,
+        ),
     ]
 
 
@@ -108,8 +120,23 @@ def use_case_slides() -> list[Slide]:
             "Issue: provider p95 latency spikes during peak traffic",
             [
                 ("signal: openai p95=2500ms, google p95=45ms", MUTED),
-                ("decision: latency-aware penalty avoids slow provider", ACCENT),
+                (
+                    f"decision: adaptive-timeout routes realtime work to {GEMINI_FLASH_MODEL}",
+                    ACCENT,
+                ),
                 ("result: request meets realtime service objective", SUCCESS),
+            ],
+        ),
+        (
+            "Issue: batch jobs can tolerate more latency for quality",
+            [
+                ("signal: comfortable timeout budget, low error rate", MUTED),
+                (
+                    "decision: slower quality models stay eligible before "
+                    f"{MOONSHOT_BALANCED_MODEL}",
+                    ACCENT,
+                ),
+                ("result: better answers without hard-coding one provider", SUCCESS),
             ],
         ),
         (
