@@ -205,6 +205,7 @@ def test_health_blend_registered_by_strategy_factory() -> None:
         settings.canary_model,
         settings.canary_weight,
         settings.latency_sla_ms,
+        settings.prompt_prefix_cache_min_chars,
         settings.epsilon,
         settings.availability_slo,
         SuccessStats(),
