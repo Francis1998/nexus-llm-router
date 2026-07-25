@@ -167,6 +167,24 @@ success-rate eligible model. See
 ```dotenv
 NEXUS_AVAILABILITY_SLO=0.99
 ```
+
+## Adaptive-Timeout Routing
+
+The `adaptive-timeout` strategy combines the latency-budget and SLO-aware signal
+stores: it derives a timeout budget from the request latency requirement,
+provider rolling p95 latency, and recent success/error signals. Realtime
+requests use `NEXUS_LATENCY_SLA_MS` as the base budget, batch requests receive a
+wider budget, and provider failures inflate the effective latency. Useful when
+GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic should prefer faster
+models during provider latency spikes but keep higher-quality slower models when
+the budget is comfortable. See
+[docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md).
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=adaptive-timeout
+NEXUS_LATENCY_SLA_MS=750
+```
+
 ## Semantic-Cache Routing
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when

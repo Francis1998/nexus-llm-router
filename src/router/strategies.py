@@ -1,7 +1,7 @@
 """Pluggable routing strategies for the decide phase."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from hashlib import sha256
 from typing import Protocol
 
@@ -1586,6 +1586,164 @@ class SloAwareStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class AdaptiveTimeoutStrategy(RoutingStrategy):
+    """Route by adapting timeout fit to request urgency and live provider signals.
+
+    ``LatencyBudgetStrategy`` applies one hard SLA regardless of request shape,
+    while ``SloAwareStrategy`` considers provider errors without latency. This
+    strategy combines both signals for LiteLLM/OpenRouter-style timeout
+    adaptation: realtime requests use the configured latency SLA as the base
+    timeout budget, batch requests receive a wider budget, and latency pressure
+    tightens that budget around the fastest observed providers. Provider error
+    signals are folded into a risk-adjusted latency so a provider with recent
+    failures needs extra headroom to remain eligible.
+
+    With no latency/error observations, every candidate fits and the highest
+    quality domain-eligible model wins. When no candidate fits the adaptive
+    budget, the strategy falls back to the lowest risk-adjusted latency so
+    routing remains deterministic and the engine's normal fallback chain still
+    protects dispatch.
+    """
+
+    strategy_name = RoutingStrategyName.ADAPTIVE_TIMEOUT
+    _BATCH_BUDGET_MULTIPLIER = 4.0
+    _REALTIME_PRESSURE_MULTIPLIER = 1.5
+    _BATCH_PRESSURE_MULTIPLIER = 2.0
+    _MIN_TIGHTENED_BUDGET_RATIO = 0.5
+    _MIN_SUCCESS_RATE = 0.05
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        success_stats: SuccessStats,
+        base_timeout_ms: float,
+    ) -> None:
+        """Initialize the adaptive-timeout strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_stats: Rolling provider latency observations.
+            success_stats: Rolling provider success observations.
+            base_timeout_ms: Realtime adaptive timeout base in milliseconds.
+
+        Raises:
+            ValueError: If the base timeout is negative.
+        """
+        super().__init__(model_catalog)
+        if base_timeout_ms < 0.0:
+            raise ValueError(f"base_timeout_ms must be non-negative, got {base_timeout_ms}")
+        self._latency_stats = latency_stats
+        self._success_stats = success_stats
+        self._base_timeout_ms = base_timeout_ms
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the highest-quality model fitting the adaptive timeout budget."""
+        eligible_candidates = self._eligible_candidates(signals)
+        p95_by_model = {
+            candidate.model: self._latency_stats.p95(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        success_by_model = {
+            candidate.model: self._success_stats.success_rate(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        risk_latency_by_model = {
+            candidate.model: self._risk_adjusted_latency_ms(
+                p95_by_model[candidate.model],
+                success_by_model[candidate.model],
+            )
+            for candidate in eligible_candidates
+        }
+        budget_ms = self._adaptive_budget_ms(signals, p95_by_model.values())
+        within_budget = [
+            candidate
+            for candidate in eligible_candidates
+            if risk_latency_by_model[candidate.model] <= budget_ms
+        ]
+
+        if within_budget:
+            selected_candidate = max(
+                within_budget,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    success_by_model[candidate.model],
+                    -risk_latency_by_model[candidate.model],
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                ),
+            )
+            rationale = (
+                "adaptive-timeout selected highest quality "
+                f"{selected_candidate.quality_score:.2f} within "
+                f"{budget_ms:.0f}ms adaptive timeout budget "
+                f"(provider p95 {p95_by_model[selected_candidate.model]:.1f}ms, "
+                f"success {success_by_model[selected_candidate.model]:.2%}, "
+                f"risk-adjusted {risk_latency_by_model[selected_candidate.model]:.1f}ms)"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = min(
+            eligible_candidates,
+            key=lambda candidate: (
+                risk_latency_by_model[candidate.model],
+                -candidate.quality_score,
+                -success_by_model[candidate.model],
+            ),
+        )
+        rationale = (
+            f"adaptive-timeout found no provider within {budget_ms:.0f}ms adaptive timeout "
+            "budget; routed to lowest risk-adjusted latency "
+            f"(provider p95 {p95_by_model[selected_candidate.model]:.1f}ms, "
+            f"success {success_by_model[selected_candidate.model]:.2%}, "
+            f"risk-adjusted {risk_latency_by_model[selected_candidate.model]:.1f}ms)"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+    def _eligible_candidates(self, signals: TaskSignals) -> list[ModelCandidate]:
+        """Return domain- and urgency-eligible candidates with graceful fallback."""
+        domain_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        if signals.latency_requirement is LatencyRequirement.BATCH:
+            return domain_candidates
+
+        realtime_candidates = [
+            candidate for candidate in domain_candidates if candidate.supports_realtime
+        ]
+        return realtime_candidates or domain_candidates
+
+    def _adaptive_budget_ms(
+        self,
+        signals: TaskSignals,
+        provider_p95_latencies: Iterable[float],
+    ) -> float:
+        """Compute a timeout budget from request urgency and observed latency pressure."""
+        base_budget_ms = self._base_timeout_ms
+        if signals.latency_requirement is LatencyRequirement.BATCH:
+            base_budget_ms *= self._BATCH_BUDGET_MULTIPLIER
+
+        observed_latencies = [latency for latency in provider_p95_latencies if latency > 0.0]
+        if not observed_latencies or max(observed_latencies) <= base_budget_ms:
+            return base_budget_ms
+
+        pressure_multiplier = (
+            self._REALTIME_PRESSURE_MULTIPLIER
+            if signals.latency_requirement is LatencyRequirement.REALTIME
+            else self._BATCH_PRESSURE_MULTIPLIER
+        )
+        tightened_budget_ms = min(base_budget_ms, min(observed_latencies) * pressure_multiplier)
+        minimum_budget_ms = base_budget_ms * self._MIN_TIGHTENED_BUDGET_RATIO
+        return max(minimum_budget_ms, tightened_budget_ms)
+
+    def _risk_adjusted_latency_ms(self, p95_latency_ms: float, success_rate: float) -> float:
+        """Inflate observed p95 latency when recent provider errors suggest timeout risk."""
+        if p95_latency_ms <= 0.0:
+            return 0.0
+        return p95_latency_ms / max(success_rate, self._MIN_SUCCESS_RATE)
+
+
 class SemanticCacheStrategy(RoutingStrategy):
     """Route cache hits to the cheapest eligible model; miss falls to cost-optimal.
 
@@ -1799,12 +1957,13 @@ def build_strategies(
         canary_model: Canary strategy model under gradual rollout.
         canary_weight: Fraction of traffic routed to the canary model.
         latency_sla_ms: Latency-budget per-request provider p95 SLA in
-            milliseconds.
+            milliseconds; also the adaptive-timeout realtime base budget.
         epsilon: Epsilon-greedy explore probability within ``[0.0, 1.0]``.
         availability_slo: SLO-aware minimum provider success rate within
             ``[0.0, 1.0]``.
         success_stats: Optional rolling provider success observations for
-            SLO-aware routing. When omitted a fresh empty stats window is used.
+            SLO-aware and adaptive-timeout routing. When omitted a fresh empty
+            stats window is used.
         failover_priority: Ordered model preference list for failover-priority
             routing. When omitted, uses the first four catalog models by
             insertion order as a deterministic default.
@@ -1842,6 +2001,12 @@ def build_strategies(
         RoutingStrategyName.LATENCY_BUDGET: LatencyBudgetStrategy(
             model_catalog,
             latency_stats,
+            latency_sla_ms,
+        ),
+        RoutingStrategyName.ADAPTIVE_TIMEOUT: AdaptiveTimeoutStrategy(
+            model_catalog,
+            latency_stats,
+            resolved_success_stats,
             latency_sla_ms,
         ),
         RoutingStrategyName.VALUE: ValueStrategy(model_catalog),

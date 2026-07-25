@@ -36,6 +36,7 @@ class RoutingStrategyName(StrEnum):
     VALUE = "value"
     CANARY = "canary"
     LATENCY_BUDGET = "latency-budget"
+    ADAPTIVE_TIMEOUT = "adaptive-timeout"
     COMPLEXITY_TIER = "complexity-tier"
     ROUND_ROBIN = "round-robin"
     CASCADE = "cascade"
