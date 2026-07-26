@@ -14,6 +14,7 @@ from router.schemas import (
     TaskSignals,
 )
 from router.strategies import (
+    InflightStats,
     LatencyStats,
     ProviderHealthScoreBlendStrategy,
     SuccessStats,
@@ -192,6 +193,7 @@ def test_health_blend_registered_by_strategy_factory() -> None:
     strategies = build_strategies(
         catalog,
         LatencyStats(),
+        InflightStats(),
         settings.quality_floor,
         settings.ab_model_a,
         settings.ab_model_b,

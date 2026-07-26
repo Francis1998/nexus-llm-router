@@ -17,7 +17,13 @@ from router.schemas import (
     RoutingStrategyName,
     TaskSignals,
 )
-from router.strategies import AdaptiveTimeoutStrategy, LatencyStats, SuccessStats, build_strategies
+from router.strategies import (
+    AdaptiveTimeoutStrategy,
+    InflightStats,
+    LatencyStats,
+    SuccessStats,
+    build_strategies,
+)
 from safety.circuit_breaker import CircuitBreakerRegistry
 
 
@@ -159,6 +165,7 @@ def test_adaptive_timeout_registered_by_strategy_factory() -> None:
     strategies = build_strategies(
         default_model_catalog(),
         LatencyStats(),
+        InflightStats(),
         settings.quality_floor,
         settings.ab_model_a,
         settings.ab_model_b,
