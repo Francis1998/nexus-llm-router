@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-180%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-186%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -123,6 +123,7 @@ Select a strategy with `X-Router-Strategy`:
 - `slo-aware`: selects the highest-quality domain-eligible model whose provider rolling success rate meets `NEXUS_AVAILABILITY_SLO`; falls back to the highest success-rate model when nothing meets the SLO
 - `semantic-cache`: on `metadata.cache_hit`, prefers the cheapest domain-eligible model; on miss, falls through to cost-optimal under the quality floor
 - `least-busy`: selects the highest-quality domain-eligible model on the provider with the lowest current in-flight load; load ties prefer higher quality, then lower estimated cost
+- `concurrency-cap`: skips providers whose live in-flight count is at or above `NEXUS_CONCURRENCY_CAP`, then selects the highest-quality remaining model for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
 - `failover-priority`: walks an explicit ordered model preference list and picks the first healthy provider (LiteLLM-style ordered failover)
 - `provider-health-score-blend`: blends circuit availability, rolling success rate, inverse p95 latency, model quality, and inverse estimated cost; open circuits are skipped whenever a healthy provider exists (`NEXUS_HEALTH_BLEND_*`)
 - `ab`: deterministic request-id buckets across two model arms
@@ -140,6 +141,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Adaptive-timeout guide](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md) | Timeout-adaptive quality routing |
 | [Semantic-cache guide](docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md) | Cache-hit cheapest / miss cost-optimal routing |
 | [Least-busy guide](docs/guides/LEAST_BUSY_GUIDE.md) | Live in-flight load-aware routing |
+| [Concurrency-cap guide](docs/guides/CONCURRENCY_CAP_GUIDE.md) | Per-provider in-flight saturation cap routing |
 | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md) | Ordered healthy-provider failover |
 | [Provider-health score blend guide](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md) | LiteLLM/Portkey-style health-aware blended routing |
 | [Quickstart](QUICKSTART.md) | Local setup and first request |
