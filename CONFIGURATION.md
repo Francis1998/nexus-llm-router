@@ -13,6 +13,7 @@ NEXUS_RATE_LIMIT_CAPACITY=120
 NEXUS_RATE_LIMIT_REFILL_PER_SECOND=2.0
 NEXUS_ENABLE_PII_SCRUBBING=false
 NEXUS_QUALITY_FLOOR=0.72
+NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
 ```
 
 ## Provider Credentials
@@ -238,6 +239,17 @@ No additional `NEXUS_*` setting is required; select it with
 `NEXUS_DEFAULT_STRATEGY=least-busy` or per request with
 `X-Router-Strategy: least-busy`. See
 [docs/guides/LEAST_BUSY_GUIDE.md](docs/guides/LEAST_BUSY_GUIDE.md).
+## Prompt-Prefix-Cache Routing
+The `prompt-prefix-cache` strategy gives long reusable system prompts sticky
+provider/model affinity for OpenRouter/LiteLLM-style prompt caching. It hashes
+the first `NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS` characters of joined `system`
+messages and buckets that prefix across domain-eligible candidates, so requests
+sharing a long prefix keep hitting the same GPT-5.5 / Claude Sonnet 4.6 / Gemini
+2.5 / Kimi K2 provider/model cache. Requests without a sufficiently long system
+prompt fall back to `cost-optimal` under `NEXUS_QUALITY_FLOOR`.
+NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
+See
+[docs/guides/PROMPT_PREFIX_CACHE_STRATEGY_GUIDE.md](docs/guides/PROMPT_PREFIX_CACHE_STRATEGY_GUIDE.md).
 
 ## Per-Request Strategy Selection
 
@@ -263,6 +275,7 @@ Set `X-Router-Strategy` to one of:
 - `slo-aware`
 - `semantic-cache`
 - `least-busy`
+- `prompt-prefix-cache`
 - `failover-priority`
 - `provider-health-score-blend`
 - `ab`
