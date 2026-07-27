@@ -276,6 +276,50 @@ class InflightStats:
         return self._inflight.get(provider, 0)
 
 
+class RateLimitStats:
+    """Rolling provider rate-limit observations used by soft-rate-limit routing."""
+
+    def __init__(self, max_observations: int = 100) -> None:
+        """Initialize empty rate-limit observation windows.
+
+        Args:
+            max_observations: Maximum recent observations kept per provider.
+
+        Raises:
+            ValueError: If the observation window is not positive.
+        """
+        if max_observations < 1:
+            raise ValueError(f"max_observations must be positive, got {max_observations}")
+        self._max_observations = max_observations
+        self._observations: dict[str, list[bool]] = {}
+
+    def observe(self, provider: str, *, rate_limited: bool) -> None:
+        """Record whether a provider attempt hit a rate limit.
+
+        Args:
+            provider: Provider name.
+            rate_limited: Whether the attempt failed with a 429/rate-limit signal.
+        """
+        provider_observations = self._observations.setdefault(provider, [])
+        provider_observations.append(rate_limited)
+        if len(provider_observations) > self._max_observations:
+            del provider_observations[0]
+
+    def rate_limit_count(self, provider: str) -> int:
+        """Return recent rate-limit hits for a provider."""
+        return sum(self._observations.get(provider, []))
+
+    def rate_limit_rate(self, provider: str) -> float:
+        """Return the recent rate-limit hit rate for a provider.
+
+        Providers with no observations are treated as having no rate pressure.
+        """
+        observations = self._observations.get(provider, [])
+        if not observations:
+            return 0.0
+        return self.rate_limit_count(provider) / len(observations)
+
+
 class LatencyAwareStrategy(RoutingStrategy):
     """Route to low-latency models while penalizing degraded providers."""
 
@@ -479,6 +523,106 @@ class ReliabilityAwareStrategy(RoutingStrategy):
             )
         )
         return [candidate.model for candidate in candidates][:3]
+
+
+class SoftRateLimitStrategy(RoutingStrategy):
+    """Prefer healthy providers with fewer recent rate-limit observations.
+
+    Hard circuit breakers react after repeated provider failures, but gateways
+    such as LiteLLM and Portkey can expose softer pressure earlier through 429 or
+    "rate limit" errors. This strategy uses those observations as a routing hint:
+    among domain-eligible healthy providers it picks the candidate on the provider
+    with the fewest recent rate-limit hits, then breaks ties by model quality and
+    estimated request cost. If every provider is unhealthy, it still returns the
+    lowest-rate-limit candidate so decide-time remains deterministic and the
+    engine's normal fallback/guardrail path can continue.
+    """
+
+    strategy_name = RoutingStrategyName.SOFT_RATE_LIMIT
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        rate_limit_stats: RateLimitStats,
+    ) -> None:
+        """Initialize soft-rate-limit routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            rate_limit_stats: Recent provider rate-limit observations.
+        """
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._rate_limit_stats = rate_limit_stats
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best candidate with the lowest recent rate-limit pressure."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        ordered = self._rate_limit_ordered_candidates(request, signals, eligible_candidates)
+        selected_candidate = ordered[0]
+        rate_limit_count = self._rate_limit_stats.rate_limit_count(selected_candidate.provider)
+        rate_limit_rate = self._rate_limit_stats.rate_limit_rate(selected_candidate.provider)
+        health_context = (
+            "healthy providers considered first"
+            if any(self._provider_health.is_available(candidate.provider) for candidate in ordered)
+            else "no healthy providers; using soft rate-limit ordering"
+        )
+        estimated_cost = selected_candidate.estimate_cost(
+            signals.prompt_tokens_estimate,
+            request.max_tokens,
+        )
+        rationale = (
+            f"soft-rate-limit selected provider {selected_candidate.provider} "
+            f"with {rate_limit_count} recent rate-limit hit(s) "
+            f"({rate_limit_rate:.2%}); {health_context}; picked {selected_candidate.model} "
+            f"(quality {selected_candidate.quality_score:.2f}, est ${estimated_cost:.6f})"
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in ordered[1:4]],
+        )
+
+    def _rate_limit_ordered_candidates(
+        self,
+        request: RouterRequest,
+        signals: TaskSignals,
+        eligible_candidates: list[ModelCandidate],
+    ) -> list[ModelCandidate]:
+        """Order candidates by health, rate-limit pressure, quality, and cost."""
+        healthy_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        primary_pool = healthy_candidates or eligible_candidates
+        unhealthy_remainder = [
+            candidate
+            for candidate in eligible_candidates
+            if candidate not in primary_pool
+        ]
+
+        def ordering_key(candidate: ModelCandidate) -> tuple[int, float, float, float, str]:
+            return (
+                self._rate_limit_stats.rate_limit_count(candidate.provider),
+                self._rate_limit_stats.rate_limit_rate(candidate.provider),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            )
+
+        return [
+            *sorted(primary_pool, key=ordering_key),
+            *sorted(unhealthy_remainder, key=ordering_key),
+        ]
 
 
 class WeightedBlendStrategy(RoutingStrategy):
@@ -2157,6 +2301,7 @@ def build_strategies(
     health_blend_latency_weight: float = 0.25,
     health_blend_quality_weight: float = 0.25,
     health_blend_cost_weight: float = 0.15,
+    rate_limit_stats: RateLimitStats | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -2194,6 +2339,8 @@ def build_strategies(
             weight.
         health_blend_quality_weight: Provider-health blend quality weight.
         health_blend_cost_weight: Provider-health blend inverse-cost weight.
+        rate_limit_stats: Optional rolling provider rate-limit observations for
+            soft-rate-limit routing. When omitted a fresh empty window is used.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -2225,6 +2372,7 @@ def build_strategies(
     resolved_success_stats: SuccessStats = (
         success_stats if isinstance(success_stats, SuccessStats) else SuccessStats()
     )
+    resolved_rate_limit_stats = rate_limit_stats or RateLimitStats()
     resolved_failover_priority = (
         failover_priority if isinstance(failover_priority, list) else list(model_catalog.keys())[:4]
     )
@@ -2276,6 +2424,11 @@ def build_strategies(
             model_catalog,
             quality_floor,
             min_prefix_chars,
+        ),
+        RoutingStrategyName.SOFT_RATE_LIMIT: SoftRateLimitStrategy(
+            model_catalog,
+            provider_health,
+            resolved_rate_limit_stats,
         ),
         RoutingStrategyName.SEMANTIC_CACHE: SemanticCacheStrategy(model_catalog, quality_floor),
         RoutingStrategyName.FAILOVER_PRIORITY: FailoverPriorityStrategy(

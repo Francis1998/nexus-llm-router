@@ -8,7 +8,7 @@ requests than its peers.
 
 - Traffic spikes can temporarily saturate one provider before latency/error
   signals catch up.
-- You want requests spread across GPT-5.5, Claude Sonnet 4.6, Gemini 2.5, and
+- You want requests spread across GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and
   Kimi K2 providers according to live load without giving up quality tie-breaks.
 - You need deterministic, explainable choices from current router state rather
   than a random load-balancing arm.

@@ -228,6 +228,17 @@ NEXUS_HEALTH_BLEND_COST_WEIGHT=0.15
 Weights are non-negative and normalized to sum to one, so only ratios matter.
 All-zero weights fall back to pure quality. See
 [docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md).
+## Soft-Rate-Limit Routing
+The `soft-rate-limit` strategy is LiteLLM/Portkey-style soft backoff for
+providers that recently returned 429 or rate-limit shaped errors. It prefers
+healthy domain-eligible providers with fewer recent rate-limit observations,
+then breaks ties by quality and estimated request cost. Successful attempts add
+non-rate-limit observations, so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi
+K2 traffic can return to a provider after quota pressure cools down. No
+additional `NEXUS_*` setting is required; select it with
+`NEXUS_DEFAULT_STRATEGY=soft-rate-limit` or per request with
+`X-Router-Strategy: soft-rate-limit`. See
+[docs/guides/SOFT_RATE_LIMIT_GUIDE.md](docs/guides/SOFT_RATE_LIMIT_GUIDE.md).
 ## Least-Busy Routing
 The `least-busy` strategy selects the highest-quality domain-eligible model on
 the provider with the lowest live in-flight load score. The router increments
@@ -245,7 +256,7 @@ provider/model affinity for OpenRouter/LiteLLM-style prompt caching. It hashes
 the first `NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS` characters of joined `system`
 messages and buckets that prefix across domain-eligible candidates, so requests
 sharing a long prefix keep hitting the same GPT-5.5 / Claude Sonnet 4.6 / Gemini
-2.5 / Kimi K2 provider/model cache. Requests without a sufficiently long system
+3.x / Kimi K2 provider/model cache. Requests without a sufficiently long system
 prompt fall back to `cost-optimal` under `NEXUS_QUALITY_FLOOR`.
 NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
 See
@@ -276,6 +287,7 @@ Set `X-Router-Strategy` to one of:
 - `semantic-cache`
 - `least-busy`
 - `prompt-prefix-cache`
+- `soft-rate-limit`
 - `failover-priority`
 - `provider-health-score-blend`
 - `ab`

@@ -5,7 +5,7 @@ Use the `geo-region` strategy when requests carry a data-residency or latency af
 ## When to use it
 
 - EU or CN residency requirements must keep traffic on region-capable providers.
-- You still want quality-first selection among GPT-5.5, Claude Sonnet 4.6, Gemini 2.5, and Kimi K2 within the allowed region set.
+- You still want quality-first selection among GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 within the allowed region set.
 - Missing or unknown regions should fail soft (fall back to best eligible) rather than reject the request.
 
 ## How it works

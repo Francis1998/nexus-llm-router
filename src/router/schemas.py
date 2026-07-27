@@ -47,6 +47,7 @@ class RoutingStrategyName(StrEnum):
     SEMANTIC_CACHE = "semantic-cache"
     LEAST_BUSY = "least-busy"
     PROMPT_PREFIX_CACHE = "prompt-prefix-cache"
+    SOFT_RATE_LIMIT = "soft-rate-limit"
     FAILOVER_PRIORITY = "failover-priority"
     PROVIDER_HEALTH_SCORE_BLEND = "provider-health-score-blend"
     AB_TEST = "ab"
