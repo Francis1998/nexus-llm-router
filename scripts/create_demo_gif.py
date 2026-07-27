@@ -158,6 +158,48 @@ def use_case_slides() -> list[Slide]:
     ]
 
 
+def concurrency_cap_slides() -> list[Slide]:
+    """Return slides for the concurrency-cap strategy GIF.
+
+    Returns:
+        Slides for the concurrency-cap GIF.
+    """
+    return [
+        (
+            "Concurrency cap: live provider saturation guard",
+            [
+                ("strategy = concurrency-cap", MUTED),
+                ("NEXUS_CONCURRENCY_CAP = 8 live attempts/provider", ACCENT),
+                ("models = GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2", TEXT),
+            ],
+        ),
+        (
+            "Skip providers already at the cap",
+            [
+                ("anthropic load = 8/8 -> skipped", WARN),
+                ("openai load = 5/8 -> eligible", SUCCESS),
+                ("google load = 2/8 -> eligible", SUCCESS),
+            ],
+        ),
+        (
+            "Pick highest quality among remaining providers",
+            [
+                (f"capped: {ANTHROPIC_SAFETY_MODEL}", WARN),
+                (f"selected: {OPENAI_FRONTIER_MODEL}", ACCENT),
+                ("rationale includes provider load and cap", SUCCESS),
+            ],
+        ),
+        (
+            "All capped still routes deterministically",
+            [
+                ("if every eligible provider is >= cap", MUTED),
+                ("fallback: least-loaded eligible provider", ACCENT),
+                ("audit rationale records all-capped fallback", SUCCESS),
+            ],
+        ),
+    ]
+
+
 def decision_flow_slides() -> list[Slide]:
     """Return Observe-Decide-Act routing slides.
 
@@ -312,6 +354,16 @@ def main() -> None:
         Path("assets/decision-flow.gif"),
         decision_flow_frames,
         1200,
+    )
+
+    concurrency_cap_frames = [
+        render_slide_frame(title, lines, index + 1, len(concurrency_cap_slides()))
+        for index, (title, lines) in enumerate(concurrency_cap_slides())
+    ]
+    save_gif(
+        Path("assets/concurrency-cap.gif"),
+        concurrency_cap_frames,
+        1300,
     )
 
 
