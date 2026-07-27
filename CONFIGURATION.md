@@ -14,6 +14,7 @@ NEXUS_RATE_LIMIT_REFILL_PER_SECOND=2.0
 NEXUS_ENABLE_PII_SCRUBBING=false
 NEXUS_QUALITY_FLOOR=0.72
 NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
+NEXUS_CONCURRENCY_CAP=8
 ```
 
 ## Provider Credentials
@@ -251,6 +252,24 @@ NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
 See
 [docs/guides/PROMPT_PREFIX_CACHE_STRATEGY_GUIDE.md](docs/guides/PROMPT_PREFIX_CACHE_STRATEGY_GUIDE.md).
 
+## Concurrency-Cap Routing
+The `concurrency-cap` strategy is a LiteLLM/Portkey-style provider saturation
+guard for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. It reads
+the same live `InflightStats` counters as `least-busy`, skips providers whose
+current in-flight count is at or above `NEXUS_CONCURRENCY_CAP`, and selects the
+highest-quality domain-eligible model among the remaining providers. If every
+eligible provider is already capped, it degrades deterministically to the
+least-loaded eligible provider and records that condition in the rationale.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=concurrency-cap
+NEXUS_CONCURRENCY_CAP=8
+```
+
+`NEXUS_CONCURRENCY_CAP` is the maximum live attempts per provider before new
+primary traffic is steered elsewhere (minimum `1`). See
+[docs/guides/CONCURRENCY_CAP_GUIDE.md](docs/guides/CONCURRENCY_CAP_GUIDE.md).
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -276,6 +295,7 @@ Set `X-Router-Strategy` to one of:
 - `semantic-cache`
 - `least-busy`
 - `prompt-prefix-cache`
+- `concurrency-cap`
 - `failover-priority`
 - `provider-health-score-blend`
 - `ab`
