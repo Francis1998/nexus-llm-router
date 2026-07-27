@@ -2221,7 +2221,10 @@ def build_strategies(
         health_blend_quality_weight = float(legacy_health_blend_quality_weight)
         health_blend_cost_weight = float(legacy_health_blend_cost_weight)
 
-    resolved_success_stats = success_stats or SuccessStats()
+    # Narrow SuccessStats | list[str] | None after legacy positional remapping.
+    resolved_success_stats: SuccessStats = (
+        success_stats if isinstance(success_stats, SuccessStats) else SuccessStats()
+    )
     resolved_failover_priority = (
         failover_priority if isinstance(failover_priority, list) else list(model_catalog.keys())[:4]
     )
