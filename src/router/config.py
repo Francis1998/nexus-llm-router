@@ -63,6 +63,7 @@ class RouterSettings(BaseSettings):
     health_blend_latency_weight: Annotated[float, Field(ge=0.0)] = 0.25
     health_blend_quality_weight: Annotated[float, Field(ge=0.0)] = 0.25
     health_blend_cost_weight: Annotated[float, Field(ge=0.0)] = 0.15
+    prompt_prefix_cache_min_chars: Annotated[int, Field(ge=1)] = 512
     failover_priority: list[str] = Field(
         default_factory=lambda: [
             OPENAI_FRONTIER_MODEL,
