@@ -8,7 +8,7 @@ served by the cheapest eligible model instead of a frontier SKU.
 
 - A semantic cache sets `metadata.cache_hit=true` on embedding/similarity hits.
 - Cache hits should prefer cheap/fast catalog models among GPT-5.5, Claude Sonnet
-  4.6, Gemini 2.5, and Kimi K2 rather than re-paying frontier rates.
+  4.6, Gemini 3.x, and Kimi K2 rather than re-paying frontier rates.
 - Cache misses should still follow cost-optimal selection under the configured
   quality floor.
 
