@@ -368,6 +368,84 @@ class LatencyAwareStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class CostLatencyParetoStrategy(RoutingStrategy):
+    """Pick a Pareto-optimal candidate on estimated cost and provider latency.
+
+    Single-objective routers either chase the cheapest model or the fastest
+    provider and can discard strong trade-offs that sit on the cost/latency
+    frontier. This strategy mirrors LiteLLM/Portkey-style multi-objective
+    routing: it keeps only non-dominated domain-eligible candidates under
+    ascending cost and ascending rolling p95 latency, then breaks remaining
+    ties by higher quality (then lower cost, lower latency, and model name).
+    """
+
+    strategy_name = RoutingStrategyName.COST_LATENCY_PARETO
+
+    def __init__(
+        self, model_catalog: Mapping[str, ModelCandidate], latency_stats: LatencyStats
+    ) -> None:
+        """Initialize cost/latency Pareto routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_stats: Rolling provider latency observations.
+        """
+        super().__init__(model_catalog)
+        self._latency_stats = latency_stats
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best Pareto-optimal cost/latency candidate by quality."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in eligible_candidates
+        }
+        latencies = {
+            candidate.model: self._latency_stats.p95(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        pareto_front = [
+            candidate
+            for candidate in eligible_candidates
+            if not any(
+                other.model != candidate.model
+                and costs[other.model] <= costs[candidate.model]
+                and latencies[other.model] <= latencies[candidate.model]
+                and (
+                    costs[other.model] < costs[candidate.model]
+                    or latencies[other.model] < latencies[candidate.model]
+                )
+                for other in eligible_candidates
+            )
+        ]
+        selected_candidate = min(
+            pareto_front,
+            key=lambda candidate: (
+                -candidate.quality_score,
+                costs[candidate.model],
+                latencies[candidate.model],
+                candidate.model,
+            ),
+        )
+        rationale = (
+            "cost-latency-pareto selected non-dominated candidate "
+            f"{selected_candidate.model} "
+            f"(est ${costs[selected_candidate.model]:.6f}, "
+            f"provider p95 {latencies[selected_candidate.model]:.1f}ms, "
+            f"quality {selected_candidate.quality_score:.2f}; "
+            f"front size {len(pareto_front)})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class LeastBusyStrategy(RoutingStrategy):
     """Route to the best model on the least-loaded eligible provider.
 
@@ -2499,6 +2577,9 @@ def build_strategies(
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
         RoutingStrategyName.COST_OPTIMAL: CostOptimalStrategy(model_catalog, quality_floor),
         RoutingStrategyName.LATENCY_AWARE: LatencyAwareStrategy(model_catalog, latency_stats),
+        RoutingStrategyName.COST_LATENCY_PARETO: CostLatencyParetoStrategy(
+            model_catalog, latency_stats
+        ),
         RoutingStrategyName.LEAST_BUSY: LeastBusyStrategy(model_catalog, inflight_stats),
         RoutingStrategyName.CONCURRENCY_CAP: ConcurrencyCapStrategy(
             model_catalog,

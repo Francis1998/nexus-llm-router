@@ -262,6 +262,15 @@ prompt fall back to `cost-optimal` under `NEXUS_QUALITY_FLOOR`.
 NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
 See
 [docs/guides/PROMPT_PREFIX_CACHE_STRATEGY_GUIDE.md](docs/guides/PROMPT_PREFIX_CACHE_STRATEGY_GUIDE.md).
+## Cost/Latency Pareto Routing
+The `cost-latency-pareto` strategy keeps only non-dominated domain-eligible
+candidates under estimated request cost and rolling provider p95 latency, then
+breaks ties by higher `quality_score` (then lower cost, lower latency, and model
+name). Cold providers start at p95 `0.0`, so equal-latency startups collapse to
+the cheapest frontier before the quality tie-break. No additional `NEXUS_*`
+setting is required; select it with `NEXUS_DEFAULT_STRATEGY=cost-latency-pareto`
+or per request with `X-Router-Strategy: cost-latency-pareto`. See
+[docs/guides/COST_LATENCY_PARETO_GUIDE.md](docs/guides/COST_LATENCY_PARETO_GUIDE.md).
 
 ## Concurrency-Cap Routing
 The `concurrency-cap` strategy is a LiteLLM/Portkey-style provider saturation
@@ -308,6 +317,7 @@ Set `X-Router-Strategy` to one of:
 - `prompt-prefix-cache`
 - `concurrency-cap`
 - `soft-rate-limit`
+- `cost-latency-pareto`
 - `failover-priority`
 - `provider-health-score-blend`
 - `ab`
