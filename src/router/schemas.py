@@ -51,6 +51,7 @@ class RoutingStrategyName(StrEnum):
     SOFT_RATE_LIMIT = "soft-rate-limit"
     FAILOVER_PRIORITY = "failover-priority"
     PROVIDER_HEALTH_SCORE_BLEND = "provider-health-score-blend"
+    COST_LATENCY_PARETO = "cost-latency-pareto"
     AB_TEST = "ab"
 
 

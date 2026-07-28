@@ -1,8 +1,8 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-201%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-207%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
-![Tests](https://img.shields.io/badge/tests-201%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-207%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -137,6 +137,7 @@ Select a strategy with `X-Router-Strategy`:
 - `concurrency-cap`: skips providers whose live in-flight count is at or above `NEXUS_CONCURRENCY_CAP`, then selects the highest-quality remaining model for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
 - `prompt-prefix-cache`: hashes long shared system-prompt prefixes to sticky provider/model buckets, improving OpenRouter/LiteLLM-style KV-cache affinity for GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2; short prefixes fall back to cost-optimal
 - `soft-rate-limit`: prefers healthy providers with fewer recent 429/rate-limit observations, so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic backs away from quota pressure before hard circuit breakers trip
+- `cost-latency-pareto`: keeps non-dominated cost/latency candidates (Pareto front on estimated spend and rolling provider p95), then breaks ties by quality — LiteLLM/Portkey-style multi-objective routing across GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2
 - `failover-priority`: walks an explicit ordered model preference list and picks the first healthy provider (LiteLLM-style ordered failover)
 - `provider-health-score-blend`: blends circuit availability, rolling success rate, inverse p95 latency, model quality, and inverse estimated cost; open circuits are skipped whenever a healthy provider exists (`NEXUS_HEALTH_BLEND_*`)
 - `ab`: deterministic request-id buckets across two model arms
@@ -157,6 +158,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Prompt-prefix-cache guide](docs/guides/PROMPT_PREFIX_CACHE_STRATEGY_GUIDE.md) | Sticky system-prompt prefix affinity for provider KV-cache hits |
 | [Concurrency-cap guide](docs/guides/CONCURRENCY_CAP_GUIDE.md) | Per-provider in-flight saturation cap routing |
 | [Soft-rate-limit guide](docs/guides/SOFT_RATE_LIMIT_GUIDE.md) | Soft 429/rate-limit pressure avoidance |
+| [Cost/latency Pareto guide](docs/guides/COST_LATENCY_PARETO_GUIDE.md) | Multi-objective non-dominated cost + latency routing |
 | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md) | Ordered healthy-provider failover |
 | [Provider-health score blend guide](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md) | LiteLLM/Portkey-style health-aware blended routing |
 | [Quickstart](QUICKSTART.md) | Local setup and first request |
