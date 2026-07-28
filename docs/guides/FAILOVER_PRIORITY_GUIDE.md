@@ -7,7 +7,7 @@ found.
 ## When to use it
 
 - Operators define a hard preference order (for example GPT-5.5 → Claude Sonnet
-  4.6 → Gemini 2.5 → Kimi K2) rather than optimizing for cost or quality.
+  4.6 → Gemini 3.x → Kimi K2) rather than optimizing for cost or quality.
 - Open circuit breakers should skip a preference without changing the ordered
   intent of the remaining list.
 - You need a deterministic fallback chain that preserves that same order.

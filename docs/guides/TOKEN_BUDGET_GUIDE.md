@@ -5,7 +5,7 @@ Use the `token-budget` strategy when prompts (or completion caps) can approach a
 ## When to use it
 
 - Long documents, RAG contexts, or large `max_tokens` risk exceeding smaller windows.
-- You want quality first among GPT-5.5, Claude Sonnet 4.6, Gemini 2.5, and Kimi K2 — but only models that can hold the estimate.
+- You want quality first among GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 — but only models that can hold the estimate.
 - You need a hard fail-soft path: if nothing fits, Nexus still routes to the largest-context eligible model.
 
 ## How it works
@@ -16,7 +16,7 @@ Use the `token-budget` strategy when prompts (or completion caps) can approach a
 4. Among those, pick the highest `quality_score` (ties break toward larger context).
 5. If none fit, fall back to the largest-context eligible model.
 
-Catalog priors include context windows (for example Claude Sonnet 4.6 / GPT-5.5 at 200k, Gemini 2.5-class at 1M, Kimi K2 at 128k).
+Catalog priors include context windows (for example Claude Sonnet 4.6 / GPT-5.5 at 200k, Gemini 3.x-class at 1M, Kimi K2 at 128k).
 
 ## Quick start
 

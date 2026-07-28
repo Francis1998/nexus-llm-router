@@ -5,7 +5,7 @@ Use the `slo-aware` strategy when you want quality-first routing that still resp
 ## When to use it
 
 - A provider is soft-degraded (elevated error rate) but its circuit breaker has not opened yet.
-- You want the highest-quality domain-eligible model among GPT-5.5, Claude Sonnet 4.6, Gemini 2.5, and Kimi K2 whose provider still meets the SLO.
+- You want the highest-quality domain-eligible model among GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 whose provider still meets the SLO.
 - Cold-start traffic should still admit every provider until observations accrue.
 
 ## How it works

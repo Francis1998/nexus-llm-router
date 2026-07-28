@@ -26,6 +26,7 @@ from router.state import RequestState, RoutingStateMachine
 from router.strategies import (
     InflightStats,
     LatencyStats,
+    RateLimitStats,
     RoutingStrategy,
     SuccessStats,
     build_strategies,
@@ -65,6 +66,7 @@ class NexusRouter:
         self._latency_stats = LatencyStats()
         self._inflight_stats = InflightStats()
         self._success_stats = SuccessStats()
+        self._rate_limit_stats = RateLimitStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -93,6 +95,7 @@ class NexusRouter:
             settings.health_blend_quality_weight,
             settings.health_blend_cost_weight,
             settings.concurrency_cap,
+            rate_limit_stats=self._rate_limit_stats,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -194,6 +197,10 @@ class NexusRouter:
                 last_error = exception
                 self._circuit_breakers.record_failure(candidate.provider)
                 self._success_stats.observe(candidate.provider, success=False)
+                self._rate_limit_stats.observe(
+                    candidate.provider,
+                    rate_limited=self._is_rate_limit_error(exception),
+                )
                 provider_error_rate.labels(candidate.provider, model_name).inc()
                 self._logger.warning(
                     "provider_attempt_failed",
@@ -224,6 +231,7 @@ class NexusRouter:
         """Build the router response and persist observability side effects."""
         self._circuit_breakers.record_success(provider)
         self._success_stats.observe(provider, success=True)
+        self._rate_limit_stats.observe(provider, rate_limited=False)
         state_machine.transition(RequestState.RESPONDED)
         latency_ms = (time.perf_counter() - started_at) * 1000.0
         latency_seconds = latency_ms / 1000.0
@@ -287,3 +295,27 @@ class NexusRouter:
         if attempt_index == 0:
             return base_rationale
         return f"{base_rationale}; fallback attempt {attempt_index} succeeded with {model_name}"
+
+    @staticmethod
+    def _is_rate_limit_error(exception: Exception) -> bool:
+        """Return whether a provider error carries a 429/rate-limit signal."""
+        status_candidates: list[object] = [
+            getattr(exception, "status_code", None),
+            getattr(exception, "status", None),
+            getattr(getattr(exception, "response", None), "status_code", None),
+        ]
+        if 429 in status_candidates or "429" in {str(status) for status in status_candidates}:
+            return True
+
+        message = str(exception).lower()
+        return any(
+            marker in message
+            for marker in (
+                "rate limit",
+                "rate-limit",
+                "rate_limit",
+                "too many requests",
+                "http 429",
+                "status 429",
+            )
+        )
