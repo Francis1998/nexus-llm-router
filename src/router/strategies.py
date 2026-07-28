@@ -399,6 +399,121 @@ class LeastBusyStrategy(RoutingStrategy):
         )
 
 
+class ConcurrencyCapStrategy(RoutingStrategy):
+    """Route to the highest-quality model whose provider is below a live cap.
+
+    ``LeastBusyStrategy`` spreads traffic toward providers with the lowest current
+    load. This strategy is a hard-cap sibling: providers whose live in-flight
+    attempt count is at or above the configured cap are skipped for primary
+    selection. Among the remaining candidates, quality wins first so premium
+    GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic still goes to the
+    strongest available provider without piling onto a saturated one.
+    """
+
+    strategy_name = RoutingStrategyName.CONCURRENCY_CAP
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        inflight_stats: InflightStats,
+        per_provider_cap: int,
+    ) -> None:
+        """Initialize the concurrency-cap strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            inflight_stats: Live provider in-flight attempt counters.
+            per_provider_cap: Maximum live attempts allowed per provider before
+                that provider is skipped for primary selection.
+
+        Raises:
+            ValueError: If the cap is below one.
+        """
+        super().__init__(model_catalog)
+        if per_provider_cap < 1:
+            raise ValueError(f"per_provider_cap must be >= 1, got {per_provider_cap}")
+        self._inflight_stats = inflight_stats
+        self._per_provider_cap = per_provider_cap
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the highest-quality eligible model below the provider cap."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        under_cap_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._inflight_stats.load_score(candidate.provider) < self._per_provider_cap
+        ]
+
+        if under_cap_candidates:
+            selected_candidate = max(
+                under_cap_candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            load_score = self._inflight_stats.load_score(selected_candidate.provider)
+            rationale = (
+                f"concurrency-cap selected below cap {self._per_provider_cap}; "
+                f"{selected_candidate.provider} load {load_score}/"
+                f"{self._per_provider_cap} with highest eligible quality "
+                f"{selected_candidate.quality_score:.2f}"
+            )
+        else:
+            selected_candidate = min(
+                eligible_candidates,
+                key=lambda candidate: (
+                    self._inflight_stats.load_score(candidate.provider),
+                    -candidate.quality_score,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            load_score = self._inflight_stats.load_score(selected_candidate.provider)
+            rationale = (
+                f"concurrency-cap found every eligible provider at or above cap "
+                f"{self._per_provider_cap}; routed to least-loaded fallback "
+                f"{selected_candidate.provider} load {load_score}/{self._per_provider_cap}"
+            )
+
+        fallback_candidates = self._fallback_candidates(
+            selected_candidate.model,
+            eligible_candidates,
+            request,
+            signals,
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+    def _fallback_candidates(
+        self,
+        chosen_model: str,
+        eligible_candidates: list[ModelCandidate],
+        request: RouterRequest,
+        signals: TaskSignals,
+    ) -> list[ModelCandidate]:
+        """Order fallbacks so below-cap providers are attempted before saturated ones."""
+        return sorted(
+            [candidate for candidate in eligible_candidates if candidate.model != chosen_model],
+            key=lambda candidate: (
+                self._inflight_stats.load_score(candidate.provider) >= self._per_provider_cap,
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+
+
 class ReliabilityAwareStrategy(RoutingStrategy):
     """Route to healthy providers first, avoiding open circuit breakers.
 
@@ -2157,6 +2272,7 @@ def build_strategies(
     health_blend_latency_weight: float = 0.25,
     health_blend_quality_weight: float = 0.25,
     health_blend_cost_weight: float = 0.15,
+    concurrency_cap: int = 8,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -2194,6 +2310,8 @@ def build_strategies(
             weight.
         health_blend_quality_weight: Provider-health blend quality weight.
         health_blend_cost_weight: Provider-health blend inverse-cost weight.
+        concurrency_cap: Per-provider live in-flight cap for concurrency-cap
+            routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -2234,6 +2352,11 @@ def build_strategies(
         RoutingStrategyName.COST_OPTIMAL: CostOptimalStrategy(model_catalog, quality_floor),
         RoutingStrategyName.LATENCY_AWARE: LatencyAwareStrategy(model_catalog, latency_stats),
         RoutingStrategyName.LEAST_BUSY: LeastBusyStrategy(model_catalog, inflight_stats),
+        RoutingStrategyName.CONCURRENCY_CAP: ConcurrencyCapStrategy(
+            model_catalog,
+            inflight_stats,
+            concurrency_cap,
+        ),
         RoutingStrategyName.RELIABILITY_AWARE: ReliabilityAwareStrategy(
             model_catalog, provider_health
         ),
