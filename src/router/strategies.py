@@ -1,7 +1,9 @@
 """Pluggable routing strategies for the decide phase."""
 
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from hashlib import sha256
 from typing import Protocol
 
@@ -318,6 +320,74 @@ class RateLimitStats:
         if not observations:
             return 0.0
         return self.rate_limit_count(provider) / len(observations)
+
+
+@dataclass
+class _ProviderTokenBucket:
+    """Mutable per-provider token bucket state."""
+
+    tokens: float
+    updated_at: float
+
+
+class TokenBucketStats:
+    """Per-provider token buckets used by token-bucket-burst routing."""
+
+    def __init__(self, capacity: int, refill_per_second: float) -> None:
+        """Initialize token-bucket settings shared across routing decisions.
+
+        Args:
+            capacity: Maximum tokens per provider bucket.
+            refill_per_second: Token refill rate per second.
+
+        Raises:
+            ValueError: If capacity or refill rate is invalid.
+        """
+        if capacity < 1:
+            raise ValueError(f"capacity must be >= 1, got {capacity}")
+        if refill_per_second <= 0:
+            raise ValueError(f"refill_per_second must be positive, got {refill_per_second}")
+        self._capacity = float(capacity)
+        self._refill_per_second = refill_per_second
+        self._buckets: dict[str, _ProviderTokenBucket] = {}
+
+    @property
+    def capacity(self) -> float:
+        """Return the configured bucket capacity."""
+        return self._capacity
+
+    def available_tokens(self, provider: str) -> float:
+        """Return the provider's current token balance after refill."""
+        return self._refill(provider)
+
+    def remaining_fraction(self, provider: str) -> float:
+        """Return the provider's token balance as a fraction of capacity."""
+        return self.available_tokens(provider) / self._capacity
+
+    def consume(self, provider: str, tokens: int = 1) -> None:
+        """Consume tokens from a provider bucket after routing selection.
+
+        Args:
+            provider: Provider name.
+            tokens: Tokens to consume.
+        """
+        available = self._refill(provider)
+        bucket = self._buckets[provider]
+        bucket.tokens = max(0.0, available - tokens)
+
+    def _refill(self, provider: str) -> float:
+        now = time.monotonic()
+        bucket = self._buckets.setdefault(
+            provider,
+            _ProviderTokenBucket(tokens=self._capacity, updated_at=now),
+        )
+        elapsed_seconds = max(0.0, now - bucket.updated_at)
+        bucket.tokens = min(
+            self._capacity,
+            bucket.tokens + elapsed_seconds * self._refill_per_second,
+        )
+        bucket.updated_at = now
+        return bucket.tokens
 
 
 class LatencyAwareStrategy(RoutingStrategy):
@@ -816,6 +886,128 @@ class SoftRateLimitStrategy(RoutingStrategy):
             *sorted(primary_pool, key=ordering_key),
             *sorted(unhealthy_remainder, key=ordering_key),
         ]
+
+
+class TokenBucketBurstStrategy(RoutingStrategy):
+    """Route using per-provider token buckets that allow bursty traffic.
+
+    LiteLLM, Portkey, and OpenRouter expose provider-side token buckets that
+    refill over time. This strategy mirrors that pattern: each provider keeps a
+    bucket with capacity ``C`` refilling at rate ``R``. Primary selection prefers
+    providers with at least one token available (after refill), then breaks ties
+    by quality and estimated cost. When every bucket is empty it falls back to
+    the highest remaining token fraction, then to the cheapest eligible model so
+    GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 traffic still drains
+    gradually instead of hard-blocking.
+    """
+
+    strategy_name = RoutingStrategyName.TOKEN_BUCKET_BURST
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        token_bucket_stats: TokenBucketStats,
+    ) -> None:
+        """Initialize token-bucket-burst routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            token_bucket_stats: Shared per-provider token bucket state.
+        """
+        super().__init__(model_catalog)
+        self._token_bucket_stats = token_bucket_stats
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a provider with available burst tokens, or the best empty bucket."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        with_tokens = [
+            candidate
+            for candidate in eligible_candidates
+            if self._token_bucket_stats.available_tokens(candidate.provider) >= 1.0
+        ]
+
+        if with_tokens:
+            selected_candidate = max(
+                with_tokens,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            available_tokens = self._token_bucket_stats.available_tokens(
+                selected_candidate.provider
+            )
+            rationale = (
+                f"token-bucket-burst selected provider {selected_candidate.provider} "
+                f"with {available_tokens:.1f}/{self._token_bucket_stats.capacity:.0f} tokens; "
+                f"picked highest-quality eligible model {selected_candidate.model} "
+                f"(quality {selected_candidate.quality_score:.2f})"
+            )
+        else:
+            selected_candidate = max(
+                eligible_candidates,
+                key=lambda candidate: (
+                    self._token_bucket_stats.remaining_fraction(candidate.provider),
+                    -candidate.estimate_cost(
+                        signals.prompt_tokens_estimate,
+                        request.max_tokens,
+                    ),
+                    candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            remaining_fraction = self._token_bucket_stats.remaining_fraction(
+                selected_candidate.provider
+            )
+            estimated_cost = selected_candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            rationale = (
+                "token-bucket-burst found every eligible provider bucket empty; "
+                f"routed to highest remaining fraction {remaining_fraction:.2%} "
+                f"({selected_candidate.provider}) with lowest cost "
+                f"${estimated_cost:.6f}"
+            )
+
+        self._token_bucket_stats.consume(selected_candidate.provider)
+        ordered_fallbacks = self._ordered_fallback_candidates(
+            selected_candidate.model,
+            eligible_candidates,
+            request,
+            signals,
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in ordered_fallbacks[:3]],
+        )
+
+    def _ordered_fallback_candidates(
+        self,
+        chosen_model: str,
+        eligible_candidates: list[ModelCandidate],
+        request: RouterRequest,
+        signals: TaskSignals,
+    ) -> list[ModelCandidate]:
+        """Order fallbacks so providers with burst tokens are attempted first."""
+        return sorted(
+            [candidate for candidate in eligible_candidates if candidate.model != chosen_model],
+            key=lambda candidate: (
+                self._token_bucket_stats.available_tokens(candidate.provider) < 1.0,
+                -self._token_bucket_stats.remaining_fraction(candidate.provider),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
 
 
 class WeightedBlendStrategy(RoutingStrategy):
@@ -2496,6 +2688,7 @@ def build_strategies(
     health_blend_cost_weight: float = 0.15,
     concurrency_cap: int = 8,
     rate_limit_stats: RateLimitStats | None = None,
+    token_bucket_stats: TokenBucketStats | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -2537,6 +2730,9 @@ def build_strategies(
             routing.
         rate_limit_stats: Optional rolling provider rate-limit observations for
             soft-rate-limit routing. When omitted a fresh empty window is used.
+        token_bucket_stats: Optional shared per-provider token buckets for
+            token-bucket-burst routing. When omitted a fresh bucket state is
+            created with default capacity ``10`` and refill ``1.0``/s.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -2569,6 +2765,7 @@ def build_strategies(
         success_stats if isinstance(success_stats, SuccessStats) else SuccessStats()
     )
     resolved_rate_limit_stats = rate_limit_stats or RateLimitStats()
+    resolved_token_bucket_stats = token_bucket_stats or TokenBucketStats(10, 1.0)
     resolved_failover_priority = (
         failover_priority if isinstance(failover_priority, list) else list(model_catalog.keys())[:4]
     )
@@ -2633,6 +2830,10 @@ def build_strategies(
             model_catalog,
             provider_health,
             resolved_rate_limit_stats,
+        ),
+        RoutingStrategyName.TOKEN_BUCKET_BURST: TokenBucketBurstStrategy(
+            model_catalog,
+            resolved_token_bucket_stats,
         ),
         RoutingStrategyName.SEMANTIC_CACHE: SemanticCacheStrategy(model_catalog, quality_floor),
         RoutingStrategyName.FAILOVER_PRIORITY: FailoverPriorityStrategy(

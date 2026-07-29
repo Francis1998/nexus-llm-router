@@ -52,6 +52,7 @@ class RoutingStrategyName(StrEnum):
     FAILOVER_PRIORITY = "failover-priority"
     PROVIDER_HEALTH_SCORE_BLEND = "provider-health-score-blend"
     COST_LATENCY_PARETO = "cost-latency-pareto"
+    TOKEN_BUCKET_BURST = "token-bucket-burst"  # noqa: S105  # strategy name, not a secret
     AB_TEST = "ab"
 
 
