@@ -29,6 +29,7 @@ from router.strategies import (
     RateLimitStats,
     RoutingStrategy,
     SuccessStats,
+    TokenBucketStats,
     build_strategies,
 )
 from safety.budget import BudgetExceededError, BudgetGuardrail
@@ -67,6 +68,10 @@ class NexusRouter:
         self._inflight_stats = InflightStats()
         self._success_stats = SuccessStats()
         self._rate_limit_stats = RateLimitStats()
+        self._token_bucket_stats = TokenBucketStats(
+            settings.token_bucket_capacity,
+            settings.token_bucket_refill_per_sec,
+        )
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -96,6 +101,7 @@ class NexusRouter:
             settings.health_blend_cost_weight,
             settings.concurrency_cap,
             rate_limit_stats=self._rate_limit_stats,
+            token_bucket_stats=self._token_bucket_stats,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

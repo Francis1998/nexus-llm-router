@@ -15,6 +15,8 @@ NEXUS_ENABLE_PII_SCRUBBING=false
 NEXUS_QUALITY_FLOOR=0.72
 NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
 NEXUS_CONCURRENCY_CAP=8
+NEXUS_TOKEN_BUCKET_CAPACITY=10
+NEXUS_TOKEN_BUCKET_REFILL_PER_SEC=1.0
 ```
 
 ## Provider Credentials
@@ -290,6 +292,27 @@ NEXUS_CONCURRENCY_CAP=8
 primary traffic is steered elsewhere (minimum `1`). See
 [docs/guides/CONCURRENCY_CAP_GUIDE.md](docs/guides/CONCURRENCY_CAP_GUIDE.md).
 
+## Token-Bucket-Burst Routing
+The `token-bucket-burst` strategy is LiteLLM/Portkey/OpenRouter-style bursty quota
+routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Each
+provider keeps a shared token bucket that refills over time. Primary selection
+prefers providers with at least one available token, then breaks ties by quality
+and estimated request cost. When every bucket is empty, Nexus falls back to the
+highest remaining token fraction, then to the cheapest eligible model, and still
+consumes one token from the chosen provider so buckets drain gradually instead
+of hard-blocking.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=token-bucket-burst
+NEXUS_TOKEN_BUCKET_CAPACITY=10
+NEXUS_TOKEN_BUCKET_REFILL_PER_SEC=1.0
+```
+
+`NEXUS_TOKEN_BUCKET_CAPACITY` is the per-provider burst ceiling (minimum `1`).
+`NEXUS_TOKEN_BUCKET_REFILL_PER_SEC` is the refill rate in tokens per second and
+must be positive. See
+[docs/guides/TOKEN_BUCKET_BURST_GUIDE.md](docs/guides/TOKEN_BUCKET_BURST_GUIDE.md).
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -318,6 +341,7 @@ Set `X-Router-Strategy` to one of:
 - `concurrency-cap`
 - `soft-rate-limit`
 - `cost-latency-pareto`
+- `token-bucket-burst`
 - `failover-priority`
 - `provider-health-score-blend`
 - `ab`
