@@ -231,6 +231,22 @@ NEXUS_HEALTH_BLEND_COST_WEIGHT=0.15
 Weights are non-negative and normalized to sum to one, so only ratios matter.
 All-zero weights fall back to pure quality. See
 [docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md).
+
+## Health/Cost/Latency Routing
+The `health-cost-latency` strategy is LiteLLM/Portkey-style ternary routing for
+the default GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog mix. It
+scores domain-eligible models by blending rolling provider success rate, inverse
+normalized estimated request cost, and inverse normalized rolling provider p95
+latency — without circuit-breaker gating or a separate quality component.
+```dotenv
+NEXUS_HCL_HEALTH_WEIGHT=0.4
+NEXUS_HCL_COST_WEIGHT=0.3
+NEXUS_HCL_LATENCY_WEIGHT=0.3
+```
+Weights are non-negative and normalized to sum to one, so only ratios matter.
+All-zero weights fall back to pure health (success rate). See
+[docs/guides/HEALTH_COST_LATENCY_GUIDE.md](docs/guides/HEALTH_COST_LATENCY_GUIDE.md).
+
 ## Soft-Rate-Limit Routing
 The `soft-rate-limit` strategy is LiteLLM/Portkey-style soft backoff for
 providers that recently returned 429 or rate-limit shaped errors. It prefers
@@ -344,6 +360,7 @@ Set `X-Router-Strategy` to one of:
 - `token-bucket-burst`
 - `failover-priority`
 - `provider-health-score-blend`
+- `health-cost-latency`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

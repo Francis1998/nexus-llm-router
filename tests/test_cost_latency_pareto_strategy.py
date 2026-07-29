@@ -42,9 +42,7 @@ def _signals(domain_tag: DomainTag = DomainTag.GENERAL) -> TaskSignals:
 
 def test_cost_latency_pareto_enum_parses() -> None:
     """The strategy name should round-trip through the StrEnum."""
-    assert (
-        RoutingStrategyName("cost-latency-pareto") is RoutingStrategyName.COST_LATENCY_PARETO
-    )
+    assert RoutingStrategyName("cost-latency-pareto") is RoutingStrategyName.COST_LATENCY_PARETO
 
 
 def test_cost_latency_pareto_excludes_dominated_candidates() -> None:

@@ -868,9 +868,7 @@ class SoftRateLimitStrategy(RoutingStrategy):
         ]
         primary_pool = healthy_candidates or eligible_candidates
         unhealthy_remainder = [
-            candidate
-            for candidate in eligible_candidates
-            if candidate not in primary_pool
+            candidate for candidate in eligible_candidates if candidate not in primary_pool
         ]
 
         def ordering_key(candidate: ModelCandidate) -> tuple[int, float, float, float, str]:
@@ -1267,6 +1265,128 @@ class ProviderHealthScoreBlendStrategy(RoutingStrategy):
     def _availability_score(self, provider: str) -> float:
         """Return ``1.0`` for closed circuits and ``0.0`` for open circuits."""
         return 1.0 if self._provider_health.is_available(provider) else 0.0
+
+
+class HealthCostLatencyStrategy(RoutingStrategy):
+    """Route by a tunable weighted blend of provider health, cost, and latency.
+
+    This is a simpler ternary sibling of :class:`ProviderHealthScoreBlendStrategy`:
+    it scores domain-eligible candidates from rolling provider success rate
+    (:class:`SuccessStats`), inverse normalized estimated request cost, and
+    inverse normalized rolling provider p95 latency (:class:`LatencyStats`) with
+    no circuit-breaker gating or quality component. Operators tune the trade-off
+    across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic via
+    ``NEXUS_HCL_*`` weights.
+    """
+
+    strategy_name = RoutingStrategyName.HEALTH_COST_LATENCY
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        success_stats: "SuccessStats",
+        latency_stats: LatencyStats,
+        health_weight: float,
+        cost_weight: float,
+        latency_weight: float,
+    ) -> None:
+        """Initialize the health/cost/latency blend strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            success_stats: Rolling provider success observations.
+            latency_stats: Rolling provider latency observations.
+            health_weight: Non-negative rolling success-rate component weight.
+            cost_weight: Non-negative inverse-cost component weight.
+            latency_weight: Non-negative inverse-p95-latency component weight.
+
+        Raises:
+            ValueError: If any weight is negative.
+        """
+        super().__init__(model_catalog)
+        weights = (health_weight, cost_weight, latency_weight)
+        if any(weight < 0.0 for weight in weights):
+            raise ValueError(f"health-cost-latency weights must be non-negative, got {weights}")
+        self._success_stats = success_stats
+        self._latency_stats = latency_stats
+        total_weight = sum(weights)
+        if total_weight <= 0.0:
+            self._health_weight, self._cost_weight, self._latency_weight = 1.0, 0.0, 0.0
+        else:
+            self._health_weight = health_weight / total_weight
+            self._cost_weight = cost_weight / total_weight
+            self._latency_weight = latency_weight / total_weight
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the highest health/cost/latency blended score among eligible candidates."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+        latencies = {
+            candidate.model: self._latency_stats.p95(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        health_rates = {
+            candidate.model: self._success_stats.success_rate(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        cost_scores = _inverse_min_max(costs)
+        latency_scores = _inverse_min_max(latencies)
+
+        def blended_score(candidate: ModelCandidate) -> float:
+            return (
+                self._health_weight * health_rates[candidate.model]
+                + self._cost_weight * cost_scores[candidate.model]
+                + self._latency_weight * latency_scores[candidate.model]
+            )
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                blended_score(candidate),
+                health_rates[candidate.model],
+                -costs[candidate.model],
+                -latencies[candidate.model],
+            ),
+        )
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                -blended_score(candidate),
+                -health_rates[candidate.model],
+                costs[candidate.model],
+                latencies[candidate.model],
+            ),
+        )
+        rationale = (
+            f"health-cost-latency score {blended_score(selected_candidate):.3f} "
+            f"for {selected_candidate.provider} ("
+            f"health={health_rates[selected_candidate.model]:.2%}, "
+            f"p95={latencies[selected_candidate.model]:.1f}ms, "
+            f"est_cost=${costs[selected_candidate.model]:.6f}; "
+            f"weights health={self._health_weight:.2f}, "
+            f"cost={self._cost_weight:.2f}, latency={self._latency_weight:.2f})"
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
 
 
 def _inverse_min_max(values: Mapping[str, float]) -> dict[str, float]:
@@ -2689,6 +2809,9 @@ def build_strategies(
     concurrency_cap: int = 8,
     rate_limit_stats: RateLimitStats | None = None,
     token_bucket_stats: TokenBucketStats | None = None,
+    hcl_health_weight: float = 0.4,
+    hcl_cost_weight: float = 0.3,
+    hcl_latency_weight: float = 0.3,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -2733,6 +2856,9 @@ def build_strategies(
         token_bucket_stats: Optional shared per-provider token buckets for
             token-bucket-burst routing. When omitted a fresh bucket state is
             created with default capacity ``10`` and refill ``1.0``/s.
+        hcl_health_weight: Health/cost/latency blend success-rate weight.
+        hcl_cost_weight: Health/cost/latency blend inverse-cost weight.
+        hcl_latency_weight: Health/cost/latency blend inverse-latency weight.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -2850,6 +2976,14 @@ def build_strategies(
             health_blend_latency_weight,
             health_blend_quality_weight,
             health_blend_cost_weight,
+        ),
+        RoutingStrategyName.HEALTH_COST_LATENCY: HealthCostLatencyStrategy(
+            model_catalog,
+            resolved_success_stats,
+            latency_stats,
+            hcl_health_weight,
+            hcl_cost_weight,
+            hcl_latency_weight,
         ),
         RoutingStrategyName.CANARY: CanaryStrategy(
             model_catalog,

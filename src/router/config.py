@@ -63,6 +63,9 @@ class RouterSettings(BaseSettings):
     health_blend_latency_weight: Annotated[float, Field(ge=0.0)] = 0.25
     health_blend_quality_weight: Annotated[float, Field(ge=0.0)] = 0.25
     health_blend_cost_weight: Annotated[float, Field(ge=0.0)] = 0.15
+    hcl_health_weight: Annotated[float, Field(ge=0.0)] = 0.4
+    hcl_cost_weight: Annotated[float, Field(ge=0.0)] = 0.3
+    hcl_latency_weight: Annotated[float, Field(ge=0.0)] = 0.3
     prompt_prefix_cache_min_chars: Annotated[int, Field(ge=1)] = 512
     concurrency_cap: Annotated[int, Field(ge=1)] = 8
     token_bucket_capacity: Annotated[int, Field(ge=1)] = 10

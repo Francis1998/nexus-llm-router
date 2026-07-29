@@ -1,8 +1,8 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-218%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-227%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
-![Tests](https://img.shields.io/badge/tests-218%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-227%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -141,6 +141,7 @@ Select a strategy with `X-Router-Strategy`:
 - `token-bucket-burst`: maintains per-provider token buckets (`NEXUS_TOKEN_BUCKET_CAPACITY`, `NEXUS_TOKEN_BUCKET_REFILL_PER_SEC`) and prefers providers with burst quota for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic; when every bucket is empty it falls back to the highest remaining fraction, then cost
 - `failover-priority`: walks an explicit ordered model preference list and picks the first healthy provider (LiteLLM-style ordered failover)
 - `provider-health-score-blend`: blends circuit availability, rolling success rate, inverse p95 latency, model quality, and inverse estimated cost; open circuits are skipped whenever a healthy provider exists (`NEXUS_HEALTH_BLEND_*`)
+- `health-cost-latency`: ternary blend of rolling provider success rate, inverse estimated cost, and inverse p95 latency for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic (`NEXUS_HCL_*`)
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
@@ -163,6 +164,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Token-bucket-burst guide](docs/guides/TOKEN_BUCKET_BURST_GUIDE.md) | Bursty per-provider token-bucket quota routing |
 | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md) | Ordered healthy-provider failover |
 | [Provider-health score blend guide](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md) | LiteLLM/Portkey-style health-aware blended routing |
+| [Health/cost/latency guide](docs/guides/HEALTH_COST_LATENCY_GUIDE.md) | Ternary health, cost, and latency blend routing |
 | [Quickstart](QUICKSTART.md) | Local setup and first request |
 | [Safety](SAFETY.md) | Guardrails, fallback, and PII controls |
 | [Contributing](CONTRIBUTING.md) | Development workflow and PR process |

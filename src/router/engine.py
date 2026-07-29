@@ -102,6 +102,9 @@ class NexusRouter:
             settings.concurrency_cap,
             rate_limit_stats=self._rate_limit_stats,
             token_bucket_stats=self._token_bucket_stats,
+            hcl_health_weight=settings.hcl_health_weight,
+            hcl_cost_weight=settings.hcl_cost_weight,
+            hcl_latency_weight=settings.hcl_latency_weight,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
