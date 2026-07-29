@@ -17,6 +17,9 @@ NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
 NEXUS_CONCURRENCY_CAP=8
 NEXUS_TOKEN_BUCKET_CAPACITY=10
 NEXUS_TOKEN_BUCKET_REFILL_PER_SEC=1.0
+NEXUS_TIER_FRONTIER_RPM=30
+NEXUS_TIER_MID_RPM=60
+NEXUS_TIER_ECONOMY_RPM=120
 ```
 
 ## Provider Credentials
@@ -329,6 +332,25 @@ NEXUS_TOKEN_BUCKET_REFILL_PER_SEC=1.0
 must be positive. See
 [docs/guides/TOKEN_BUCKET_BURST_GUIDE.md](docs/guides/TOKEN_BUCKET_BURST_GUIDE.md).
 
+## Model-Tier-Rate-Limit Routing
+The `model-tier-rate-limit` strategy is LiteLLM/Portkey-style tier-aware soft RPM
+routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. It
+infers each candidate's frontier/mid/economy tier from its model name, tracks
+rolling per-provider request timestamps, and prefers providers still under the
+tier-specific RPM ceiling. When every eligible provider is saturated it falls
+back to the least-saturated provider, then quality and estimated cost.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=model-tier-rate-limit
+NEXUS_TIER_FRONTIER_RPM=30
+NEXUS_TIER_MID_RPM=60
+NEXUS_TIER_ECONOMY_RPM=120
+```
+
+`NEXUS_TIER_FRONTIER_RPM` defaults to `30`, `NEXUS_TIER_MID_RPM` to `60`, and
+`NEXUS_TIER_ECONOMY_RPM` to `120`. Each must be at least `1`. See
+[docs/guides/MODEL_TIER_RATE_LIMIT_GUIDE.md](docs/guides/MODEL_TIER_RATE_LIMIT_GUIDE.md).
+
 ## Per-Request Strategy Selection
 
 Set `X-Router-Strategy` to one of:
@@ -358,6 +380,7 @@ Set `X-Router-Strategy` to one of:
 - `soft-rate-limit`
 - `cost-latency-pareto`
 - `token-bucket-burst`
+- `model-tier-rate-limit`
 - `failover-priority`
 - `provider-health-score-blend`
 - `health-cost-latency`

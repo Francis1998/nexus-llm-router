@@ -70,6 +70,9 @@ class RouterSettings(BaseSettings):
     concurrency_cap: Annotated[int, Field(ge=1)] = 8
     token_bucket_capacity: Annotated[int, Field(ge=1)] = 10
     token_bucket_refill_per_sec: Annotated[float, Field(gt=0.0)] = 1.0
+    tier_frontier_rpm: Annotated[int, Field(ge=1)] = 30
+    tier_mid_rpm: Annotated[int, Field(ge=1)] = 60
+    tier_economy_rpm: Annotated[int, Field(ge=1)] = 120
     failover_priority: list[str] = Field(
         default_factory=lambda: [
             OPENAI_FRONTIER_MODEL,

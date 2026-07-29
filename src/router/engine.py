@@ -29,6 +29,7 @@ from router.strategies import (
     RateLimitStats,
     RoutingStrategy,
     SuccessStats,
+    TierRequestStats,
     TokenBucketStats,
     build_strategies,
 )
@@ -72,6 +73,7 @@ class NexusRouter:
             settings.token_bucket_capacity,
             settings.token_bucket_refill_per_sec,
         )
+        self._tier_request_stats = TierRequestStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -105,6 +107,10 @@ class NexusRouter:
             hcl_health_weight=settings.hcl_health_weight,
             hcl_cost_weight=settings.hcl_cost_weight,
             hcl_latency_weight=settings.hcl_latency_weight,
+            tier_request_stats=self._tier_request_stats,
+            tier_frontier_rpm=settings.tier_frontier_rpm,
+            tier_mid_rpm=settings.tier_mid_rpm,
+            tier_economy_rpm=settings.tier_economy_rpm,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

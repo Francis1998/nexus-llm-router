@@ -54,6 +54,7 @@ class RoutingStrategyName(StrEnum):
     HEALTH_COST_LATENCY = "health-cost-latency"
     COST_LATENCY_PARETO = "cost-latency-pareto"
     TOKEN_BUCKET_BURST = "token-bucket-burst"  # noqa: S105  # strategy name, not a secret
+    MODEL_TIER_RATE_LIMIT = "model-tier-rate-limit"
     AB_TEST = "ab"
 
 
