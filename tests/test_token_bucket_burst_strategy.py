@@ -165,9 +165,7 @@ def test_token_bucket_burst_consumes_token_on_selection() -> None:
 
 def test_token_bucket_burst_strategy_name_parses_header_value() -> None:
     """The API header parser can resolve the new strategy enum value."""
-    assert (
-        RoutingStrategyName("token-bucket-burst") is RoutingStrategyName.TOKEN_BUCKET_BURST
-    )
+    assert RoutingStrategyName("token-bucket-burst") is RoutingStrategyName.TOKEN_BUCKET_BURST
 
 
 def test_token_bucket_burst_is_registered_by_strategy_builder() -> None:
