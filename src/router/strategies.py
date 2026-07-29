@@ -4,6 +4,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 from hashlib import sha256
 from typing import Protocol
 
@@ -388,6 +389,95 @@ class TokenBucketStats:
         )
         bucket.updated_at = now
         return bucket.tokens
+
+
+class ModelTier(StrEnum):
+    """Inferred capability tier used by model-tier-rate-limit routing."""
+
+    FRONTIER = "frontier"
+    MID = "mid"
+    ECONOMY = "economy"
+
+
+def infer_model_tier(model_name: str) -> ModelTier:
+    """Infer a model's capability tier from its name using catalog heuristics.
+
+    Economy markers (mini, nano, flash, etc.) are checked first so names such as
+    ``gemini-3.5-flash`` classify as economy rather than frontier.
+    """
+    normalized = model_name.lower()
+    economy_markers = ("-mini", "nano", "flash", "haiku-light", "-lite", "lite-")
+    if any(marker in normalized for marker in economy_markers):
+        return ModelTier.ECONOMY
+    frontier_markers = (
+        "gpt-5",
+        "claude-sonnet-4",
+        "claude-opus",
+        "gemini-3",
+        "kimi-k2",
+        "o3",
+    )
+    if any(marker in normalized for marker in frontier_markers):
+        return ModelTier.FRONTIER
+    mid_markers = ("gpt-4.1", "claude-haiku", "gemini-2")
+    if any(marker in normalized for marker in mid_markers):
+        return ModelTier.MID
+    return ModelTier.MID
+
+
+class TierRequestStats:
+    """Rolling per-provider request timestamps for tier-aware soft rate limits."""
+
+    def __init__(self, window_seconds: float = 60.0, max_timestamps: int = 500) -> None:
+        """Initialize empty provider request windows.
+
+        Args:
+            window_seconds: Rolling window length in seconds.
+            max_timestamps: Maximum timestamps retained per provider.
+
+        Raises:
+            ValueError: If the window or retention cap is invalid.
+        """
+        if window_seconds <= 0:
+            raise ValueError(f"window_seconds must be positive, got {window_seconds}")
+        if max_timestamps < 1:
+            raise ValueError(f"max_timestamps must be positive, got {max_timestamps}")
+        self._window_seconds = window_seconds
+        self._max_timestamps = max_timestamps
+        self._timestamps: dict[str, list[float]] = {}
+
+    def record(self, provider: str, *, now: float | None = None) -> None:
+        """Record a routing decision against a provider's rolling window."""
+        timestamp = time.monotonic() if now is None else now
+        provider_timestamps = self._timestamps.setdefault(provider, [])
+        provider_timestamps.append(timestamp)
+        self._prune(provider, timestamp)
+
+    def request_count(self, provider: str, *, now: float | None = None) -> int:
+        """Return recent request count for a provider inside the rolling window."""
+        timestamp = time.monotonic() if now is None else now
+        self._prune(provider, timestamp)
+        return len(self._timestamps.get(provider, []))
+
+    def saturation_fraction(
+        self, provider: str, rpm_limit: int, *, now: float | None = None
+    ) -> float:
+        """Return recent load as a fraction of the tier RPM limit."""
+        if rpm_limit < 1:
+            raise ValueError(f"rpm_limit must be positive, got {rpm_limit}")
+        return self.request_count(provider, now=now) / rpm_limit
+
+    def is_under_limit(self, provider: str, rpm_limit: int, *, now: float | None = None) -> bool:
+        """Return whether the provider is below its tier RPM limit."""
+        return self.request_count(provider, now=now) < rpm_limit
+
+    def _prune(self, provider: str, now: float) -> None:
+        timestamps = self._timestamps.get(provider, [])
+        cutoff = now - self._window_seconds
+        while timestamps and timestamps[0] < cutoff:
+            del timestamps[0]
+        if len(timestamps) > self._max_timestamps:
+            del timestamps[: len(timestamps) - self._max_timestamps]
 
 
 class LatencyAwareStrategy(RoutingStrategy):
@@ -1006,6 +1096,114 @@ class TokenBucketBurstStrategy(RoutingStrategy):
                 candidate.model,
             ),
         )
+
+
+class ModelTierRateLimitStrategy(RoutingStrategy):
+    """Route using tier-specific soft RPM limits inferred from model names.
+
+    Frontier models (GPT-5.5, Claude Sonnet 4.6, Gemini 3.x Pro, Kimi K2, o3)
+    carry tighter per-provider RPM ceilings than mid-tier or economy SKUs. This
+    strategy tracks rolling request timestamps per provider, infers each
+    candidate's tier from its model name, and prefers providers that are still
+    under that tier's configured RPM. When every eligible provider is saturated
+    it falls back to the least-saturated provider, then to quality and cost.
+    """
+
+    strategy_name = RoutingStrategyName.MODEL_TIER_RATE_LIMIT
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        tier_request_stats: TierRequestStats,
+        frontier_rpm: int,
+        mid_rpm: int,
+        economy_rpm: int,
+    ) -> None:
+        """Initialize model-tier-rate-limit routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            tier_request_stats: Shared per-provider rolling request timestamps.
+            frontier_rpm: RPM ceiling for frontier-tier models.
+            mid_rpm: RPM ceiling for mid-tier models.
+            economy_rpm: RPM ceiling for economy-tier models.
+
+        Raises:
+            ValueError: If any RPM limit is not positive.
+        """
+        super().__init__(model_catalog)
+        rpm_limits = (frontier_rpm, mid_rpm, economy_rpm)
+        if any(limit < 1 for limit in rpm_limits):
+            raise ValueError(f"tier RPM limits must be positive, got {rpm_limits}")
+        self._tier_request_stats = tier_request_stats
+        self._rpm_limits = {
+            ModelTier.FRONTIER: frontier_rpm,
+            ModelTier.MID: mid_rpm,
+            ModelTier.ECONOMY: economy_rpm,
+        }
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a provider under its model tier RPM, or the least saturated."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        under_limit = [
+            candidate
+            for candidate in eligible_candidates
+            if self._is_candidate_under_limit(candidate)
+        ]
+        primary_pool = under_limit or eligible_candidates
+        saturated_fallback = under_limit == []
+
+        def ordering_key(candidate: ModelCandidate) -> tuple[float, float, float, str]:
+            tier = infer_model_tier(candidate.model)
+            rpm_limit = self._rpm_limits[tier]
+            return (
+                self._tier_request_stats.saturation_fraction(candidate.provider, rpm_limit),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            )
+
+        ordered = sorted(primary_pool, key=ordering_key)
+        selected_candidate = ordered[0]
+        tier = infer_model_tier(selected_candidate.model)
+        rpm_limit = self._rpm_limits[tier]
+        recent_count = self._tier_request_stats.request_count(selected_candidate.provider)
+        saturation = self._tier_request_stats.saturation_fraction(
+            selected_candidate.provider,
+            rpm_limit,
+        )
+        estimated_cost = selected_candidate.estimate_cost(
+            signals.prompt_tokens_estimate,
+            request.max_tokens,
+        )
+        limit_context = (
+            "all eligible providers saturated; routed to least-saturated"
+            if saturated_fallback
+            else f"under {tier.value} tier RPM {rpm_limit}"
+        )
+        rationale = (
+            f"model-tier-rate-limit selected provider {selected_candidate.provider} "
+            f"({recent_count}/{rpm_limit} recent requests, {saturation:.2%} saturated, "
+            f"{tier.value} tier); {limit_context}; picked {selected_candidate.model} "
+            f"(quality {selected_candidate.quality_score:.2f}, est ${estimated_cost:.6f})"
+        )
+        self._tier_request_stats.record(selected_candidate.provider)
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in ordered[1:4]],
+        )
+
+    def _is_candidate_under_limit(self, candidate: ModelCandidate) -> bool:
+        tier = infer_model_tier(candidate.model)
+        rpm_limit = self._rpm_limits[tier]
+        return self._tier_request_stats.is_under_limit(candidate.provider, rpm_limit)
 
 
 class WeightedBlendStrategy(RoutingStrategy):
@@ -2812,6 +3010,10 @@ def build_strategies(
     hcl_health_weight: float = 0.4,
     hcl_cost_weight: float = 0.3,
     hcl_latency_weight: float = 0.3,
+    tier_request_stats: TierRequestStats | None = None,
+    tier_frontier_rpm: int = 30,
+    tier_mid_rpm: int = 60,
+    tier_economy_rpm: int = 120,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -2859,6 +3061,12 @@ def build_strategies(
         hcl_health_weight: Health/cost/latency blend success-rate weight.
         hcl_cost_weight: Health/cost/latency blend inverse-cost weight.
         hcl_latency_weight: Health/cost/latency blend inverse-latency weight.
+        tier_request_stats: Optional shared per-provider rolling request
+            timestamps for model-tier-rate-limit routing. When omitted a fresh
+            empty window is used.
+        tier_frontier_rpm: RPM ceiling for frontier-tier models.
+        tier_mid_rpm: RPM ceiling for mid-tier models.
+        tier_economy_rpm: RPM ceiling for economy-tier models.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -2892,6 +3100,7 @@ def build_strategies(
     )
     resolved_rate_limit_stats = rate_limit_stats or RateLimitStats()
     resolved_token_bucket_stats = token_bucket_stats or TokenBucketStats(10, 1.0)
+    resolved_tier_request_stats = tier_request_stats or TierRequestStats()
     resolved_failover_priority = (
         failover_priority if isinstance(failover_priority, list) else list(model_catalog.keys())[:4]
     )
@@ -2960,6 +3169,13 @@ def build_strategies(
         RoutingStrategyName.TOKEN_BUCKET_BURST: TokenBucketBurstStrategy(
             model_catalog,
             resolved_token_bucket_stats,
+        ),
+        RoutingStrategyName.MODEL_TIER_RATE_LIMIT: ModelTierRateLimitStrategy(
+            model_catalog,
+            resolved_tier_request_stats,
+            tier_frontier_rpm,
+            tier_mid_rpm,
+            tier_economy_rpm,
         ),
         RoutingStrategyName.SEMANTIC_CACHE: SemanticCacheStrategy(model_catalog, quality_floor),
         RoutingStrategyName.FAILOVER_PRIORITY: FailoverPriorityStrategy(

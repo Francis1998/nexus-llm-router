@@ -1,8 +1,8 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-227%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-222%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
-![Tests](https://img.shields.io/badge/tests-227%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-222%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -139,6 +139,7 @@ Select a strategy with `X-Router-Strategy`:
 - `soft-rate-limit`: prefers healthy providers with fewer recent 429/rate-limit observations, so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic backs away from quota pressure before hard circuit breakers trip
 - `cost-latency-pareto`: keeps non-dominated cost/latency candidates (Pareto front on estimated spend and rolling provider p95), then breaks ties by quality — LiteLLM/Portkey-style multi-objective routing across GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2
 - `token-bucket-burst`: maintains per-provider token buckets (`NEXUS_TOKEN_BUCKET_CAPACITY`, `NEXUS_TOKEN_BUCKET_REFILL_PER_SEC`) and prefers providers with burst quota for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic; when every bucket is empty it falls back to the highest remaining fraction, then cost
+- `model-tier-rate-limit`: infers frontier/mid/economy tiers from model names and applies tier-specific soft RPM ceilings per provider (`NEXUS_TIER_FRONTIER_RPM`, `NEXUS_TIER_MID_RPM`, `NEXUS_TIER_ECONOMY_RPM`); prefers providers under their tier limit for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic and falls back to the least-saturated provider
 - `failover-priority`: walks an explicit ordered model preference list and picks the first healthy provider (LiteLLM-style ordered failover)
 - `provider-health-score-blend`: blends circuit availability, rolling success rate, inverse p95 latency, model quality, and inverse estimated cost; open circuits are skipped whenever a healthy provider exists (`NEXUS_HEALTH_BLEND_*`)
 - `health-cost-latency`: ternary blend of rolling provider success rate, inverse estimated cost, and inverse p95 latency for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic (`NEXUS_HCL_*`)
@@ -162,6 +163,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Soft-rate-limit guide](docs/guides/SOFT_RATE_LIMIT_GUIDE.md) | Soft 429/rate-limit pressure avoidance |
 | [Cost/latency Pareto guide](docs/guides/COST_LATENCY_PARETO_GUIDE.md) | Multi-objective non-dominated cost + latency routing |
 | [Token-bucket-burst guide](docs/guides/TOKEN_BUCKET_BURST_GUIDE.md) | Bursty per-provider token-bucket quota routing |
+| [Model-tier-rate-limit guide](docs/guides/MODEL_TIER_RATE_LIMIT_GUIDE.md) | Tier-specific soft RPM routing by model name |
 | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md) | Ordered healthy-provider failover |
 | [Provider-health score blend guide](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md) | LiteLLM/Portkey-style health-aware blended routing |
 | [Health/cost/latency guide](docs/guides/HEALTH_COST_LATENCY_GUIDE.md) | Ternary health, cost, and latency blend routing |
