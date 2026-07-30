@@ -112,6 +112,8 @@ class NexusRouter:
             tier_mid_rpm=settings.tier_mid_rpm,
             tier_economy_rpm=settings.tier_economy_rpm,
             provider_family_cost_ceiling_usd=settings.provider_family_cost_ceiling_usd,
+            adaptive_exploration_base=settings.adaptive_exploration_base,
+            adaptive_exploration_min=settings.adaptive_exploration_min,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

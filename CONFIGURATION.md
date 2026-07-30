@@ -167,6 +167,28 @@ NEXUS_EPSILON=0.1
 `NEXUS_EPSILON` is the explore probability within `[0.0, 1.0]` (default `0.1`).
 See [docs/guides/EPSILON_GREEDY_GUIDE.md](docs/guides/EPSILON_GREEDY_GUIDE.md).
 
+## Adaptive-Exploration Routing
+
+The `adaptive-exploration` strategy is a decaying epsilon-greedy bandit over the
+model catalog. It starts at `NEXUS_ADAPTIVE_EXPLORATION_BASE` explore probability
+while `SuccessStats` are empty, then decays toward
+`NEXUS_ADAPTIVE_EXPLORATION_MIN` as total provider successes grow:
+
+`epsilon = min + (base - min) / (1 + total_successes)`.
+
+Explore/exploit bucketing matches canary/A/B/`epsilon-greedy`, so a given
+request stays replayable while early traffic still samples GPT-5.5, Claude Sonnet
+4.6, Gemini 3.x, and Kimi K2 more broadly than a fixed epsilon.
+
+```dotenv
+NEXUS_ADAPTIVE_EXPLORATION_BASE=0.2
+NEXUS_ADAPTIVE_EXPLORATION_MIN=0.02
+```
+
+Both values are explore probabilities within `[0.0, 1.0]`; `min` must be `<=`
+`base`. Defaults are `0.2` → `0.02`. See
+[docs/guides/ADAPTIVE_EXPLORATION_GUIDE.md](docs/guides/ADAPTIVE_EXPLORATION_GUIDE.md).
+
 ## Token-Budget Routing
 
 The `token-budget` strategy maximizes quality subject to a hard token ceiling: it
@@ -389,6 +411,7 @@ Set `X-Router-Strategy` to one of:
 - `round-robin`
 - `cascade`
 - `epsilon-greedy`
+- `adaptive-exploration`
 - `geo-region`
 - `region-tier-affinity`
 - `token-budget`
