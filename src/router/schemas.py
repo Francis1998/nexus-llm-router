@@ -56,6 +56,7 @@ class RoutingStrategyName(StrEnum):
     TOKEN_BUCKET_BURST = "token-bucket-burst"  # noqa: S105  # strategy name, not a secret
     MODEL_TIER_RATE_LIMIT = "model-tier-rate-limit"
     PROVIDER_FAMILY_COST_CEILING = "provider-family-cost-ceiling"
+    REGION_TIER_AFFINITY = "region-tier-affinity"
     AB_TEST = "ab"
 
 

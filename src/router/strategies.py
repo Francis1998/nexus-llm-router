@@ -425,6 +425,21 @@ def infer_model_tier(model_name: str) -> ModelTier:
     return ModelTier.MID
 
 
+def infer_target_tier(complexity_score: float) -> ModelTier:
+    """Map a classifier complexity score onto a target capability tier.
+
+    High-complexity prompts prefer frontier SKUs (GPT-5.5, Claude Sonnet 4.6,
+    Gemini 3.x, Kimi K2); medium prompts prefer mid-tier; low-complexity prompts
+    prefer economy SKUs. Thresholds are fixed so routing stays deterministic and
+    needs no extra ``NEXUS_*`` knobs.
+    """
+    if complexity_score >= 0.7:
+        return ModelTier.FRONTIER
+    if complexity_score >= 0.35:
+        return ModelTier.MID
+    return ModelTier.ECONOMY
+
+
 class TierRequestStats:
     """Rolling per-provider request timestamps for tier-aware soft rate limits."""
 
@@ -2538,6 +2553,100 @@ class GeoRegionStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class RegionTierAffinityStrategy(RoutingStrategy):
+    """Prefer models matching both request geo region and complexity tier.
+
+    LiteLLM/OpenRouter-style deployments often need *both* data-residency (or
+    latency affinity) *and* capability-tier alignment: an EU realtime chat should
+    not land on a US-only frontier SKU, and a trivial prompt should not burn a
+    frontier budget when an economy regional model exists. This strategy maps
+    ``TaskSignals.complexity_score`` onto a target tier via
+    :func:`infer_target_tier`, classifies each candidate with
+    :func:`infer_model_tier`, and prefers domain-eligible candidates in this
+    order:
+
+    1. region **and** tier match
+    2. tier match only
+    3. region match only
+    4. highest-quality domain-eligible (quality fallback)
+
+    Within each pool it picks the highest ``quality_score`` (ties break toward
+    lower estimated cost). The request ``region`` defaults to ``global`` when
+    omitted. No extra ``NEXUS_*`` knobs are required.
+    """
+
+    strategy_name = RoutingStrategyName.REGION_TIER_AFFINITY
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a model preferring region+tier affinity, then quality."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        requested_region = (request.region or "global").strip().lower()
+        target_tier = infer_target_tier(signals.complexity_score)
+
+        def matches_region(candidate: ModelCandidate) -> bool:
+            return requested_region in {region.lower() for region in candidate.supported_regions}
+
+        def matches_tier(candidate: ModelCandidate) -> bool:
+            return infer_model_tier(candidate.model) is target_tier
+
+        def quality_key(candidate: ModelCandidate) -> tuple[float, float]:
+            return (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+            )
+
+        both_matches = [
+            candidate
+            for candidate in eligible_candidates
+            if matches_region(candidate) and matches_tier(candidate)
+        ]
+        if both_matches:
+            selected_candidate = max(both_matches, key=quality_key)
+            rationale = (
+                f"region-tier-affinity matched region '{requested_region}' and "
+                f"{target_tier.value} tier to {selected_candidate.model} "
+                f"(quality {selected_candidate.quality_score:.2f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        tier_matches = [candidate for candidate in eligible_candidates if matches_tier(candidate)]
+        if tier_matches:
+            selected_candidate = max(tier_matches, key=quality_key)
+            rationale = (
+                f"region-tier-affinity found no region+tier match for "
+                f"'{requested_region}'/{target_tier.value}; preferred "
+                f"{target_tier.value} tier model {selected_candidate.model} "
+                f"(quality {selected_candidate.quality_score:.2f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        region_matches = [
+            candidate for candidate in eligible_candidates if matches_region(candidate)
+        ]
+        if region_matches:
+            selected_candidate = max(region_matches, key=quality_key)
+            rationale = (
+                f"region-tier-affinity found no {target_tier.value} tier model; "
+                f"preferred region '{requested_region}' model "
+                f"{selected_candidate.model} "
+                f"(quality {selected_candidate.quality_score:.2f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(eligible_candidates, key=quality_key)
+        rationale = (
+            f"region-tier-affinity found no region or tier match for "
+            f"'{requested_region}'/{target_tier.value}; fell back to "
+            f"highest-quality eligible model {selected_candidate.model}"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class SuccessStats:
     """Rolling success/failure summary used by SLO-aware routing."""
 
@@ -3270,6 +3379,7 @@ def build_strategies(
         RoutingStrategyName.EPSILON_GREEDY: EpsilonGreedyStrategy(model_catalog, epsilon),
         RoutingStrategyName.TOKEN_BUDGET: TokenBudgetStrategy(model_catalog),
         RoutingStrategyName.GEO_REGION: GeoRegionStrategy(model_catalog),
+        RoutingStrategyName.REGION_TIER_AFFINITY: RegionTierAffinityStrategy(model_catalog),
         RoutingStrategyName.SLO_AWARE: SloAwareStrategy(
             model_catalog,
             resolved_success_stats,

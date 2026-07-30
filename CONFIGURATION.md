@@ -390,6 +390,7 @@ Set `X-Router-Strategy` to one of:
 - `cascade`
 - `epsilon-greedy`
 - `geo-region`
+- `region-tier-affinity`
 - `token-budget`
 - `slo-aware`
 - `semantic-cache`
