@@ -2683,6 +2683,115 @@ class SuccessStats:
             return 1.0
         return self._successes.get(provider, 0) / attempts
 
+    def total_successes(self) -> int:
+        """Return the sum of recorded successes across all providers.
+
+        Returns:
+            Non-negative total success count used by adaptive exploration.
+        """
+        return sum(self._successes.values())
+
+
+class AdaptiveExplorationStrategy(RoutingStrategy):
+    """Epsilon-greedy with an observation-decaying explore rate.
+
+    Fixed ``epsilon-greedy`` keeps a constant explore budget forever. Production
+    LLM gateways often prefer a schedule that explores aggressively while
+    ``SuccessStats`` are cold, then tightens toward a small residual explore
+    rate as successes accumulate. This strategy uses:
+
+    ``epsilon = min + (base - min) / (1 + total_successes)``
+
+    so a cold start explores at ``base`` (default ``0.2``) and asymptotes toward
+    ``min`` (default ``0.02``). Explore/exploit bucketing and uniform explore
+    arms reuse the same deterministic ``request_id`` hashes as
+    :class:`EpsilonGreedyStrategy` for replayability.
+    """
+
+    strategy_name = RoutingStrategyName.ADAPTIVE_EXPLORATION
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        success_stats: SuccessStats,
+        base_epsilon: float = 0.2,
+        min_epsilon: float = 0.02,
+    ) -> None:
+        """Initialize adaptive exploration routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            success_stats: Rolling provider success observations.
+            base_epsilon: Cold-start explore probability within ``[0.0, 1.0]``.
+            min_epsilon: Floor explore probability within ``[0.0, 1.0]``.
+
+        Raises:
+            ValueError: If either epsilon is outside ``[0.0, 1.0]`` or
+                ``min_epsilon`` exceeds ``base_epsilon``.
+        """
+        super().__init__(model_catalog)
+        if not 0.0 <= base_epsilon <= 1.0:
+            raise ValueError(f"base_epsilon must be within [0.0, 1.0], got {base_epsilon}")
+        if not 0.0 <= min_epsilon <= 1.0:
+            raise ValueError(f"min_epsilon must be within [0.0, 1.0], got {min_epsilon}")
+        if min_epsilon > base_epsilon:
+            raise ValueError(
+                f"min_epsilon ({min_epsilon}) must be <= base_epsilon ({base_epsilon})"
+            )
+        self._success_stats = success_stats
+        self._base_epsilon = base_epsilon
+        self._min_epsilon = min_epsilon
+
+    def current_epsilon(self) -> float:
+        """Return the explore probability given current success observations."""
+        total_successes = self._success_stats.total_successes()
+        return self._min_epsilon + (self._base_epsilon - self._min_epsilon) / (
+            1.0 + total_successes
+        )
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Explore or exploit with a success-decayed epsilon schedule."""
+        eligible = self._domain_eligible(signals)
+        epsilon = self.current_epsilon()
+        total_successes = self._success_stats.total_successes()
+        digest = sha256(request.request_id.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) / 0xFFFFFFFF
+        if bucket < epsilon:
+            explore_digest = sha256(f"{request.request_id}:explore".encode()).hexdigest()
+            ordered = sorted(eligible, key=lambda candidate: candidate.model)
+            index = int(explore_digest[:8], 16) % len(ordered)
+            selected_candidate = ordered[index]
+            rationale = (
+                f"adaptive-exploration explore bucket={bucket:.4f} < epsilon "
+                f"{epsilon:.4f} (base {self._base_epsilon:.2f} -> min "
+                f"{self._min_epsilon:.2f}, successes={total_successes}); "
+                f"uniform arm {index}/{len(ordered)} -> {selected_candidate.model} "
+                f"(quality {selected_candidate.quality_score:.2f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(
+            eligible,
+            key=lambda candidate: (candidate.quality_score, candidate.model),
+        )
+        rationale = (
+            f"adaptive-exploration exploit bucket={bucket:.4f} >= epsilon "
+            f"{epsilon:.4f} (base {self._base_epsilon:.2f} -> min "
+            f"{self._min_epsilon:.2f}, successes={total_successes}); "
+            f"routed to highest-quality eligible model {selected_candidate.model} "
+            f"(quality {selected_candidate.quality_score:.2f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+    def _domain_eligible(self, signals: TaskSignals) -> list[ModelCandidate]:
+        """Return domain-eligible candidates, or the full catalog as fallback."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ]
+        return eligible or list(self._model_catalog.values())
+
 
 class SloAwareStrategy(RoutingStrategy):
     """Route to models whose providers meet a rolling availability SLO.
@@ -3236,6 +3345,8 @@ def build_strategies(
     tier_mid_rpm: int = 60,
     tier_economy_rpm: int = 120,
     provider_family_cost_ceiling_usd: float = 0.05,
+    adaptive_exploration_base: float = 0.2,
+    adaptive_exploration_min: float = 0.02,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -3263,8 +3374,8 @@ def build_strategies(
         availability_slo: SLO-aware minimum provider success rate within
             ``[0.0, 1.0]``.
         success_stats: Optional rolling provider success observations for
-            SLO-aware and adaptive-timeout routing. When omitted a fresh empty
-            stats window is used.
+            SLO-aware, adaptive-timeout, and adaptive-exploration routing.
+            When omitted a fresh empty stats window is used.
         failover_priority: Ordered model preference list for failover-priority
             routing. When omitted, uses the first four catalog models by
             insertion order as a deterministic default.
@@ -3291,6 +3402,10 @@ def build_strategies(
         tier_economy_rpm: RPM ceiling for economy-tier models.
         provider_family_cost_ceiling_usd: Default per-provider-family cost
             ceiling in USD for provider-family-cost-ceiling routing.
+        adaptive_exploration_base: Cold-start explore rate for
+            adaptive-exploration within ``[0.0, 1.0]``.
+        adaptive_exploration_min: Floor explore rate for adaptive-exploration
+            within ``[0.0, 1.0]``.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -3377,6 +3492,12 @@ def build_strategies(
         RoutingStrategyName.ROUND_ROBIN: RoundRobinStrategy(model_catalog),
         RoutingStrategyName.CASCADE: CascadeStrategy(model_catalog),
         RoutingStrategyName.EPSILON_GREEDY: EpsilonGreedyStrategy(model_catalog, epsilon),
+        RoutingStrategyName.ADAPTIVE_EXPLORATION: AdaptiveExplorationStrategy(
+            model_catalog,
+            resolved_success_stats,
+            adaptive_exploration_base,
+            adaptive_exploration_min,
+        ),
         RoutingStrategyName.TOKEN_BUDGET: TokenBudgetStrategy(model_catalog),
         RoutingStrategyName.GEO_REGION: GeoRegionStrategy(model_catalog),
         RoutingStrategyName.REGION_TIER_AFFINITY: RegionTierAffinityStrategy(model_catalog),

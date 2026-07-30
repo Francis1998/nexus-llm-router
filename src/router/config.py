@@ -59,6 +59,8 @@ class RouterSettings(BaseSettings):
     canary_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.1
     latency_sla_ms: Annotated[float, Field(ge=0.0)] = 750.0
     epsilon: Annotated[float, Field(ge=0.0, le=1.0)] = 0.1
+    adaptive_exploration_base: Annotated[float, Field(ge=0.0, le=1.0)] = 0.2
+    adaptive_exploration_min: Annotated[float, Field(ge=0.0, le=1.0)] = 0.02
     availability_slo: Annotated[float, Field(ge=0.0, le=1.0)] = 0.99
     health_blend_success_weight: Annotated[float, Field(ge=0.0)] = 0.35
     health_blend_latency_weight: Annotated[float, Field(ge=0.0)] = 0.25

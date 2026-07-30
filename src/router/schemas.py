@@ -41,6 +41,7 @@ class RoutingStrategyName(StrEnum):
     ROUND_ROBIN = "round-robin"
     CASCADE = "cascade"
     EPSILON_GREEDY = "epsilon-greedy"
+    ADAPTIVE_EXPLORATION = "adaptive-exploration"
     TOKEN_BUDGET = "token-budget"  # noqa: S105  # strategy name, not a secret
     GEO_REGION = "geo-region"
     SLO_AWARE = "slo-aware"

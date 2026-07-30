@@ -1,6 +1,7 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-259%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-268%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -127,6 +128,7 @@ Select a strategy with `X-Router-Strategy`:
 - `round-robin`: load-balances across every provider offering a domain-eligible model (routing each to that provider's best eligible model), spreading rate-limit pressure instead of converging on one provider; balanced by a stable `request_id` hash so routing stays deterministic and replayable
 - `cascade`: routes the primary attempt to the cheapest domain-eligible model and orders the fallback chain by ascending cost, so a failure escalates one price/capability rung at a time instead of jumping to the top-quality model — minimizing expected spend on the common first-attempt-succeeds path with no thresholds to tune
 - `epsilon-greedy`: with probability `NEXUS_EPSILON` explores by picking uniformly among domain-eligible models (stable second hash of `request_id`); otherwise exploits the highest-quality eligible model — a replayable bandit policy so under-prioritized catalog entries still get live traffic
+- `adaptive-exploration`: like `epsilon-greedy`, but epsilon decays from `NEXUS_ADAPTIVE_EXPLORATION_BASE` (default `0.2`) toward `NEXUS_ADAPTIVE_EXPLORATION_MIN` (default `0.02`) as `SuccessStats` total successes grow — explore more while cold, exploit more as GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic proves out
 - `geo-region`: prefers models whose `supported_regions` include the request region (GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog priors)
 - `region-tier-affinity`: prefers models matching both request geo region and complexity-mapped tier (frontier/mid/economy), then tier, then region, then quality — no extra `NEXUS_*` knobs
 - `token-budget`: selects the highest-quality domain-eligible model whose `context_window` fits `prompt_tokens_estimate + max_tokens` within the request `token_budget`; falls back to the largest-context model when nothing fits
@@ -152,6 +154,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Architecture](ARCHITECTURE.md) | System design and component overview |
 | [Configuration](CONFIGURATION.md) | All configuration options |
 | [Epsilon-greedy guide](docs/guides/EPSILON_GREEDY_GUIDE.md) | Explore/exploit routing walkthrough |
+| [Adaptive-exploration guide](docs/guides/ADAPTIVE_EXPLORATION_GUIDE.md) | Decaying epsilon explore/exploit walkthrough |
 | [Token-budget guide](docs/guides/TOKEN_BUDGET_GUIDE.md) | Context-window-aware quality routing |
 | [Geo-region guide](docs/guides/GEO_REGION_GUIDE.md) | Region/residency-aware model selection |
 | [Region-tier-affinity guide](docs/guides/REGION_TIER_AFFINITY_GUIDE.md) | Combined geo-region and complexity-tier affinity routing |
