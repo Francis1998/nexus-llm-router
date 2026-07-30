@@ -1693,6 +1693,118 @@ class BudgetAwareStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class ProviderFamilyCostCeilingStrategy(RoutingStrategy):
+    """Route to the highest-quality model within its provider-family cost ceiling.
+
+    OpenRouter/LiteLLM-style multi-provider setups often assign spend budgets per
+    provider family (``openai``, ``anthropic``, ``google``, ``moonshot``). This
+    strategy enforces those ceilings at decide time: each domain-eligible
+    candidate is checked against the ceiling for its provider family, then the
+    highest-quality affordable candidate wins. When no family has an affordable
+    eligible model, the strategy falls back across families to the cheapest
+    domain-eligible model so routing stays deterministic.
+
+    A single default ceiling (``NEXUS_PROVIDER_FAMILY_COST_CEILING_USD``) applies
+    to every family; optional per-family overrides can tighten or relax one
+    provider without changing the others.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_FAMILY_COST_CEILING
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_family_cost_ceiling_usd: float = 0.05,
+        family_ceilings_usd: Mapping[str, float] | None = None,
+    ) -> None:
+        """Initialize the provider-family cost-ceiling strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_family_cost_ceiling_usd: Default maximum estimated cost per
+                request (USD) applied to every provider family.
+            family_ceilings_usd: Optional per-provider-family ceiling overrides
+                (for example ``{"openai": 0.01, "anthropic": 0.05}``).
+
+        Raises:
+            ValueError: If the default ceiling or any override is negative.
+        """
+        super().__init__(model_catalog)
+        if provider_family_cost_ceiling_usd < 0.0:
+            raise ValueError(
+                "provider_family_cost_ceiling_usd must be non-negative, "
+                f"got {provider_family_cost_ceiling_usd}"
+            )
+        overrides = dict(family_ceilings_usd or {})
+        for family, ceiling in overrides.items():
+            if ceiling < 0.0:
+                raise ValueError(
+                    f"family ceiling for {family!r} must be non-negative, got {ceiling}"
+                )
+        self._default_ceiling_usd = provider_family_cost_ceiling_usd
+        self._family_ceilings_usd = overrides
+
+    def _ceiling_for(self, provider: str) -> float:
+        """Return the cost ceiling for a provider family.
+
+        Args:
+            provider: Provider family name (``openai``, ``anthropic``, …).
+
+        Returns:
+            Ceiling in USD for that family.
+        """
+        return self._family_ceilings_usd.get(provider, self._default_ceiling_usd)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best-quality model within its provider-family ceiling."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+        affordable_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if costs[candidate.model] <= self._ceiling_for(candidate.provider)
+        ]
+        if affordable_candidates:
+            selected_candidate = max(
+                affordable_candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                ),
+            )
+            family_ceiling = self._ceiling_for(selected_candidate.provider)
+            rationale = (
+                "provider-family-cost-ceiling selected "
+                f"{selected_candidate.provider} family "
+                f"quality {selected_candidate.quality_score:.2f} "
+                f"within ${family_ceiling:.4f} ceiling "
+                f"(est ${costs[selected_candidate.model]:.6f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = min(
+            eligible_candidates,
+            key=lambda candidate: (costs[candidate.model], -candidate.quality_score),
+        )
+        rationale = (
+            "provider-family-cost-ceiling found no model within any family ceiling; "
+            f"fell back across families to cheapest eligible "
+            f"{selected_candidate.provider}/{selected_candidate.model} "
+            f"(est ${costs[selected_candidate.model]:.6f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class LatencyBudgetStrategy(RoutingStrategy):
     """Route to the highest-quality model within a rolling latency SLA.
 
@@ -3014,6 +3126,7 @@ def build_strategies(
     tier_frontier_rpm: int = 30,
     tier_mid_rpm: int = 60,
     tier_economy_rpm: int = 120,
+    provider_family_cost_ceiling_usd: float = 0.05,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -3067,6 +3180,8 @@ def build_strategies(
         tier_frontier_rpm: RPM ceiling for frontier-tier models.
         tier_mid_rpm: RPM ceiling for mid-tier models.
         tier_economy_rpm: RPM ceiling for economy-tier models.
+        provider_family_cost_ceiling_usd: Default per-provider-family cost
+            ceiling in USD for provider-family-cost-ceiling routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -3131,6 +3246,10 @@ def build_strategies(
         RoutingStrategyName.BUDGET_AWARE: BudgetAwareStrategy(
             model_catalog,
             request_cost_ceiling_usd,
+        ),
+        RoutingStrategyName.PROVIDER_FAMILY_COST_CEILING: ProviderFamilyCostCeilingStrategy(
+            model_catalog,
+            provider_family_cost_ceiling_usd,
         ),
         RoutingStrategyName.STICKY_SESSION: StickySessionStrategy(model_catalog),
         RoutingStrategyName.LATENCY_BUDGET: LatencyBudgetStrategy(

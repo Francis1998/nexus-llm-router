@@ -71,6 +71,25 @@ falls back to the cheapest eligible model when nothing fits the ceiling.
 NEXUS_REQUEST_COST_CEILING_USD=0.05
 ```
 
+## Provider-Family Cost-Ceiling Routing Settings
+
+The `provider-family-cost-ceiling` strategy applies OpenRouter/LiteLLM-style
+spend ceilings per provider family (`openai`, `anthropic`, `google`,
+`moonshot`). It selects the highest-quality domain-eligible model whose
+estimated request cost stays within that family's ceiling (default from
+`NEXUS_PROVIDER_FAMILY_COST_CEILING_USD` for every family), covering GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog priors. When no family has an
+affordable eligible model it falls back across families to the cheapest
+eligible candidate. Constructor-level `family_ceilings_usd` overrides can
+tighten or relax one family without changing the default.
+
+```dotenv
+NEXUS_PROVIDER_FAMILY_COST_CEILING_USD=0.05
+```
+
+See
+[docs/guides/PROVIDER_FAMILY_COST_CEILING_GUIDE.md](docs/guides/PROVIDER_FAMILY_COST_CEILING_GUIDE.md).
+
 ## Sticky-Session Routing
 
 The `sticky-session` strategy pins every request that shares a `session_id` to a
