@@ -1,8 +1,8 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-238%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-246%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
-![Tests](https://img.shields.io/badge/tests-238%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-246%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -119,6 +119,7 @@ Select a strategy with `X-Router-Strategy`:
 - `reliability-aware`: routes to the highest-quality model whose provider circuit is closed, and orders the fallback chain healthy-providers-first
 - `weighted-blend`: selects the model with the highest tunable composite of normalized quality, cost, and latency (weights via `NEXUS_BLEND_*`)
 - `budget-aware`: selects the highest-quality model whose estimated per-request cost stays within a hard ceiling (`NEXUS_REQUEST_COST_CEILING_USD`); the dual of `cost-optimal`
+- `provider-family-cost-ceiling`: selects the highest-quality domain-eligible model whose estimated cost stays within the ceiling for its provider family (`openai` / `anthropic` / `google` / `moonshot`); default via `NEXUS_PROVIDER_FAMILY_COST_CEILING_USD`, with cross-family fallback when nothing fits — OpenRouter/LiteLLM-style family budgets for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `sticky-session`: consistent-hashes `session_id` onto one domain-eligible model, so every turn in a session routes to the same model (context/prompt-cache affinity) while distinct sessions spread across the pool
 - `value`: selects the model with the best quality-per-dollar ratio, maximizing spend efficiency with no threshold to tune
 - `canary`: rolls a configurable traffic fraction (`NEXUS_CANARY_WEIGHT`) onto a canary model (`NEXUS_CANARY_MODEL`) while the rest stays on a stable model (`NEXUS_CANARY_STABLE_MODEL`); health-gated, so a canary whose provider circuit is open is paused and all traffic falls back to the stable model
@@ -167,6 +168,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md) | Ordered healthy-provider failover |
 | [Provider-health score blend guide](docs/guides/PROVIDER_HEALTH_SCORE_BLEND_GUIDE.md) | LiteLLM/Portkey-style health-aware blended routing |
 | [Health/cost/latency guide](docs/guides/HEALTH_COST_LATENCY_GUIDE.md) | Ternary health, cost, and latency blend routing |
+| [Provider-family cost-ceiling guide](docs/guides/PROVIDER_FAMILY_COST_CEILING_GUIDE.md) | Per-provider-family spend ceilings for multi-provider budgets |
 | [Quickstart](QUICKSTART.md) | Local setup and first request |
 | [Safety](SAFETY.md) | Guardrails, fallback, and PII controls |
 | [Contributing](CONTRIBUTING.md) | Development workflow and PR process |
