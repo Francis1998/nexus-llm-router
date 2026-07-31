@@ -2647,6 +2647,172 @@ class RegionTierAffinityStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class FamilySpendWindow:
+    """Rolling provider-family spend tracker for soft-family-budget routing."""
+
+    def __init__(self, window_seconds: float = 3600.0) -> None:
+        """Initialize empty family spend windows.
+
+        Args:
+            window_seconds: Rolling window length in seconds.
+
+        Raises:
+            ValueError: If the window length is not positive.
+        """
+        if window_seconds <= 0:
+            raise ValueError(f"window_seconds must be positive, got {window_seconds}")
+        self._window_seconds = window_seconds
+        self._entries: dict[str, list[tuple[float, float]]] = {}
+
+    def record(self, provider_family: str, amount_usd: float, *, now: float | None = None) -> None:
+        """Record spend against a provider family.
+
+        Args:
+            provider_family: Provider family name (``openai``, ``anthropic``, …).
+            amount_usd: Observed spend in USD.
+            now: Optional monotonic timestamp override for tests.
+        """
+        timestamp = time.monotonic() if now is None else now
+        family_entries = self._entries.setdefault(provider_family, [])
+        family_entries.append((timestamp, amount_usd))
+        self._prune(provider_family, timestamp)
+
+    def family_spend(self, provider_family: str, *, now: float | None = None) -> float:
+        """Return rolling spend for a provider family inside the window.
+
+        Args:
+            provider_family: Provider family name.
+            now: Optional monotonic timestamp override for tests.
+
+        Returns:
+            Total USD spent by the family inside the rolling window.
+        """
+        timestamp = time.monotonic() if now is None else now
+        self._prune(provider_family, timestamp)
+        return sum(amount for _, amount in self._entries.get(provider_family, []))
+
+    def is_over_budget(
+        self, provider_family: str, soft_budget_usd: float, *, now: float | None = None
+    ) -> bool:
+        """Return whether a family's rolling spend exceeds the soft budget.
+
+        Args:
+            provider_family: Provider family name.
+            soft_budget_usd: Soft spend ceiling in USD.
+            now: Optional monotonic timestamp override for tests.
+
+        Returns:
+            True when rolling spend is strictly above the soft budget.
+        """
+        return self.family_spend(provider_family, now=now) > soft_budget_usd
+
+    def _prune(self, provider_family: str, now: float) -> None:
+        cutoff = now - self._window_seconds
+        family_entries = self._entries.get(provider_family, [])
+        while family_entries and family_entries[0][0] < cutoff:
+            family_entries.pop(0)
+        if not family_entries:
+            self._entries.pop(provider_family, None)
+
+
+class SoftFamilyBudgetStrategy(RoutingStrategy):
+    """Route with rolling soft spend budgets per provider family.
+
+    OpenRouter/LiteLLM-style multi-provider gateways often track spend per
+    provider family over a rolling window. Unlike
+    :class:`ProviderFamilyCostCeilingStrategy` (a hard per-request ceiling),
+    this strategy deprioritizes families whose *observed* rolling spend has
+    crossed a soft budget while still admitting them when every family is hot.
+    Among families under budget it picks the highest-quality domain-eligible
+    model; when every family is over budget it falls back to the cheapest
+    candidate from another family so routing stays deterministic.
+    """
+
+    strategy_name = RoutingStrategyName.SOFT_FAMILY_BUDGET
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        family_spend_window: FamilySpendWindow,
+        soft_family_budget_usd: float = 5.0,
+    ) -> None:
+        """Initialize soft-family-budget routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            family_spend_window: Rolling observed spend per provider family.
+            soft_family_budget_usd: Soft spend ceiling per family in USD.
+
+        Raises:
+            ValueError: If the soft budget is negative.
+        """
+        super().__init__(model_catalog)
+        if soft_family_budget_usd < 0.0:
+            raise ValueError(
+                f"soft_family_budget_usd must be non-negative, got {soft_family_budget_usd}"
+            )
+        self._family_spend_window = family_spend_window
+        self._soft_family_budget_usd = soft_family_budget_usd
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer highest-quality models from families under the soft budget."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+
+        def quality_key(candidate: ModelCandidate) -> tuple[float, float]:
+            return (
+                candidate.quality_score,
+                -costs[candidate.model],
+            )
+
+        under_budget = [
+            candidate
+            for candidate in eligible_candidates
+            if not self._family_spend_window.is_over_budget(
+                candidate.provider,
+                self._soft_family_budget_usd,
+            )
+        ]
+        if under_budget:
+            selected_candidate = max(under_budget, key=quality_key)
+            family_spend = self._family_spend_window.family_spend(selected_candidate.provider)
+            rationale = (
+                "soft-family-budget selected "
+                f"{selected_candidate.provider} family under "
+                f"${self._soft_family_budget_usd:.4f} soft budget "
+                f"(rolling spend ${family_spend:.6f}, "
+                f"quality {selected_candidate.quality_score:.2f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        primary_family = max(eligible_candidates, key=quality_key).provider
+        other_family_candidates = [
+            candidate for candidate in eligible_candidates if candidate.provider != primary_family
+        ]
+        fallback_pool = other_family_candidates or eligible_candidates
+        selected_candidate = min(
+            fallback_pool,
+            key=lambda candidate: (costs[candidate.model], -candidate.quality_score),
+        )
+        rationale = (
+            "soft-family-budget deprioritized over-budget families "
+            f"(including {primary_family}); fell back to cheapest other family "
+            f"{selected_candidate.provider}/{selected_candidate.model} "
+            f"(est ${costs[selected_candidate.model]:.6f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class SuccessStats:
     """Rolling success/failure summary used by SLO-aware routing."""
 
@@ -3347,6 +3513,8 @@ def build_strategies(
     provider_family_cost_ceiling_usd: float = 0.05,
     adaptive_exploration_base: float = 0.2,
     adaptive_exploration_min: float = 0.02,
+    family_spend_window: FamilySpendWindow | None = None,
+    soft_family_budget_usd: float = 5.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -3406,6 +3574,11 @@ def build_strategies(
             adaptive-exploration within ``[0.0, 1.0]``.
         adaptive_exploration_min: Floor explore rate for adaptive-exploration
             within ``[0.0, 1.0]``.
+        family_spend_window: Optional rolling provider-family spend tracker for
+            soft-family-budget routing. When omitted a fresh empty window is
+            used with the default one-hour horizon.
+        soft_family_budget_usd: Soft rolling spend ceiling per provider family in
+            USD for soft-family-budget routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -3443,6 +3616,7 @@ def build_strategies(
     resolved_failover_priority = (
         failover_priority if isinstance(failover_priority, list) else list(model_catalog.keys())[:4]
     )
+    resolved_family_spend_window = family_spend_window or FamilySpendWindow()
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -3501,6 +3675,11 @@ def build_strategies(
         RoutingStrategyName.TOKEN_BUDGET: TokenBudgetStrategy(model_catalog),
         RoutingStrategyName.GEO_REGION: GeoRegionStrategy(model_catalog),
         RoutingStrategyName.REGION_TIER_AFFINITY: RegionTierAffinityStrategy(model_catalog),
+        RoutingStrategyName.SOFT_FAMILY_BUDGET: SoftFamilyBudgetStrategy(
+            model_catalog,
+            resolved_family_spend_window,
+            soft_family_budget_usd,
+        ),
         RoutingStrategyName.SLO_AWARE: SloAwareStrategy(
             model_catalog,
             resolved_success_stats,

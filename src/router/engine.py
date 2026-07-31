@@ -24,6 +24,7 @@ from router.schemas import (
 )
 from router.state import RequestState, RoutingStateMachine
 from router.strategies import (
+    FamilySpendWindow,
     InflightStats,
     LatencyStats,
     RateLimitStats,
@@ -74,6 +75,9 @@ class NexusRouter:
             settings.token_bucket_refill_per_sec,
         )
         self._tier_request_stats = TierRequestStats()
+        self._family_spend_window = FamilySpendWindow(
+            settings.soft_family_budget_window_seconds,
+        )
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -114,6 +118,8 @@ class NexusRouter:
             provider_family_cost_ceiling_usd=settings.provider_family_cost_ceiling_usd,
             adaptive_exploration_base=settings.adaptive_exploration_base,
             adaptive_exploration_min=settings.adaptive_exploration_min,
+            family_spend_window=self._family_spend_window,
+            soft_family_budget_usd=settings.soft_family_budget_usd,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -255,6 +261,7 @@ class NexusRouter:
         latency_seconds = latency_ms / 1000.0
         self._latency_stats.observe(provider, latency_ms)
         self._budget_guardrail.record_spend(request.user_id, provider_response.cost_usd)
+        self._family_spend_window.record(provider, provider_response.cost_usd)
         router_cost_usd_total.labels(provider, provider_response.model).inc(
             provider_response.cost_usd
         )
