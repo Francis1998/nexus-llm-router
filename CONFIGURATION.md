@@ -150,6 +150,25 @@ NEXUS_CANARY_WEIGHT=0.1
 `NEXUS_CANARY_WEIGHT` is the fraction of traffic (within `[0.0, 1.0]`) sent to
 the canary model; both model names must exist in the catalog.
 
+## Canary-Tier-Blend Routing
+
+The `canary-tier-blend` strategy combines progressive canary delivery with
+complexity-tier affinity. On the canary slice it prefers the canary when it
+matches the inferred frontier/mid/economy tier, otherwise still routes to the
+canary when healthy. Off the canary slice, or when the canary provider circuit
+is open, it prefers the highest-quality domain-eligible model in the target
+tier and falls back to top quality when no tier match exists. It reuses the
+same `NEXUS_CANARY_*` settings as `canary`.
+
+```dotenv
+NEXUS_CANARY_STABLE_MODEL=gpt-4.1-mini
+NEXUS_CANARY_MODEL=gpt-5.5
+NEXUS_CANARY_WEIGHT=0.1
+```
+
+See
+[docs/guides/CANARY_TIER_BLEND_GUIDE.md](docs/guides/CANARY_TIER_BLEND_GUIDE.md).
+
 ## Latency-Budget Routing
 
 The `latency-budget` strategy is the latency-domain dual of `budget-aware`:

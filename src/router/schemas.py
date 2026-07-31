@@ -60,6 +60,7 @@ class RoutingStrategyName(StrEnum):
     REGION_TIER_AFFINITY = "region-tier-affinity"
     SOFT_FAMILY_BUDGET = "soft-family-budget"
     STICKY_REGION_FAILOVER = "sticky-region-failover"
+    CANARY_TIER_BLEND = "canary-tier-blend"
     AB_TEST = "ab"
 
 
