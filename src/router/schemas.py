@@ -58,6 +58,7 @@ class RoutingStrategyName(StrEnum):
     MODEL_TIER_RATE_LIMIT = "model-tier-rate-limit"
     PROVIDER_FAMILY_COST_CEILING = "provider-family-cost-ceiling"
     REGION_TIER_AFFINITY = "region-tier-affinity"
+    SOFT_FAMILY_BUDGET = "soft-family-budget"
     AB_TEST = "ab"
 
 

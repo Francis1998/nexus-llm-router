@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-268%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-276%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -131,6 +131,7 @@ Select a strategy with `X-Router-Strategy`:
 - `adaptive-exploration`: like `epsilon-greedy`, but epsilon decays from `NEXUS_ADAPTIVE_EXPLORATION_BASE` (default `0.2`) toward `NEXUS_ADAPTIVE_EXPLORATION_MIN` (default `0.02`) as `SuccessStats` total successes grow — explore more while cold, exploit more as GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic proves out
 - `geo-region`: prefers models whose `supported_regions` include the request region (GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog priors)
 - `region-tier-affinity`: prefers models matching both request geo region and complexity-mapped tier (frontier/mid/economy), then tier, then region, then quality — no extra `NEXUS_*` knobs
+- `soft-family-budget`: deprioritizes provider families whose rolling observed spend exceeds a soft budget (`NEXUS_SOFT_FAMILY_BUDGET_USD`, window via `NEXUS_SOFT_FAMILY_BUDGET_WINDOW_SECONDS`); prefers highest-quality models from under-budget families and falls back to the cheapest other family when every family is hot — OpenRouter/LiteLLM-style family spend steering for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `token-budget`: selects the highest-quality domain-eligible model whose `context_window` fits `prompt_tokens_estimate + max_tokens` within the request `token_budget`; falls back to the largest-context model when nothing fits
 - `slo-aware`: selects the highest-quality domain-eligible model whose provider rolling success rate meets `NEXUS_AVAILABILITY_SLO`; falls back to the highest success-rate model when nothing meets the SLO
 - `semantic-cache`: on `metadata.cache_hit`, prefers the cheapest domain-eligible model; on miss, falls through to cost-optimal under the quality floor
@@ -158,6 +159,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Token-budget guide](docs/guides/TOKEN_BUDGET_GUIDE.md) | Context-window-aware quality routing |
 | [Geo-region guide](docs/guides/GEO_REGION_GUIDE.md) | Region/residency-aware model selection |
 | [Region-tier-affinity guide](docs/guides/REGION_TIER_AFFINITY_GUIDE.md) | Combined geo-region and complexity-tier affinity routing |
+| [Soft-family-budget guide](docs/guides/SOFT_FAMILY_BUDGET_GUIDE.md) | Rolling soft spend budgets per provider family |
 | [SLO-aware guide](docs/guides/SLO_AWARE_GUIDE.md) | Availability-SLO quality routing |
 | [Adaptive-timeout guide](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md) | Timeout-adaptive quality routing |
 | [Semantic-cache guide](docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md) | Cache-hit cheapest / miss cost-optimal routing |

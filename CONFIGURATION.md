@@ -90,6 +90,27 @@ NEXUS_PROVIDER_FAMILY_COST_CEILING_USD=0.05
 See
 [docs/guides/PROVIDER_FAMILY_COST_CEILING_GUIDE.md](docs/guides/PROVIDER_FAMILY_COST_CEILING_GUIDE.md).
 
+## Soft-Family-Budget Routing Settings
+
+The `soft-family-budget` strategy tracks **observed** rolling spend per provider
+family and deprioritizes families that have crossed a soft budget. Among families
+still under budget it selects the highest-quality domain-eligible model; when
+every family is hot it falls back to the cheapest eligible model from another
+family. Spend is recorded by the engine after successful completions into shared
+`FamilySpendWindow`.
+
+```dotenv
+NEXUS_SOFT_FAMILY_BUDGET_USD=5.0
+NEXUS_SOFT_FAMILY_BUDGET_WINDOW_SECONDS=3600
+```
+
+`NEXUS_SOFT_FAMILY_BUDGET_USD` is the soft rolling spend ceiling per provider
+family in USD (non-negative). `NEXUS_SOFT_FAMILY_BUDGET_WINDOW_SECONDS` is the
+rolling window length in seconds (positive; default one hour).
+
+See
+[docs/guides/SOFT_FAMILY_BUDGET_GUIDE.md](docs/guides/SOFT_FAMILY_BUDGET_GUIDE.md).
+
 ## Sticky-Session Routing
 
 The `sticky-session` strategy pins every request that shares a `session_id` to a
