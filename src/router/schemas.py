@@ -59,6 +59,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_FAMILY_COST_CEILING = "provider-family-cost-ceiling"
     REGION_TIER_AFFINITY = "region-tier-affinity"
     SOFT_FAMILY_BUDGET = "soft-family-budget"
+    STICKY_REGION_FAILOVER = "sticky-region-failover"
     AB_TEST = "ab"
 
 

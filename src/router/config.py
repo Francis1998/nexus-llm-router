@@ -86,6 +86,9 @@ class RouterSettings(BaseSettings):
             MOONSHOT_BALANCED_MODEL,
         ]
     )
+    sticky_region_failover_preferences: list[str] = Field(
+        default_factory=lambda: ["eu", "us", "cn", "global"]
+    )
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
