@@ -2943,6 +2943,152 @@ class StickyRegionFailoverStrategy(RoutingStrategy):
         )
 
 
+class CanaryTierBlendStrategy(RoutingStrategy):
+    """Blend progressive canary delivery with complexity-tier affinity.
+
+    Progressive canary rollouts often target a specific capability tier (for
+    example validating a new frontier SKU without starving mid-tier traffic).
+    This strategy combines :class:`CanaryStrategy` bucketing with
+    :class:`RegionTierAffinityStrategy`-style tier matching:
+
+    1. On the canary slice, prefer the canary when it matches the complexity
+       tier; otherwise still route to the canary when healthy.
+    2. Off the canary slice (or when the canary is unhealthy), prefer the
+       highest-quality domain-eligible model in the target tier.
+    3. When no tier match exists, fall back to the highest-quality eligible
+       model.
+
+    Bucketing reuses the stable ``request_id`` hash from canary/A/B routing so
+    decisions stay replayable.
+    """
+
+    strategy_name = RoutingStrategyName.CANARY_TIER_BLEND
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        stable_model: str,
+        canary_model: str,
+        canary_weight: float,
+    ) -> None:
+        """Initialize the canary-tier-blend strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            stable_model: Proven model that serves non-canary traffic.
+            canary_model: New model under gradual rollout.
+            canary_weight: Fraction of traffic sent to the canary, within
+                ``[0.0, 1.0]``.
+
+        Raises:
+            ValueError: If a model is missing from the catalog or the weight is
+                outside the ``[0.0, 1.0]`` range.
+        """
+        super().__init__(model_catalog)
+        unknown_models = [
+            model for model in (stable_model, canary_model) if model not in model_catalog
+        ]
+        if unknown_models:
+            raise ValueError(
+                "canary-tier-blend models not in model catalog: "
+                f"{', '.join(sorted(unknown_models))}"
+            )
+        if not 0.0 <= canary_weight <= 1.0:
+            raise ValueError(f"canary_weight must be within [0.0, 1.0], got {canary_weight}")
+        self._provider_health = provider_health
+        self._stable_model = stable_model
+        self._canary_model = canary_model
+        self._canary_weight = canary_weight
+
+    def _canary_bucket(self, request: RouterRequest) -> float:
+        digest = sha256(request.request_id.encode("utf-8")).hexdigest()
+        return int(digest[:8], 16) / 0xFFFFFFFF
+
+    def _in_canary_slice(self, request: RouterRequest) -> bool:
+        return self._canary_bucket(request) < self._canary_weight
+
+    def _canary_is_healthy(self) -> bool:
+        canary_provider = self._model_catalog[self._canary_model].provider
+        return self._provider_health.is_available(canary_provider)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Blend canary traffic with tier affinity and quality fallback."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        target_tier = infer_target_tier(signals.complexity_score)
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+
+        def quality_key(candidate: ModelCandidate) -> tuple[float, float]:
+            return (
+                candidate.quality_score,
+                -costs[candidate.model],
+            )
+
+        tier_matches = [
+            candidate
+            for candidate in eligible_candidates
+            if infer_model_tier(candidate.model) is target_tier
+        ]
+        canary_candidate = self._model_catalog[self._canary_model]
+        canary_matches_tier = infer_model_tier(self._canary_model) is target_tier
+        bucket = self._canary_bucket(request)
+
+        if self._in_canary_slice(request) and self._canary_is_healthy():
+            if canary_matches_tier:
+                return self._decision(
+                    self._canary_model,
+                    f"canary-tier-blend bucket={bucket:.4f} < weight {self._canary_weight:.2f}; "
+                    f"canary matches {target_tier.value} tier",
+                )
+            return self._decision(
+                self._canary_model,
+                f"canary-tier-blend bucket={bucket:.4f} < weight {self._canary_weight:.2f}; "
+                f"routed to canary despite {target_tier.value} tier mismatch",
+            )
+
+        if not self._in_canary_slice(request):
+            stable_note = f"bucket={bucket:.4f} >= weight {self._canary_weight:.2f}; "
+        else:
+            canary_provider = canary_candidate.provider
+            stable_note = f"canary paused: provider {canary_provider} unhealthy; "
+
+        if tier_matches:
+            selected_candidate = max(tier_matches, key=quality_key)
+            rationale = (
+                "canary-tier-blend "
+                f"{stable_note}preferred {target_tier.value} tier model "
+                f"{selected_candidate.model} (quality {selected_candidate.quality_score:.2f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(eligible_candidates, key=quality_key)
+        rationale = (
+            "canary-tier-blend "
+            f"{stable_note}found no {target_tier.value} tier model; "
+            f"fell back to highest-quality eligible model {selected_candidate.model}"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+    def _fallback_chain(self, chosen_model: str) -> list[str]:
+        """Anchor the fallback chain on the stable model when canary is chosen."""
+        quality_ordered = super()._fallback_chain(chosen_model)
+        if chosen_model == self._canary_model and self._stable_model != chosen_model:
+            remainder = [model for model in quality_ordered if model != self._stable_model]
+            return [self._stable_model, *remainder][:3]
+        return quality_ordered
+
+
 class SuccessStats:
     """Rolling success/failure summary used by SLO-aware routing."""
 
@@ -3875,6 +4021,13 @@ def build_strategies(
             hcl_latency_weight,
         ),
         RoutingStrategyName.CANARY: CanaryStrategy(
+            model_catalog,
+            provider_health,
+            canary_stable_model,
+            canary_model,
+            canary_weight,
+        ),
+        RoutingStrategyName.CANARY_TIER_BLEND: CanaryTierBlendStrategy(
             model_catalog,
             provider_health,
             canary_stable_model,
