@@ -120,6 +120,7 @@ class NexusRouter:
             adaptive_exploration_min=settings.adaptive_exploration_min,
             family_spend_window=self._family_spend_window,
             soft_family_budget_usd=settings.soft_family_budget_usd,
+            sticky_region_failover_preferences=settings.sticky_region_failover_preferences,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

@@ -210,6 +210,26 @@ Both values are explore probabilities within `[0.0, 1.0]`; `min` must be `<=`
 `base`. Defaults are `0.2` → `0.02`. See
 [docs/guides/ADAPTIVE_EXPLORATION_GUIDE.md](docs/guides/ADAPTIVE_EXPLORATION_GUIDE.md).
 
+## Sticky-Region-Failover Routing
+
+The `sticky-region-failover` strategy combines geo-region preference with
+session stickiness and ordered failover. It walks an ordered region list (request
+`region` first, then `NEXUS_STICKY_REGION_FAILOVER_PREFERENCES`), selects the
+first region with at least one healthy domain-eligible model, and pins
+`session_id` to one model in that pool via consistent hashing. When the
+preferred region has no healthy providers it advances to the next region while
+keeping sticky affinity inside the active pool.
+
+```dotenv
+NEXUS_STICKY_REGION_FAILOVER_PREFERENCES=["eu","us","cn","global"]
+```
+
+`NEXUS_STICKY_REGION_FAILOVER_PREFERENCES` is the ordered failover list used
+when a request omits `region`. Request `region` is always tried first.
+
+See
+[docs/guides/STICKY_REGION_FAILOVER_GUIDE.md](docs/guides/STICKY_REGION_FAILOVER_GUIDE.md).
+
 ## Token-Budget Routing
 
 The `token-budget` strategy maximizes quality subject to a hard token ceiling: it

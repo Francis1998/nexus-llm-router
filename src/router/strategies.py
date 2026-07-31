@@ -2813,6 +2813,136 @@ class SoftFamilyBudgetStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class StickyRegionFailoverStrategy(RoutingStrategy):
+    """Pin sessions to a region pool with ordered failover on ill health.
+
+    Geo-residency deployments often need traffic to stay in a preferred region
+    for latency and compliance, but still recover when that region's providers
+    are unhealthy. This strategy walks an ordered region preference list
+    (request ``region`` first, then ``NEXUS_STICKY_REGION_FAILOVER_PREFERENCES``),
+    selects the first region with at least one healthy domain-eligible model, and
+    pins the request's ``session_id`` to one model in that pool via consistent
+    hashing — the same sticky affinity as :class:`StickySessionStrategy`, but
+    scoped to the active region. When the preferred region has no healthy
+    candidates the strategy failovers to the next region in the list while
+    preserving session stickiness inside whichever region pool is active.
+    """
+
+    strategy_name = RoutingStrategyName.STICKY_REGION_FAILOVER
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        region_preferences: list[str] | None = None,
+    ) -> None:
+        """Initialize sticky-region-failover routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            region_preferences: Ordered region failover list when the request
+                omits ``region``. Defaults to ``["eu", "us", "cn", "global"]``.
+        """
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._default_region_preferences = [
+            region.strip().lower()
+            for region in (region_preferences or ["eu", "us", "cn", "global"])
+        ]
+
+    def _region_preferences(self, request: RouterRequest) -> list[str]:
+        """Build the ordered region preference list for a request."""
+        requested_region = (request.region or "").strip().lower()
+        ordered: list[str] = []
+        if requested_region:
+            ordered.append(requested_region)
+        for region in self._default_region_preferences:
+            if region not in ordered:
+                ordered.append(region)
+        return ordered or ["global"]
+
+    def _matches_region(self, candidate: ModelCandidate, region: str) -> bool:
+        return region in {
+            supported_region.lower() for supported_region in candidate.supported_regions
+        }
+
+    def _sticky_pick(
+        self,
+        request: RouterRequest,
+        candidates: list[ModelCandidate],
+        region_label: str,
+        *,
+        healthy_only: bool,
+    ) -> RoutingDecision:
+        pool = [
+            candidate
+            for candidate in candidates
+            if not healthy_only or self._provider_health.is_available(candidate.provider)
+        ] or candidates
+        ordered_candidates = sorted(pool, key=lambda candidate: candidate.model)
+        digest = sha256(request.session_id.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) % len(ordered_candidates)
+        selected_candidate = ordered_candidates[bucket]
+        health_note = (
+            "healthy providers in region"
+            if healthy_only and pool is not candidates
+            else "all providers in region"
+        )
+        rationale = (
+            f"sticky-region-failover pinned session '{request.session_id}' to "
+            f"{selected_candidate.model} in region '{region_label}' "
+            f"({health_note}, bucket {bucket}/{len(ordered_candidates)})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a sticky model within the first healthy region preference."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        for region in self._region_preferences(request):
+            region_candidates = [
+                candidate
+                for candidate in eligible_candidates
+                if self._matches_region(candidate, region)
+            ]
+            healthy_region_candidates = [
+                candidate
+                for candidate in region_candidates
+                if self._provider_health.is_available(candidate.provider)
+            ]
+            if healthy_region_candidates:
+                return self._sticky_pick(
+                    request,
+                    region_candidates,
+                    region,
+                    healthy_only=True,
+                )
+
+        healthy_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        if healthy_candidates:
+            return self._sticky_pick(
+                request,
+                eligible_candidates,
+                "fallback",
+                healthy_only=True,
+            )
+        return self._sticky_pick(
+            request,
+            eligible_candidates,
+            "fallback",
+            healthy_only=False,
+        )
+
+
 class SuccessStats:
     """Rolling success/failure summary used by SLO-aware routing."""
 
@@ -3515,6 +3645,7 @@ def build_strategies(
     adaptive_exploration_min: float = 0.02,
     family_spend_window: FamilySpendWindow | None = None,
     soft_family_budget_usd: float = 5.0,
+    sticky_region_failover_preferences: list[str] | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -3579,6 +3710,8 @@ def build_strategies(
             used with the default one-hour horizon.
         soft_family_budget_usd: Soft rolling spend ceiling per provider family in
             USD for soft-family-budget routing.
+        sticky_region_failover_preferences: Ordered region failover list for
+            sticky-region-failover routing when a request omits ``region``.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -3617,6 +3750,12 @@ def build_strategies(
         failover_priority if isinstance(failover_priority, list) else list(model_catalog.keys())[:4]
     )
     resolved_family_spend_window = family_spend_window or FamilySpendWindow()
+    resolved_sticky_region_preferences = sticky_region_failover_preferences or [
+        "eu",
+        "us",
+        "cn",
+        "global",
+    ]
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -3679,6 +3818,11 @@ def build_strategies(
             model_catalog,
             resolved_family_spend_window,
             soft_family_budget_usd,
+        ),
+        RoutingStrategyName.STICKY_REGION_FAILOVER: StickyRegionFailoverStrategy(
+            model_catalog,
+            provider_health,
+            resolved_sticky_region_preferences,
         ),
         RoutingStrategyName.SLO_AWARE: SloAwareStrategy(
             model_catalog,
