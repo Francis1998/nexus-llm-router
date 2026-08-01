@@ -3089,6 +3089,89 @@ class CanaryTierBlendStrategy(RoutingStrategy):
         return quality_ordered
 
 
+class LatencySloShedStrategy(RoutingStrategy):
+    """Shed slow providers when faster alternatives meet the latency SLO.
+
+    LiteLLM/OpenRouter-style gateways often enforce a latency service-level
+    objective: when at least one healthy candidate's rolling p95 fits under
+    ``NEXUS_LATENCY_SLO_MS``, candidates above the SLO are deprioritized
+    (shed) rather than competing on quality. Among under-SLO providers the
+    strategy picks the highest-quality eligible model; when every provider is
+    over the SLO it falls back to the lowest observed p95 so routing stays
+    deterministic instead of failing open.
+    """
+
+    strategy_name = RoutingStrategyName.LATENCY_SLO_SHED
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        latency_slo_ms: float,
+    ) -> None:
+        """Initialize latency-SLO shedding routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_stats: Rolling provider latency observations.
+            latency_slo_ms: Maximum acceptable provider p95 latency per request,
+                in milliseconds.
+
+        Raises:
+            ValueError: If the latency SLO is negative.
+        """
+        super().__init__(model_catalog)
+        if latency_slo_ms < 0.0:
+            raise ValueError(f"latency_slo_ms must be non-negative, got {latency_slo_ms}")
+        self._latency_stats = latency_stats
+        self._latency_slo_ms = latency_slo_ms
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer under-SLO candidates and shed slower providers when possible."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        p95_by_model = {
+            candidate.model: self._latency_stats.p95(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        under_slo = [
+            candidate
+            for candidate in eligible_candidates
+            if p95_by_model[candidate.model] <= self._latency_slo_ms
+        ]
+        if under_slo:
+            selected_candidate = max(
+                under_slo,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -p95_by_model[candidate.model],
+                ),
+            )
+            rationale = (
+                "latency-slo-shed selected highest quality "
+                f"{selected_candidate.quality_score:.2f} under "
+                f"{self._latency_slo_ms:.0f}ms SLO "
+                f"(provider p95 {p95_by_model[selected_candidate.model]:.1f}ms; "
+                "shed slower alternatives)"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = min(
+            eligible_candidates,
+            key=lambda candidate: (p95_by_model[candidate.model], -candidate.quality_score),
+        )
+        rationale = (
+            f"latency-slo-shed found no provider under {self._latency_slo_ms:.0f}ms SLO; "
+            f"shed fallback to lowest-latency model "
+            f"(provider p95 {p95_by_model[selected_candidate.model]:.1f}ms)"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 class SuccessStats:
     """Rolling success/failure summary used by SLO-aware routing."""
 
@@ -3792,6 +3875,7 @@ def build_strategies(
     family_spend_window: FamilySpendWindow | None = None,
     soft_family_budget_usd: float = 5.0,
     sticky_region_failover_preferences: list[str] | None = None,
+    latency_slo_ms: float = 2000.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -3858,6 +3942,8 @@ def build_strategies(
             USD for soft-family-budget routing.
         sticky_region_failover_preferences: Ordered region failover list for
             sticky-region-failover routing when a request omits ``region``.
+        latency_slo_ms: Maximum acceptable provider p95 latency per request in
+            milliseconds for latency-slo-shed routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -4033,6 +4119,11 @@ def build_strategies(
             canary_stable_model,
             canary_model,
             canary_weight,
+        ),
+        RoutingStrategyName.LATENCY_SLO_SHED: LatencySloShedStrategy(
+            model_catalog,
+            latency_stats,
+            latency_slo_ms,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

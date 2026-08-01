@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-291%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-298%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -124,6 +124,7 @@ Select a strategy with `X-Router-Strategy`:
 - `canary`: rolls a configurable traffic fraction (`NEXUS_CANARY_WEIGHT`) onto a canary model (`NEXUS_CANARY_MODEL`) while the rest stays on a stable model (`NEXUS_CANARY_STABLE_MODEL`); health-gated, so a canary whose provider circuit is open is paused and all traffic falls back to the stable model
 - `canary-tier-blend`: blends canary traffic with complexity-tier affinity — on the canary slice prefer the canary when it matches the inferred tier, else canary; off-slice or when unhealthy prefer tier match, else highest quality (`NEXUS_CANARY_*`)
 - `latency-budget`: selects the highest-quality model whose provider rolling p95 latency stays within a hard SLA (`NEXUS_LATENCY_SLA_MS`); the latency-domain dual of `budget-aware`, trading quality for speed only when the SLA requires it
+- `latency-slo-shed`: sheds providers whose rolling p95 exceeds `NEXUS_LATENCY_SLO_MS` (default `2000`) when faster alternatives exist; prefers highest quality among under-SLO candidates and falls back to lowest latency when every provider is hot — LiteLLM/OpenRouter-style latency SLO shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `adaptive-timeout`: selects the highest-quality model whose risk-adjusted provider p95 fits an adaptive timeout budget derived from request urgency, recent latency, and success/error signals; prefers faster models under realtime pressure and allows slower higher-quality models when comfortable
 - `complexity-tier`: treats the classifier complexity score as a required quality target and picks the cheapest model meeting it — a catalog-adaptive quality-for-cost escalation ladder with no thresholds to tune (falls back to the top-quality model when the target is unreachable)
 - `round-robin`: load-balances across every provider offering a domain-eligible model (routing each to that provider's best eligible model), spreading rate-limit pressure instead of converging on one provider; balanced by a stable `request_id` hash so routing stays deterministic and replayable
@@ -178,6 +179,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Health/cost/latency guide](docs/guides/HEALTH_COST_LATENCY_GUIDE.md) | Ternary health, cost, and latency blend routing |
 | [Provider-family cost-ceiling guide](docs/guides/PROVIDER_FAMILY_COST_CEILING_GUIDE.md) | Per-provider-family spend ceilings for multi-provider budgets |
 | [Canary-tier-blend guide](docs/guides/CANARY_TIER_BLEND_GUIDE.md) | Canary rollout with complexity-tier affinity |
+| [Latency-SLO-shed guide](docs/guides/LATENCY_SLO_SHED_GUIDE.md) | Latency SLO shedding with under-SLO quality preference |
 | [Quickstart](QUICKSTART.md) | Local setup and first request |
 | [Safety](SAFETY.md) | Guardrails, fallback, and PII controls |
 | [Contributing](CONTRIBUTING.md) | Development workflow and PR process |
@@ -188,4 +190,4 @@ Select a strategy with `X-Router-Strategy`:
 
 Apache-2.0 © [Francis1998](https://github.com/Francis1998)
 
-*Last updated: 2026-06-26*
+*Last updated: 2026-08-01*

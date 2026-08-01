@@ -89,6 +89,7 @@ class RouterSettings(BaseSettings):
     sticky_region_failover_preferences: list[str] = Field(
         default_factory=lambda: ["eu", "us", "cn", "global"]
     )
+    latency_slo_ms: Annotated[float, Field(ge=0.0)] = 2000.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
