@@ -3964,6 +3964,102 @@ class ShadowTrafficMirrorStrategy(RoutingStrategy):
         return self._decision(primary.model, rationale)
 
 
+class CanaryCostBlendStrategy(RoutingStrategy):
+    """Blend cost exploration with healthy-provider cost minimization.
+
+    Unlike :class:`CanaryTierBlendStrategy`, which targets complexity tiers,
+    this strategy optimizes for **spend**: on the default path it picks the
+    cheapest domain-eligible model among healthy providers; on a deterministic
+    ``request_id`` explore slice it steps one cost rung cheaper (the
+    next-cheapest healthy alternative) so gateways can sample cheaper SKUs
+    without starving the primary cost floor. When no cheaper alternative exists
+    the explore slice still returns the cheapest healthy model.
+    """
+
+    strategy_name = RoutingStrategyName.CANARY_COST_BLEND
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        canary_cost_blend_percent: float = 10.0,
+    ) -> None:
+        """Initialize canary-cost-blend routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            canary_cost_blend_percent: Percentage of traffic that explores the
+                next-cheaper healthy tier, within ``[0.0, 100.0]``.
+
+        Raises:
+            ValueError: If the explore percentage is outside ``[0.0, 100.0]``.
+        """
+        super().__init__(model_catalog)
+        if not 0.0 <= canary_cost_blend_percent <= 100.0:
+            raise ValueError(
+                "canary_cost_blend_percent must be within [0.0, 100.0], "
+                f"got {canary_cost_blend_percent}"
+            )
+        self._provider_health = provider_health
+        self._canary_cost_blend_percent = canary_cost_blend_percent
+
+    def _explore_bucket(self, request: RouterRequest) -> float:
+        digest = sha256(request.request_id.encode("utf-8")).hexdigest()
+        return int(digest[:8], 16) / 0xFFFFFFFF
+
+    def _in_explore_slice(self, request: RouterRequest) -> bool:
+        return self._explore_bucket(request) < (self._canary_cost_blend_percent / 100.0)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Pick cheapest healthy model or explore the next-cheaper tier."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+        healthy_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._provider_health.is_available(candidate.provider)
+        ] or eligible_candidates
+        cost_ordered = sorted(
+            healthy_candidates,
+            key=lambda candidate: (costs[candidate.model], -candidate.quality_score),
+        )
+        bucket = self._explore_bucket(request)
+
+        if self._in_explore_slice(request) and len(cost_ordered) > 1:
+            selected_candidate = cost_ordered[1]
+            rationale = (
+                "canary-cost-blend explore slice "
+                f"(bucket={bucket:.4f} < {self._canary_cost_blend_percent:.1f}%); "
+                f"selected next-cheaper healthy tier {selected_candidate.model} "
+                f"(est ${costs[selected_candidate.model]:.6f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = cost_ordered[0]
+        explore_note = (
+            f"explore slice bucket={bucket:.4f} but only one healthy tier; "
+            if self._in_explore_slice(request)
+            else f"bucket={bucket:.4f} >= {self._canary_cost_blend_percent:.1f}%; "
+        )
+        rationale = (
+            "canary-cost-blend "
+            f"{explore_note}selected cheapest healthy model "
+            f"{selected_candidate.model} (est ${costs[selected_candidate.model]:.6f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,

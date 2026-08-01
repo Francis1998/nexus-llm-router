@@ -63,6 +63,7 @@ class RoutingStrategyName(StrEnum):
     CANARY_TIER_BLEND = "canary-tier-blend"
     LATENCY_SLO_SHED = "latency-slo-shed"
     SHADOW_TRAFFIC_MIRROR = "shadow-traffic-mirror"
+    CANARY_COST_BLEND = "canary-cost-blend"
     AB_TEST = "ab"
 
 
