@@ -4104,6 +4104,7 @@ def build_strategies(
     sticky_region_failover_preferences: list[str] | None = None,
     latency_slo_ms: float = 2000.0,
     shadow_traffic_percent: float = 5.0,
+    canary_cost_blend_percent: float = 10.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
