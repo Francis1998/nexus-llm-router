@@ -3102,21 +3102,6 @@ class LatencySloShedStrategy(RoutingStrategy):
     """
 
     strategy_name = RoutingStrategyName.LATENCY_SLO_SHED
-class ShadowTrafficMirrorStrategy(RoutingStrategy):
-    """Cost-optimal primary routing with optional shadow-mirror telemetry.
-
-    LiteLLM/OpenRouter-style gateways often dual-run a small traffic slice
-    against a secondary provider for latency/quality comparison without changing
-    the user-visible primary. This strategy picks the primary model like
-    :class:`CostOptimalStrategy` (minimum estimated cost subject to the quality
-    floor), then on a deterministic ``request_id`` hash slice annotates the
-    rationale with a *shadow mirror* candidate: the best domain-eligible model
-    from a different provider than the primary (the second-best alternative
-    provider). The decide phase still returns one primary candidate; audit
-    trails capture the mirror model for downstream dual-run hooks.
-    """
-
-    strategy_name = RoutingStrategyName.SHADOW_TRAFFIC_MIRROR
 
     def __init__(
         self,
@@ -3144,54 +3129,6 @@ class ShadowTrafficMirrorStrategy(RoutingStrategy):
     def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
         """Prefer under-SLO candidates and shed slower providers when possible."""
         eligible_candidates = [
-        quality_floor: float,
-        shadow_traffic_percent: float = 5.0,
-    ) -> None:
-        """Initialize shadow-traffic-mirror routing.
-
-        Args:
-            model_catalog: Available model candidates by model name.
-            quality_floor: Minimum acceptable quality score for the primary.
-            shadow_traffic_percent: Percentage of traffic whose rationale
-                annotates a shadow mirror candidate, within ``[0.0, 100.0]``.
-
-        Raises:
-            ValueError: If the shadow percentage is outside ``[0.0, 100.0]``.
-        """
-        super().__init__(model_catalog)
-        if not 0.0 <= shadow_traffic_percent <= 100.0:
-            raise ValueError(
-                "shadow_traffic_percent must be within [0.0, 100.0], "
-                f"got {shadow_traffic_percent}"
-            )
-        self._quality_floor = quality_floor
-        self._shadow_traffic_percent = shadow_traffic_percent
-
-    def _shadow_bucket(self, request: RouterRequest) -> float:
-        digest = sha256(request.request_id.encode("utf-8")).hexdigest()
-        return int(digest[:8], 16) / 0xFFFFFFFF
-
-    def _in_shadow_slice(self, request: RouterRequest) -> bool:
-        return self._shadow_bucket(request) < (self._shadow_traffic_percent / 100.0)
-
-    def _feasible_candidates(
-        self,
-        request: RouterRequest,
-        signals: TaskSignals,
-    ) -> list[ModelCandidate]:
-        feasible = [
-            candidate
-            for candidate in self._model_catalog.values()
-            if candidate.quality_score >= self._quality_floor
-            and signals.domain_tag in candidate.supports_domains
-            and (
-                candidate.supports_realtime
-                or signals.latency_requirement is LatencyRequirement.BATCH
-            )
-        ]
-        if feasible:
-            return feasible
-        return [
             candidate
             for candidate in self._model_catalog.values()
             if signals.domain_tag in candidate.supports_domains
@@ -3233,66 +3170,6 @@ class ShadowTrafficMirrorStrategy(RoutingStrategy):
             f"(provider p95 {p95_by_model[selected_candidate.model]:.1f}ms)"
         )
         return self._decision(selected_candidate.model, rationale)
-    def _shadow_mirror(
-        self,
-        primary: ModelCandidate,
-        candidates: list[ModelCandidate],
-        costs: dict[str, float],
-    ) -> ModelCandidate | None:
-        alternate_providers = [
-            candidate
-            for candidate in candidates
-            if candidate.provider != primary.provider
-        ]
-        if not alternate_providers:
-            return None
-        return max(
-            alternate_providers,
-            key=lambda candidate: (
-                candidate.quality_score,
-                -costs[candidate.model],
-            ),
-        )
-
-    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
-        """Pick a cost-optimal primary and optionally annotate a shadow mirror."""
-        candidates = self._feasible_candidates(request, signals)
-        costs = {
-            candidate.model: candidate.estimate_cost(
-                signals.prompt_tokens_estimate, request.max_tokens
-            )
-            for candidate in candidates
-        }
-        primary = min(
-            candidates,
-            key=lambda candidate: (costs[candidate.model], -candidate.quality_score),
-        )
-        estimated_cost = costs[primary.model]
-        bucket = self._shadow_bucket(request)
-        shadow = self._shadow_mirror(primary, candidates, costs)
-
-        if self._in_shadow_slice(request) and shadow is not None:
-            rationale = (
-                "shadow-traffic-mirror selected primary "
-                f"{primary.model} (est ${estimated_cost:.6f}, quality floor "
-                f"{self._quality_floor:.2f}); shadow mirror "
-                f"{shadow.model} ({shadow.provider}) queued for dual-run "
-                f"telemetry (bucket={bucket:.4f} < "
-                f"{self._shadow_traffic_percent:.1f}%)"
-            )
-        else:
-            rationale = (
-                "shadow-traffic-mirror selected primary "
-                f"{primary.model} (est ${estimated_cost:.6f}, quality floor "
-                f"{self._quality_floor:.2f})"
-            )
-            if shadow is not None:
-                rationale += (
-                    f"; shadow mirror {shadow.model} not annotated "
-                    f"(bucket={bucket:.4f} >= {self._shadow_traffic_percent:.1f}%)"
-                )
-
-        return self._decision(primary.model, rationale)
 
 
 class SuccessStats:
@@ -3956,6 +3833,137 @@ class FailoverPriorityStrategy(RoutingStrategy):
         return remaining[:3]
 
 
+class ShadowTrafficMirrorStrategy(RoutingStrategy):
+    """Cost-optimal primary routing with optional shadow-mirror telemetry.
+
+    LiteLLM/OpenRouter-style gateways often dual-run a small traffic slice
+    against a secondary provider for latency/quality comparison without changing
+    the user-visible primary. This strategy picks the primary model like
+    :class:`CostOptimalStrategy` (minimum estimated cost subject to the quality
+    floor), then on a deterministic ``request_id`` hash slice annotates the
+    rationale with a *shadow mirror* candidate: the best domain-eligible model
+    from a different provider than the primary (the second-best alternative
+    provider). The decide phase still returns one primary candidate; audit
+    trails capture the mirror model for downstream dual-run hooks.
+    """
+
+    strategy_name = RoutingStrategyName.SHADOW_TRAFFIC_MIRROR
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        quality_floor: float,
+        shadow_traffic_percent: float = 5.0,
+    ) -> None:
+        """Initialize shadow-traffic-mirror routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            quality_floor: Minimum acceptable quality score for the primary.
+            shadow_traffic_percent: Percentage of traffic whose rationale
+                annotates a shadow mirror candidate, within ``[0.0, 100.0]``.
+
+        Raises:
+            ValueError: If the shadow percentage is outside ``[0.0, 100.0]``.
+        """
+        super().__init__(model_catalog)
+        if not 0.0 <= shadow_traffic_percent <= 100.0:
+            raise ValueError(
+                f"shadow_traffic_percent must be within [0.0, 100.0], got {shadow_traffic_percent}"
+            )
+        self._quality_floor = quality_floor
+        self._shadow_traffic_percent = shadow_traffic_percent
+
+    def _shadow_bucket(self, request: RouterRequest) -> float:
+        digest = sha256(request.request_id.encode("utf-8")).hexdigest()
+        return int(digest[:8], 16) / 0xFFFFFFFF
+
+    def _in_shadow_slice(self, request: RouterRequest) -> bool:
+        return self._shadow_bucket(request) < (self._shadow_traffic_percent / 100.0)
+
+    def _feasible_candidates(
+        self,
+        request: RouterRequest,
+        signals: TaskSignals,
+    ) -> list[ModelCandidate]:
+        feasible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if candidate.quality_score >= self._quality_floor
+            and signals.domain_tag in candidate.supports_domains
+            and (
+                candidate.supports_realtime
+                or signals.latency_requirement is LatencyRequirement.BATCH
+            )
+        ]
+        if feasible:
+            return feasible
+        return [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+    def _shadow_mirror(
+        self,
+        primary: ModelCandidate,
+        candidates: list[ModelCandidate],
+        costs: dict[str, float],
+    ) -> ModelCandidate | None:
+        alternate_providers = [
+            candidate for candidate in candidates if candidate.provider != primary.provider
+        ]
+        if not alternate_providers:
+            return None
+        return max(
+            alternate_providers,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -costs[candidate.model],
+            ),
+        )
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Pick a cost-optimal primary and optionally annotate a shadow mirror."""
+        candidates = self._feasible_candidates(request, signals)
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in candidates
+        }
+        primary = min(
+            candidates,
+            key=lambda candidate: (costs[candidate.model], -candidate.quality_score),
+        )
+        estimated_cost = costs[primary.model]
+        bucket = self._shadow_bucket(request)
+        shadow = self._shadow_mirror(primary, candidates, costs)
+
+        if self._in_shadow_slice(request) and shadow is not None:
+            rationale = (
+                "shadow-traffic-mirror selected primary "
+                f"{primary.model} (est ${estimated_cost:.6f}, quality floor "
+                f"{self._quality_floor:.2f}); shadow mirror "
+                f"{shadow.model} ({shadow.provider}) queued for dual-run "
+                f"telemetry (bucket={bucket:.4f} < "
+                f"{self._shadow_traffic_percent:.1f}%)"
+            )
+        else:
+            rationale = (
+                "shadow-traffic-mirror selected primary "
+                f"{primary.model} (est ${estimated_cost:.6f}, quality floor "
+                f"{self._quality_floor:.2f})"
+            )
+            if shadow is not None:
+                rationale += (
+                    f"; shadow mirror {shadow.model} not annotated "
+                    f"(bucket={bucket:.4f} >= {self._shadow_traffic_percent:.1f}%)"
+                )
+
+        return self._decision(primary.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4068,8 +4076,6 @@ def build_strategies(
             sticky-region-failover routing when a request omits ``region``.
         latency_slo_ms: Maximum acceptable provider p95 latency per request in
             milliseconds for latency-slo-shed routing.
-        shadow_traffic_percent: Percentage of traffic whose rationale annotates
-            a shadow mirror candidate for dual-run telemetry.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -4250,10 +4256,11 @@ def build_strategies(
             model_catalog,
             latency_stats,
             latency_slo_ms,
+        ),
         RoutingStrategyName.SHADOW_TRAFFIC_MIRROR: ShadowTrafficMirrorStrategy(
-            model_catalog,
-            quality_floor,
-            shadow_traffic_percent,
+            model_catalog=model_catalog,
+            quality_floor=quality_floor,
+            shadow_traffic_percent=shadow_traffic_percent,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
