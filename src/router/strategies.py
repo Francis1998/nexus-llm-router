@@ -4359,6 +4359,11 @@ def build_strategies(
             quality_floor=quality_floor,
             shadow_traffic_percent=shadow_traffic_percent,
         ),
+        RoutingStrategyName.CANARY_COST_BLEND: CanaryCostBlendStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            canary_cost_blend_percent=canary_cost_blend_percent,
+        ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
             ab_model_a,
