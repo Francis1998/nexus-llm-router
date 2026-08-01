@@ -169,6 +169,26 @@ NEXUS_CANARY_WEIGHT=0.1
 See
 [docs/guides/CANARY_TIER_BLEND_GUIDE.md](docs/guides/CANARY_TIER_BLEND_GUIDE.md).
 
+## Shadow-Traffic-Mirror Routing
+
+The `shadow-traffic-mirror` strategy selects a **primary** model like
+`cost-optimal` (minimum estimated cost subject to `NEXUS_QUALITY_FLOOR`), then
+on a deterministic `request_id` hash slice annotates the rationale with a
+**shadow mirror** candidate: the highest-quality feasible model from a
+different provider than the primary. The decide phase still returns one primary
+model; audit trails capture the mirror for dual-run telemetry hooks.
+
+```dotenv
+NEXUS_SHADOW_TRAFFIC_PERCENT=5.0
+NEXUS_QUALITY_FLOOR=0.72
+```
+
+`NEXUS_SHADOW_TRAFFIC_PERCENT` is the percentage of traffic (within
+`[0.0, 100.0]`) whose rationale names a shadow mirror model.
+
+See
+[docs/guides/SHADOW_TRAFFIC_MIRROR_GUIDE.md](docs/guides/SHADOW_TRAFFIC_MIRROR_GUIDE.md).
+
 ## Latency-Budget Routing
 
 The `latency-budget` strategy is the latency-domain dual of `budget-aware`:

@@ -62,6 +62,7 @@ class RoutingStrategyName(StrEnum):
     STICKY_REGION_FAILOVER = "sticky-region-failover"
     CANARY_TIER_BLEND = "canary-tier-blend"
     LATENCY_SLO_SHED = "latency-slo-shed"
+    SHADOW_TRAFFIC_MIRROR = "shadow-traffic-mirror"
     AB_TEST = "ab"
 
 
