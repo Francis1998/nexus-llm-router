@@ -123,6 +123,7 @@ class NexusRouter:
             sticky_region_failover_preferences=settings.sticky_region_failover_preferences,
             latency_slo_ms=settings.latency_slo_ms,
             shadow_traffic_percent=settings.shadow_traffic_percent,
+            canary_cost_blend_percent=settings.canary_cost_blend_percent,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

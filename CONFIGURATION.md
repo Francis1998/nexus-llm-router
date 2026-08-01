@@ -540,3 +540,9 @@ The default catalog lives in `src/router/config.py` and includes:
 - Moonshot: `kimi-k2`
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
+
+## Canary-Cost-Blend Routing
+The `canary-cost-blend` strategy is a **cost-first** counterpart to
+NEXUS_CANARY_COST_BLEND_PERCENT=10.0
+`NEXUS_CANARY_COST_BLEND_PERCENT` is the percentage of traffic (within
+[docs/guides/CANARY_COST_BLEND_GUIDE.md](docs/guides/CANARY_COST_BLEND_GUIDE.md).
