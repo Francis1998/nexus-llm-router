@@ -61,6 +61,7 @@ class RoutingStrategyName(StrEnum):
     SOFT_FAMILY_BUDGET = "soft-family-budget"
     STICKY_REGION_FAILOVER = "sticky-region-failover"
     CANARY_TIER_BLEND = "canary-tier-blend"
+    LATENCY_SLO_SHED = "latency-slo-shed"
     AB_TEST = "ab"
 
 

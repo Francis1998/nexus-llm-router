@@ -188,6 +188,25 @@ NEXUS_LATENCY_SLA_MS=750.0
 `NEXUS_LATENCY_SLA_MS` is the maximum acceptable provider p95 latency per
 request, in milliseconds (non-negative).
 
+## Latency-SLO-Shed Routing
+
+The `latency-slo-shed` strategy enforces a softer latency service-level
+objective than `latency-budget`. When at least one domain-eligible provider's
+rolling p95 fits under `NEXUS_LATENCY_SLO_MS`, candidates above the SLO are
+**shed** (excluded) and the highest-quality under-SLO model wins. When every
+provider exceeds the SLO it falls back to the lowest-p95 eligible model.
+Providers with no observations yet are treated as within the SLO.
+
+```dotenv
+NEXUS_LATENCY_SLO_MS=2000.0
+```
+
+`NEXUS_LATENCY_SLO_MS` is the maximum acceptable provider p95 latency per
+request, in milliseconds (non-negative; default `2000`).
+
+See
+[docs/guides/LATENCY_SLO_SHED_GUIDE.md](docs/guides/LATENCY_SLO_SHED_GUIDE.md).
+
 ## Epsilon-Greedy Routing
 
 The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:
