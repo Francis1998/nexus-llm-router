@@ -57,10 +57,7 @@ def _strategy(shadow_traffic_percent: float = 100.0) -> ShadowTrafficMirrorStrat
 
 def test_shadow_traffic_mirror_enum_parses() -> None:
     """The API header parser can resolve the new strategy enum value."""
-    assert (
-        RoutingStrategyName("shadow-traffic-mirror")
-        is RoutingStrategyName.SHADOW_TRAFFIC_MIRROR
-    )
+    assert RoutingStrategyName("shadow-traffic-mirror") is RoutingStrategyName.SHADOW_TRAFFIC_MIRROR
 
 
 def test_shadow_traffic_mirror_picks_cost_optimal_primary() -> None:
