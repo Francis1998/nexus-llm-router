@@ -546,3 +546,23 @@ The `canary-cost-blend` strategy is a **cost-first** counterpart to
 NEXUS_CANARY_COST_BLEND_PERCENT=10.0
 `NEXUS_CANARY_COST_BLEND_PERCENT` is the percentage of traffic (within
 [docs/guides/CANARY_COST_BLEND_GUIDE.md](docs/guides/CANARY_COST_BLEND_GUIDE.md).
+
+## Token-Cost-Anomaly-Shed Routing
+
+The `token-cost-anomaly-shed` strategy tracks a rolling mean cost-per-1k-tokens
+via shared `CostAnomalyStats` (populated by the engine after successful
+completions). It ranks domain-eligible candidates by quality and, when the top
+pick's projected cost/1k exceeds `mean * NEXUS_TOKEN_COST_ANOMALY_RATIO`,
+sheds to the cheapest healthy alternative below that cost. When no cheaper
+healthy option exists it falls back to pure quality ranking. Cold start (empty
+stats) routes to the highest-quality eligible model.
+
+```dotenv
+NEXUS_TOKEN_COST_ANOMALY_RATIO=2.0
+```
+
+`NEXUS_TOKEN_COST_ANOMALY_RATIO` is the positive multiplier above the rolling
+mean cost/1k that triggers shedding (default `2.0`).
+
+See
+[docs/guides/TOKEN_COST_ANOMALY_SHED_GUIDE.md](docs/guides/TOKEN_COST_ANOMALY_SHED_GUIDE.md).

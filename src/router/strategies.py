@@ -4060,6 +4060,153 @@ class CanaryCostBlendStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class CostAnomalyStats:
+    """Rolling cost-per-1k-token observations for anomaly shedding."""
+
+    def __init__(self, max_observations: int = 100) -> None:
+        """Initialize empty cost anomaly observations."""
+        self._observations: list[float] = []
+        self._max_observations = max_observations
+
+    def observe(self, cost_per_1k: float) -> None:
+        """Record an observed cost-per-1k-tokens sample.
+
+        Args:
+            cost_per_1k: Observed blended cost per 1000 tokens in USD.
+        """
+        self._observations.append(cost_per_1k)
+        if len(self._observations) > self._max_observations:
+            del self._observations[0]
+
+    def mean(self) -> float:
+        """Return the rolling mean cost per 1000 tokens.
+
+        Returns:
+            Mean USD per 1k tokens, or ``0.0`` when no observations exist.
+        """
+        if not self._observations:
+            return 0.0
+        return sum(self._observations) / len(self._observations)
+
+
+class TokenCostAnomalyShedStrategy(RoutingStrategy):
+    """Shed candidates whose projected token cost spikes above a rolling baseline.
+
+      LiteLLM/OpenRouter-style gateways often see sudden per-token spend spikes
+      when a provider SKU reprices or a prompt pattern shifts toward expensive
+      output tokens. This strategy tracks a rolling mean cost-per-1k-tokens via
+      :class:`CostAnomalyStats`. When the highest-quality eligible candidate's
+      projected cost/1k exceeds ``mean * NEXUS_TOKEN_COST_ANOMALY_RATIO`` (default
+    ``2.0``), it sheds to the cheapest healthy alternative below that top cost.
+      When no cheaper healthy option exists it falls back to pure quality ranking
+      so routing stays deterministic instead of failing open.
+    """
+
+    strategy_name = RoutingStrategyName.TOKEN_COST_ANOMALY_SHED
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        cost_anomaly_stats: CostAnomalyStats,
+        token_cost_anomaly_ratio: float = 2.0,
+    ) -> None:
+        """Initialize token-cost-anomaly shedding routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            cost_anomaly_stats: Rolling cost-per-1k observations.
+            token_cost_anomaly_ratio: Multiplier above the rolling mean that
+                triggers shedding (must be positive).
+
+        Raises:
+            ValueError: If the anomaly ratio is not positive.
+        """
+        super().__init__(model_catalog)
+        if token_cost_anomaly_ratio <= 0.0:
+            raise ValueError(
+                f"token_cost_anomaly_ratio must be positive, got {token_cost_anomaly_ratio}"
+            )
+        self._provider_health = provider_health
+        self._cost_anomaly_stats = cost_anomaly_stats
+        self._token_cost_anomaly_ratio = token_cost_anomaly_ratio
+
+    def _projected_cost_per_1k(
+        self, candidate: ModelCandidate, input_tokens: int, output_tokens: int
+    ) -> float:
+        total_tokens = input_tokens + output_tokens
+        if total_tokens == 0:
+            return (candidate.input_cost_per_1k + candidate.output_cost_per_1k) / 2.0
+        return (candidate.estimate_cost(input_tokens, output_tokens) / total_tokens) * 1000.0
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer quality unless the top pick's token cost is anomalously high."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs_per_1k = {
+            candidate.model: self._projected_cost_per_1k(
+                candidate, signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+        quality_ordered = sorted(
+            eligible_candidates,
+            key=lambda candidate: (candidate.quality_score, -costs_per_1k[candidate.model]),
+            reverse=True,
+        )
+        top_candidate = quality_ordered[0]
+        rolling_mean = self._cost_anomaly_stats.mean()
+        anomaly_threshold = rolling_mean * self._token_cost_anomaly_ratio
+
+        if rolling_mean > 0.0 and costs_per_1k[top_candidate.model] > anomaly_threshold:
+            healthy_candidates = [
+                candidate
+                for candidate in eligible_candidates
+                if self._provider_health.is_available(candidate.provider)
+            ] or eligible_candidates
+            top_cost = costs_per_1k[top_candidate.model]
+            cheaper_healthy = [
+                candidate
+                for candidate in healthy_candidates
+                if costs_per_1k[candidate.model] < top_cost
+            ]
+            if cheaper_healthy:
+                selected_candidate = min(
+                    cheaper_healthy,
+                    key=lambda candidate: (
+                        costs_per_1k[candidate.model],
+                        -candidate.quality_score,
+                    ),
+                )
+                rationale = (
+                    "token-cost-anomaly-shed detected projected cost/1k "
+                    f"${top_cost:.6f} above rolling mean ${rolling_mean:.6f} "
+                    f"* {self._token_cost_anomaly_ratio:.1f}; shed to cheaper "
+                    f"healthy {selected_candidate.model} "
+                    f"(cost/1k ${costs_per_1k[selected_candidate.model]:.6f})"
+                )
+                return self._decision(selected_candidate.model, rationale)
+
+            rationale = (
+                "token-cost-anomaly-shed found no cheaper healthy alternative; "
+                f"quality fallback to {top_candidate.model} "
+                f"(cost/1k ${top_cost:.6f})"
+            )
+            return self._decision(top_candidate.model, rationale)
+
+        rationale = (
+            "token-cost-anomaly-shed selected highest-quality "
+            f"{top_candidate.model} (cost/1k ${costs_per_1k[top_candidate.model]:.6f} "
+            f"within rolling baseline mean ${rolling_mean:.6f})"
+        )
+        return self._decision(top_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4105,6 +4252,8 @@ def build_strategies(
     latency_slo_ms: float = 2000.0,
     shadow_traffic_percent: float = 5.0,
     canary_cost_blend_percent: float = 10.0,
+    cost_anomaly_stats: CostAnomalyStats | None = None,
+    token_cost_anomaly_ratio: float = 2.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -4173,6 +4322,11 @@ def build_strategies(
             sticky-region-failover routing when a request omits ``region``.
         latency_slo_ms: Maximum acceptable provider p95 latency per request in
             milliseconds for latency-slo-shed routing.
+        cost_anomaly_stats: Optional rolling cost-per-1k observations for
+            token-cost-anomaly-shed routing. When omitted a fresh empty window
+            is used.
+        token_cost_anomaly_ratio: Multiplier above the rolling mean cost/1k that
+            triggers shedding for token-cost-anomaly-shed routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -4217,6 +4371,7 @@ def build_strategies(
         "cn",
         "global",
     ]
+    resolved_cost_anomaly_stats = cost_anomaly_stats or CostAnomalyStats()
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -4363,6 +4518,12 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             canary_cost_blend_percent=canary_cost_blend_percent,
+        ),
+        RoutingStrategyName.TOKEN_COST_ANOMALY_SHED: TokenCostAnomalyShedStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            cost_anomaly_stats=resolved_cost_anomaly_stats,
+            token_cost_anomaly_ratio=token_cost_anomaly_ratio,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
