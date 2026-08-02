@@ -239,6 +239,21 @@ class LatencyStats:
         index = min(len(observations) - 1, int(0.95 * (len(observations) - 1)))
         return observations[index]
 
+    def p50(self, provider: str) -> float:
+        """Return rolling p50 latency for a provider.
+
+        Args:
+            provider: Provider name.
+
+        Returns:
+            Provider p50 latency in milliseconds.
+        """
+        observations = sorted(self._observations.get(provider, []))
+        if not observations:
+            return 0.0
+        index = min(len(observations) - 1, int(0.50 * (len(observations) - 1)))
+        return observations[index]
+
 
 class InflightStats:
     """Provider in-flight counters used by least-busy routing."""
@@ -4286,6 +4301,101 @@ class StickyTenantHashStrategy(RoutingStrategy):
         return self._decision(fallback_candidate.model, rationale)
 
 
+class MultiRegionLatencyHedgeStrategy(RoutingStrategy):
+    """Hedge to a faster secondary region when the primary region is hot.
+
+    Multi-region gateways often keep a preferred residency region for GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic but still need an escape
+    hatch when that region's rolling p50 latency spikes. This strategy picks the
+    highest-quality domain-eligible model in the request's primary region (or
+    ``global`` when omitted). When that model's provider p50 exceeds
+    ``NEXUS_LATENCY_HEDGE_MS`` it hedges to the lowest-p50 candidate in a
+    **secondary** region (any eligible model that does not match the primary
+    region). Otherwise it stays on the primary quality preference.
+    """
+
+    strategy_name = RoutingStrategyName.MULTI_REGION_LATENCY_HEDGE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        latency_hedge_ms: float,
+    ) -> None:
+        """Initialize multi-region latency hedge routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_stats: Rolling provider latency observations.
+            latency_hedge_ms: Primary-region p50 threshold that triggers hedging
+                to a secondary region, in milliseconds.
+
+        Raises:
+            ValueError: If the hedge threshold is negative.
+        """
+        super().__init__(model_catalog)
+        if latency_hedge_ms < 0.0:
+            raise ValueError(f"latency_hedge_ms must be non-negative, got {latency_hedge_ms}")
+        self._latency_stats = latency_stats
+        self._latency_hedge_ms = latency_hedge_ms
+
+    def _matches_region(self, candidate: ModelCandidate, region: str) -> bool:
+        return region in {supported.lower() for supported in candidate.supported_regions}
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Stay on primary quality unless the region is hot enough to hedge."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        primary_region = (request.region or "global").strip().lower()
+        primary_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._matches_region(candidate, primary_region)
+        ] or eligible_candidates
+        secondary_candidates = [
+            candidate for candidate in eligible_candidates if candidate not in primary_candidates
+        ]
+
+        primary_pick = max(
+            primary_candidates,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -self._latency_stats.p50(candidate.provider),
+            ),
+        )
+        primary_p50 = self._latency_stats.p50(primary_pick.provider)
+
+        if secondary_candidates and primary_p50 > self._latency_hedge_ms:
+            selected_candidate = min(
+                secondary_candidates,
+                key=lambda candidate: (
+                    self._latency_stats.p50(candidate.provider),
+                    -candidate.quality_score,
+                ),
+            )
+            rationale = (
+                "multi-region-latency-hedge primary region "
+                f"'{primary_region}' hot (provider p50 {primary_p50:.1f}ms > "
+                f"{self._latency_hedge_ms:.0f}ms); hedged to secondary "
+                f"{selected_candidate.model} "
+                f"(provider p50 "
+                f"{self._latency_stats.p50(selected_candidate.provider):.1f}ms)"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        rationale = (
+            "multi-region-latency-hedge stayed on primary region "
+            f"'{primary_region}' quality preference {primary_pick.model} "
+            f"(provider p50 {primary_p50:.1f}ms <= "
+            f"{self._latency_hedge_ms:.0f}ms hedge threshold)"
+        )
+        return self._decision(primary_pick.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4333,6 +4443,7 @@ def build_strategies(
     canary_cost_blend_percent: float = 10.0,
     cost_anomaly_stats: CostAnomalyStats | None = None,
     token_cost_anomaly_ratio: float = 2.0,
+    latency_hedge_ms: float = 500.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -4406,6 +4517,8 @@ def build_strategies(
             is used.
         token_cost_anomaly_ratio: Multiplier above the rolling mean cost/1k that
             triggers shedding for token-cost-anomaly-shed routing.
+        latency_hedge_ms: Primary-region provider p50 threshold in milliseconds
+            for multi-region-latency-hedge routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -4607,6 +4720,11 @@ def build_strategies(
         RoutingStrategyName.STICKY_TENANT_HASH: StickyTenantHashStrategy(
             model_catalog=model_catalog,
             provider_health=provider_health,
+        ),
+        RoutingStrategyName.MULTI_REGION_LATENCY_HEDGE: MultiRegionLatencyHedgeStrategy(
+            model_catalog=model_catalog,
+            latency_stats=latency_stats,
+            latency_hedge_ms=latency_hedge_ms,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

@@ -305,6 +305,26 @@ header and pass `metadata.tenant_id` on each request.
 See
 [docs/guides/STICKY_TENANT_HASH_GUIDE.md](docs/guides/STICKY_TENANT_HASH_GUIDE.md).
 
+## Multi-Region-Latency-Hedge Routing
+
+The `multi-region-latency-hedge` strategy keeps GPT-5.5 / Claude Sonnet 4.6 /
+Gemini 3.x / Kimi K2 traffic on the highest-quality model in the request's
+primary region (`request.region`, default `global`). When that model's provider
+rolling **p50** exceeds `NEXUS_LATENCY_HEDGE_MS`, and at least one
+secondary-region candidate exists, it hedges to the lowest-p50 secondary model.
+Otherwise it stays on the primary quality preference. Providers with no
+observations yet report `0.0` p50 and keep primary routing.
+
+```dotenv
+NEXUS_LATENCY_HEDGE_MS=500.0
+```
+
+`NEXUS_LATENCY_HEDGE_MS` is the primary-region provider p50 threshold in
+milliseconds that triggers hedging (non-negative; default `500`).
+
+See
+[docs/guides/MULTI_REGION_LATENCY_HEDGE_GUIDE.md](docs/guides/MULTI_REGION_LATENCY_HEDGE_GUIDE.md).
+
 ## Token-Budget Routing
 
 The `token-budget` strategy maximizes quality subject to a hard token ceiling: it
