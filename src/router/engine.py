@@ -128,6 +128,7 @@ class NexusRouter:
             canary_cost_blend_percent=settings.canary_cost_blend_percent,
             cost_anomaly_stats=self._cost_anomaly_stats,
             token_cost_anomaly_ratio=settings.token_cost_anomaly_ratio,
+            latency_hedge_ms=settings.latency_hedge_ms,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

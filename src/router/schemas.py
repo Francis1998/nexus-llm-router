@@ -66,6 +66,7 @@ class RoutingStrategyName(StrEnum):
     CANARY_COST_BLEND = "canary-cost-blend"
     TOKEN_COST_ANOMALY_SHED = "token-cost-anomaly-shed"  # noqa: S105  # strategy name, not a secret
     STICKY_TENANT_HASH = "sticky-tenant-hash"
+    MULTI_REGION_LATENCY_HEDGE = "multi-region-latency-hedge"
     AB_TEST = "ab"
 
 

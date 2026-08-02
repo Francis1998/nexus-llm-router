@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-328%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-336%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -127,6 +127,7 @@ Select a strategy with `X-Router-Strategy`:
 - `shadow-traffic-mirror`: cost-optimal primary routing (`NEXUS_QUALITY_FLOOR`) with a deterministic `request_id` slice (`NEXUS_SHADOW_TRAFFIC_PERCENT`, default `5`) that annotates a shadow mirror model from a different provider for dual-run telemetry — LiteLLM/OpenRouter-style shadow comparison without changing the returned primary
 - `canary-cost-blend`: blends cost exploration with healthy-provider minimization — default picks the cheapest healthy model, while `NEXUS_CANARY_COST_BLEND_PERCENT` (default `10`) explores the next-cheaper healthy tier via deterministic `request_id` hashing; distinct from `canary-tier-blend`
 - `token-cost-anomaly-shed`: sheds to cheaper healthy models when the top quality pick's projected cost/1k exceeds the rolling mean times `NEXUS_TOKEN_COST_ANOMALY_RATIO` (default `2.0`); falls back to quality ranking when no cheaper healthy option exists — LiteLLM/OpenRouter-style spend spike guardrails for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `multi-region-latency-hedge`: stays on highest-quality primary-region models but hedges to the lowest-p50 secondary-region candidate when the primary provider p50 exceeds `NEXUS_LATENCY_HEDGE_MS` (default `500`) — regional latency escape hatch for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `latency-budget`: selects the highest-quality model whose provider rolling p95 latency stays within a hard SLA (`NEXUS_LATENCY_SLA_MS`); the latency-domain dual of `budget-aware`, trading quality for speed only when the SLA requires it
 - `latency-slo-shed`: sheds providers whose rolling p95 exceeds `NEXUS_LATENCY_SLO_MS` (default `2000`) when faster alternatives exist; prefers highest quality among under-SLO candidates and falls back to lowest latency when every provider is hot — LiteLLM/OpenRouter-style latency SLO shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `adaptive-timeout`: selects the highest-quality model whose risk-adjusted provider p95 fits an adaptive timeout budget derived from request urgency, recent latency, and success/error signals; prefers faster models under realtime pressure and allows slower higher-quality models when comfortable
