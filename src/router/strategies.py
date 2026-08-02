@@ -4207,6 +4207,85 @@ class TokenCostAnomalyShedStrategy(RoutingStrategy):
         return self._decision(top_candidate.model, rationale)
 
 
+class StickyTenantHashStrategy(RoutingStrategy):
+    """Pin tenants to a primary model via consistent hashing on tenant identity.
+
+    Multi-tenant gateways often need **per-tenant** routing affinity so billing,
+    quotas, and provider prompt caches stay stable across requests from the same
+    customer. Unlike :class:`StickySessionStrategy`, which hashes only
+    ``session_id`` for conversational turn consistency, this strategy resolves
+    a tenant sticky key from ``metadata.tenant_id`` (then ``metadata.user_id``,
+    ``metadata.sticky_key``, ``user_id``, and finally ``session_id``) and maps
+    that key onto a domain-eligible model. When the sticky primary's provider is
+    unhealthy the strategy failovers to the next healthy candidate in the
+    deterministic ring so routing stays replayable.
+    """
+
+    strategy_name = RoutingStrategyName.STICKY_TENANT_HASH
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+    ) -> None:
+        """Initialize sticky-tenant-hash routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+        """
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+
+    def _sticky_key(self, request: RouterRequest) -> str:
+        """Resolve the tenant sticky key for consistent hashing."""
+        metadata = request.metadata
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Pin the tenant sticky key to a model with healthy failover."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        ordered_candidates = sorted(eligible_candidates, key=lambda candidate: candidate.model)
+        sticky_key = self._sticky_key(request)
+        digest = sha256(sticky_key.encode("utf-8")).hexdigest()
+        primary_bucket = int(digest[:8], 16) % len(ordered_candidates)
+
+        for offset in range(len(ordered_candidates)):
+            bucket = (primary_bucket + offset) % len(ordered_candidates)
+            candidate = ordered_candidates[bucket]
+            if self._provider_health.is_available(candidate.provider):
+                failover_note = (
+                    f"failover offset {offset} from primary bucket {primary_bucket}"
+                    if offset > 0
+                    else f"primary bucket {primary_bucket}"
+                )
+                rationale = (
+                    f"sticky-tenant-hash pinned tenant '{sticky_key}' to "
+                    f"{candidate.model} ({failover_note}/"
+                    f"{len(ordered_candidates)} healthy ring)"
+                )
+                return self._decision(candidate.model, rationale)
+
+        fallback_candidate = ordered_candidates[primary_bucket]
+        rationale = (
+            f"sticky-tenant-hash pinned tenant '{sticky_key}' to "
+            f"{fallback_candidate.model} (primary bucket {primary_bucket}; "
+            "no healthy providers; sticky fallback)"
+        )
+        return self._decision(fallback_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4524,6 +4603,10 @@ def build_strategies(
             provider_health=provider_health,
             cost_anomaly_stats=resolved_cost_anomaly_stats,
             token_cost_anomaly_ratio=token_cost_anomaly_ratio,
+        ),
+        RoutingStrategyName.STICKY_TENANT_HASH: StickyTenantHashStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
