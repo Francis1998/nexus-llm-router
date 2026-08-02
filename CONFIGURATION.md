@@ -288,6 +288,23 @@ when a request omits `region`. Request `region` is always tried first.
 See
 [docs/guides/STICKY_REGION_FAILOVER_GUIDE.md](docs/guides/STICKY_REGION_FAILOVER_GUIDE.md).
 
+## Sticky-Tenant-Hash Routing
+
+The `sticky-tenant-hash` strategy pins each tenant to a primary model using
+consistent hashing on `metadata.tenant_id` (then `metadata.user_id`,
+`metadata.sticky_key`, top-level `user_id`, and finally `session_id`). Unlike
+`sticky-session`, which hashes only `session_id` for multi-turn conversational
+affinity, this strategy keeps GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+traffic stable per customer across sessions. When the sticky primary provider is
+unhealthy the strategy walks a deterministic ring to the next healthy candidate.
+
+No additional `NEXUS_*` environment variables are required. Select the strategy
+via `NEXUS_DEFAULT_STRATEGY=sticky-tenant-hash` or the `X-Router-Strategy`
+header and pass `metadata.tenant_id` on each request.
+
+See
+[docs/guides/STICKY_TENANT_HASH_GUIDE.md](docs/guides/STICKY_TENANT_HASH_GUIDE.md).
+
 ## Token-Budget Routing
 
 The `token-budget` strategy maximizes quality subject to a hard token ceiling: it

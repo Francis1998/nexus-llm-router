@@ -65,6 +65,7 @@ class RoutingStrategyName(StrEnum):
     SHADOW_TRAFFIC_MIRROR = "shadow-traffic-mirror"
     CANARY_COST_BLEND = "canary-cost-blend"
     TOKEN_COST_ANOMALY_SHED = "token-cost-anomaly-shed"  # noqa: S105  # strategy name, not a secret
+    STICKY_TENANT_HASH = "sticky-tenant-hash"
     AB_TEST = "ab"
 
 

@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-320%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-328%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -120,6 +120,7 @@ Select a strategy with `X-Router-Strategy`:
 - `budget-aware`: selects the highest-quality model whose estimated per-request cost stays within a hard ceiling (`NEXUS_REQUEST_COST_CEILING_USD`); the dual of `cost-optimal`
 - `provider-family-cost-ceiling`: selects the highest-quality domain-eligible model whose estimated cost stays within the ceiling for its provider family (`openai` / `anthropic` / `google` / `moonshot`); default via `NEXUS_PROVIDER_FAMILY_COST_CEILING_USD`, with cross-family fallback when nothing fits — OpenRouter/LiteLLM-style family budgets for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `sticky-session`: consistent-hashes `session_id` onto one domain-eligible model, so every turn in a session routes to the same model (context/prompt-cache affinity) while distinct sessions spread across the pool
+- `sticky-tenant-hash`: consistent-hashes `metadata.tenant_id` (then `user_id` / `sticky_key` fallbacks) onto one domain-eligible model per tenant with healthy ring failover — distinct from `sticky-session`, which pins only `session_id` for conversational affinity across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
 - `value`: selects the model with the best quality-per-dollar ratio, maximizing spend efficiency with no threshold to tune
 - `canary`: rolls a configurable traffic fraction (`NEXUS_CANARY_WEIGHT`) onto a canary model (`NEXUS_CANARY_MODEL`) while the rest stays on a stable model (`NEXUS_CANARY_STABLE_MODEL`); health-gated, so a canary whose provider circuit is open is paused and all traffic falls back to the stable model
 - `canary-tier-blend`: blends canary traffic with complexity-tier affinity — on the canary slice prefer the canary when it matches the inferred tier, else canary; off-slice or when unhealthy prefer tier match, else highest quality (`NEXUS_CANARY_*`)
@@ -167,6 +168,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Region-tier-affinity guide](docs/guides/REGION_TIER_AFFINITY_GUIDE.md) | Combined geo-region and complexity-tier affinity routing |
 | [Soft-family-budget guide](docs/guides/SOFT_FAMILY_BUDGET_GUIDE.md) | Rolling soft spend budgets per provider family |
 | [Sticky-region-failover guide](docs/guides/STICKY_REGION_FAILOVER_GUIDE.md) | Session stickiness with ordered region failover |
+| [Sticky-tenant-hash guide](docs/guides/STICKY_TENANT_HASH_GUIDE.md) | Per-tenant consistent hashing with healthy failover |
 | [SLO-aware guide](docs/guides/SLO_AWARE_GUIDE.md) | Availability-SLO quality routing |
 | [Adaptive-timeout guide](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md) | Timeout-adaptive quality routing |
 | [Semantic-cache guide](docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md) | Cache-hit cheapest / miss cost-optimal routing |
