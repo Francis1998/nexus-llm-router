@@ -92,6 +92,7 @@ class RouterSettings(BaseSettings):
     latency_slo_ms: Annotated[float, Field(ge=0.0)] = 2000.0
     shadow_traffic_percent: Annotated[float, Field(ge=0.0, le=100.0)] = 5.0
     canary_cost_blend_percent: Annotated[float, Field(ge=0.0, le=100.0)] = 10.0
+    token_cost_anomaly_ratio: Annotated[float, Field(gt=0.0)] = 2.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

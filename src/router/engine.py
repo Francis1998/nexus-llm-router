@@ -24,6 +24,7 @@ from router.schemas import (
 )
 from router.state import RequestState, RoutingStateMachine
 from router.strategies import (
+    CostAnomalyStats,
     FamilySpendWindow,
     InflightStats,
     LatencyStats,
@@ -78,6 +79,7 @@ class NexusRouter:
         self._family_spend_window = FamilySpendWindow(
             settings.soft_family_budget_window_seconds,
         )
+        self._cost_anomaly_stats = CostAnomalyStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -124,6 +126,8 @@ class NexusRouter:
             latency_slo_ms=settings.latency_slo_ms,
             shadow_traffic_percent=settings.shadow_traffic_percent,
             canary_cost_blend_percent=settings.canary_cost_blend_percent,
+            cost_anomaly_stats=self._cost_anomaly_stats,
+            token_cost_anomaly_ratio=settings.token_cost_anomaly_ratio,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -266,6 +270,9 @@ class NexusRouter:
         self._latency_stats.observe(provider, latency_ms)
         self._budget_guardrail.record_spend(request.user_id, provider_response.cost_usd)
         self._family_spend_window.record(provider, provider_response.cost_usd)
+        total_tokens = provider_response.input_tokens + provider_response.output_tokens
+        if total_tokens > 0:
+            self._cost_anomaly_stats.observe((provider_response.cost_usd / total_tokens) * 1000.0)
         router_cost_usd_total.labels(provider, provider_response.model).inc(
             provider_response.cost_usd
         )
