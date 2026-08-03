@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-348%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-354%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -131,6 +131,7 @@ Select a strategy with `X-Router-Strategy`:
 - `latency-budget`: selects the highest-quality model whose provider rolling p95 latency stays within a hard SLA (`NEXUS_LATENCY_SLA_MS`); the latency-domain dual of `budget-aware`, trading quality for speed only when the SLA requires it
 - `prompt-length-tier-shed`: sheds frontier-tier models when `prompt_tokens_estimate` exceeds `NEXUS_PROMPT_LENGTH_TIER_TOKENS` (default `8000`) and picks the best mid/economy alternative; short prompts keep pure quality ranking — LiteLLM/OpenRouter-style length tier shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `retry-budget-aware-failover`: prefers highest-quality healthy models while `metadata.retry_remaining` (or `NEXUS_RETRY_BUDGET_DEFAULT`, default `3`) is > 1, then failovers to lowest-latency healthy model on the last attempt — LiteLLM/OpenRouter-style retry-budget routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `cache-hit-sticky-warm-pool`: consistent-hashes a long prompt prefix (min `NEXUS_CACHE_HIT_STICKY_MIN_CHARS`, default `64`) onto one domain-eligible model with healthy ring failover so provider prompt caches stay warm across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
 - `latency-slo-shed`: sheds providers whose rolling p95 exceeds `NEXUS_LATENCY_SLO_MS` (default `2000`) when faster alternatives exist; prefers highest quality among under-SLO candidates and falls back to lowest latency when every provider is hot — LiteLLM/OpenRouter-style latency SLO shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `adaptive-timeout`: selects the highest-quality model whose risk-adjusted provider p95 fits an adaptive timeout budget derived from request urgency, recent latency, and success/error signals; prefers faster models under realtime pressure and allows slower higher-quality models when comfortable
 - `complexity-tier`: treats the classifier complexity score as a required quality target and picks the cheapest model meeting it — a catalog-adaptive quality-for-cost escalation ladder with no thresholds to tune (falls back to the top-quality model when the target is unreachable)

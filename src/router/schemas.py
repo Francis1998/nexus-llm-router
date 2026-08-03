@@ -69,6 +69,7 @@ class RoutingStrategyName(StrEnum):
     MULTI_REGION_LATENCY_HEDGE = "multi-region-latency-hedge"
     PROMPT_LENGTH_TIER_SHED = "prompt-length-tier-shed"
     RETRY_BUDGET_AWARE_FAILOVER = "retry-budget-aware-failover"
+    CACHE_HIT_STICKY_WARM_POOL = "cache-hit-sticky-warm-pool"
     AB_TEST = "ab"
 
 

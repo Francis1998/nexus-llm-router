@@ -131,6 +131,7 @@ class NexusRouter:
             latency_hedge_ms=settings.latency_hedge_ms,
             prompt_length_tier_tokens=settings.prompt_length_tier_tokens,
             retry_budget_default=settings.retry_budget_default,
+            cache_hit_sticky_min_chars=settings.cache_hit_sticky_min_chars,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
