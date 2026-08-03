@@ -68,6 +68,7 @@ class RoutingStrategyName(StrEnum):
     STICKY_TENANT_HASH = "sticky-tenant-hash"
     MULTI_REGION_LATENCY_HEDGE = "multi-region-latency-hedge"
     PROMPT_LENGTH_TIER_SHED = "prompt-length-tier-shed"
+    RETRY_BUDGET_AWARE_FAILOVER = "retry-budget-aware-failover"
     AB_TEST = "ab"
 
 
