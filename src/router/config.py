@@ -95,6 +95,7 @@ class RouterSettings(BaseSettings):
     token_cost_anomaly_ratio: Annotated[float, Field(gt=0.0)] = 2.0
     latency_hedge_ms: Annotated[float, Field(ge=0.0)] = 500.0
     prompt_length_tier_tokens: Annotated[int, Field(ge=1)] = 8000
+    retry_budget_default: Annotated[int, Field(ge=0)] = 3
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

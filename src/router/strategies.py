@@ -4484,6 +4484,100 @@ class PromptLengthTierShedStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class RetryBudgetAwareFailoverStrategy(RoutingStrategy):
+    """Prefer healthy providers while a request still has retry budget left.
+
+    Gateway retries are a scarce resource. When ``metadata.retry_remaining``
+    (falling back to ``NEXUS_RETRY_BUDGET_DEFAULT``) is still high, this
+    strategy picks the highest-quality healthy candidate. When the remaining
+    budget drops to ``<= 1``, it failovers to the lowest-latency healthy
+    alternative so the last attempt is more likely to succeed quickly.
+    Deterministic and safe for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2 traffic.
+    """
+
+    strategy_name = RoutingStrategyName.RETRY_BUDGET_AWARE_FAILOVER
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        latency_stats: LatencyStats,
+        retry_budget_default: int = 3,
+    ) -> None:
+        """Initialize retry-budget-aware failover routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            latency_stats: Rolling provider latency observations.
+            retry_budget_default: Default remaining retries when metadata omits
+                ``retry_remaining`` (must be >= 0).
+
+        Raises:
+            ValueError: If the default retry budget is negative.
+        """
+        super().__init__(model_catalog)
+        if retry_budget_default < 0:
+            raise ValueError(f"retry_budget_default must be >= 0, got {retry_budget_default}")
+        self._provider_health = provider_health
+        self._latency_stats = latency_stats
+        self._retry_budget_default = retry_budget_default
+
+    def _remaining_retries(self, request: RouterRequest) -> int:
+        """Resolve remaining retry budget from request metadata."""
+        raw = request.metadata.get("retry_remaining", self._retry_budget_default)
+        try:
+            value = int(str(raw).strip())
+        except ValueError:
+            return self._retry_budget_default
+        return max(0, value)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Pick quality while budget remains; failover to low latency near exhaustion."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible_candidates
+            if self._provider_health.is_available(candidate.provider)
+        ] or eligible_candidates
+
+        remaining = self._remaining_retries(request)
+        if remaining <= 1:
+            selected_candidate = min(
+                healthy,
+                key=lambda candidate: (
+                    self._latency_stats.p95(candidate.provider),
+                    -candidate.quality_score,
+                ),
+            )
+            rationale = (
+                "retry-budget-aware-failover remaining retries "
+                f"{remaining}; failover to lowest-latency healthy "
+                f"{selected_candidate.model} "
+                f"(p95 {self._latency_stats.p95(selected_candidate.provider):.1f}ms)"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(
+            healthy,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -self._latency_stats.p95(candidate.provider),
+            ),
+        )
+        rationale = (
+            "retry-budget-aware-failover remaining retries "
+            f"{remaining}; selected highest-quality healthy "
+            f"{selected_candidate.model}"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4533,6 +4627,7 @@ def build_strategies(
     token_cost_anomaly_ratio: float = 2.0,
     latency_hedge_ms: float = 500.0,
     prompt_length_tier_tokens: int = 8000,
+    retry_budget_default: int = 3,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -4610,6 +4705,8 @@ def build_strategies(
             for multi-region-latency-hedge routing.
         prompt_length_tier_tokens: Prompt-token threshold that triggers
             frontier shedding for prompt-length-tier-shed routing.
+        retry_budget_default: Default remaining retries when a request omits
+            metadata.retry_remaining for retry-budget-aware-failover routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -4820,6 +4917,12 @@ def build_strategies(
         RoutingStrategyName.PROMPT_LENGTH_TIER_SHED: PromptLengthTierShedStrategy(
             model_catalog=model_catalog,
             prompt_length_tier_tokens=prompt_length_tier_tokens,
+        ),
+        RoutingStrategyName.RETRY_BUDGET_AWARE_FAILOVER: RetryBudgetAwareFailoverStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            latency_stats=latency_stats,
+            retry_budget_default=retry_budget_default,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

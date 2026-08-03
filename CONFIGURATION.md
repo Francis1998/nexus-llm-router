@@ -246,6 +246,25 @@ frontier shedding (integer >= 1; default `8000`).
 See
 [docs/guides/PROMPT_LENGTH_TIER_SHED_GUIDE.md](docs/guides/PROMPT_LENGTH_TIER_SHED_GUIDE.md).
 
+
+## Retry-Budget-Aware-Failover Routing
+
+The `retry-budget-aware-failover` strategy reads `metadata.retry_remaining`
+(falling back to `NEXUS_RETRY_BUDGET_DEFAULT`) and prefers highest-quality
+healthy models while budget remains. On the last attempt (`<= 1`) it failovers
+to the lowest rolling-p95 healthy model so GPT-5.5 / Claude Sonnet 4.6 /
+Gemini 3.x / Kimi K2 traffic still has a fast final try.
+
+```dotenv
+NEXUS_RETRY_BUDGET_DEFAULT=3
+```
+
+`NEXUS_RETRY_BUDGET_DEFAULT` is the default remaining retry count when metadata
+omits `retry_remaining` (integer >= 0; default `3`).
+
+See
+[docs/guides/RETRY_BUDGET_AWARE_FAILOVER_GUIDE.md](docs/guides/RETRY_BUDGET_AWARE_FAILOVER_GUIDE.md).
+
 ## Epsilon-Greedy Routing
 
 The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:
