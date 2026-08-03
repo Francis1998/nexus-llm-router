@@ -227,6 +227,25 @@ request, in milliseconds (non-negative; default `2000`).
 See
 [docs/guides/LATENCY_SLO_SHED_GUIDE.md](docs/guides/LATENCY_SLO_SHED_GUIDE.md).
 
+
+## Prompt-Length-Tier-Shed Routing
+
+The `prompt-length-tier-shed` strategy sheds frontier-tier models when
+`prompt_tokens_estimate` exceeds `NEXUS_PROMPT_LENGTH_TIER_TOKENS`. Long prompts
+prefer the highest-quality mid/economy candidate; short prompts keep pure
+quality ranking so frontier GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+models remain available for compact hard tasks.
+
+```dotenv
+NEXUS_PROMPT_LENGTH_TIER_TOKENS=8000
+```
+
+`NEXUS_PROMPT_LENGTH_TIER_TOKENS` is the prompt-token threshold that triggers
+frontier shedding (integer >= 1; default `8000`).
+
+See
+[docs/guides/PROMPT_LENGTH_TIER_SHED_GUIDE.md](docs/guides/PROMPT_LENGTH_TIER_SHED_GUIDE.md).
+
 ## Epsilon-Greedy Routing
 
 The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:
