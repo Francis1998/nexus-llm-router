@@ -4396,6 +4396,94 @@ class MultiRegionLatencyHedgeStrategy(RoutingStrategy):
         return self._decision(primary_pick.model, rationale)
 
 
+class PromptLengthTierShedStrategy(RoutingStrategy):
+    """Shed frontier models when the prompt exceeds a token-length tier gate.
+
+    Long prompts inflate frontier spend (GPT-5.5 / Claude Sonnet 4.6 /
+    Gemini 3.x / Kimi K2) without always needing frontier quality. When
+    ``signals.prompt_tokens_estimate`` exceeds
+    ``NEXUS_PROMPT_LENGTH_TIER_TOKENS`` (default ``8000``), this strategy sheds
+    frontier-tier candidates and picks the highest-quality mid/economy model
+    that still fits the domain. Short prompts keep pure quality ranking so
+    premium models remain available for compact hard tasks.
+    """
+
+    strategy_name = RoutingStrategyName.PROMPT_LENGTH_TIER_SHED
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        prompt_length_tier_tokens: int = 8000,
+    ) -> None:
+        """Initialize prompt-length tier shedding.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            prompt_length_tier_tokens: Prompt-token threshold that triggers
+                frontier shedding (must be >= 1).
+
+        Raises:
+            ValueError: If the token threshold is less than 1.
+        """
+        super().__init__(model_catalog)
+        if prompt_length_tier_tokens < 1:
+            raise ValueError(
+                f"prompt_length_tier_tokens must be >= 1, got {prompt_length_tier_tokens}"
+            )
+        self._prompt_length_tier_tokens = prompt_length_tier_tokens
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer quality unless the prompt is long enough to shed frontier tiers."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        prompt_tokens = signals.prompt_tokens_estimate
+        if prompt_tokens > self._prompt_length_tier_tokens:
+            non_frontier = [
+                candidate
+                for candidate in eligible_candidates
+                if infer_model_tier(candidate.model) is not ModelTier.FRONTIER
+            ]
+            pool = non_frontier or eligible_candidates
+            selected_candidate = max(
+                pool,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(prompt_tokens, request.max_tokens),
+                ),
+            )
+            shed_note = (
+                "shed frontier tiers"
+                if non_frontier
+                else "no non-frontier alternative; quality fallback"
+            )
+            rationale = (
+                "prompt-length-tier-shed detected prompt_tokens "
+                f"{prompt_tokens} above tier gate "
+                f"{self._prompt_length_tier_tokens}; {shed_note}; selected "
+                f"{selected_candidate.model} "
+                f"(tier {infer_model_tier(selected_candidate.model).value})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -candidate.estimate_cost(prompt_tokens, request.max_tokens),
+            ),
+        )
+        rationale = (
+            "prompt-length-tier-shed selected highest-quality "
+            f"{selected_candidate.model} (prompt_tokens {prompt_tokens} within "
+            f"tier gate {self._prompt_length_tier_tokens})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4444,6 +4532,7 @@ def build_strategies(
     cost_anomaly_stats: CostAnomalyStats | None = None,
     token_cost_anomaly_ratio: float = 2.0,
     latency_hedge_ms: float = 500.0,
+    prompt_length_tier_tokens: int = 8000,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -4519,6 +4608,8 @@ def build_strategies(
             triggers shedding for token-cost-anomaly-shed routing.
         latency_hedge_ms: Primary-region provider p50 threshold in milliseconds
             for multi-region-latency-hedge routing.
+        prompt_length_tier_tokens: Prompt-token threshold that triggers
+            frontier shedding for prompt-length-tier-shed routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -4725,6 +4816,10 @@ def build_strategies(
             model_catalog=model_catalog,
             latency_stats=latency_stats,
             latency_hedge_ms=latency_hedge_ms,
+        ),
+        RoutingStrategyName.PROMPT_LENGTH_TIER_SHED: PromptLengthTierShedStrategy(
+            model_catalog=model_catalog,
+            prompt_length_tier_tokens=prompt_length_tier_tokens,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
