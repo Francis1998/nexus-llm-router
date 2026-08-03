@@ -4578,6 +4578,97 @@ class RetryBudgetAwareFailoverStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class CacheHitStickyWarmPoolStrategy(RoutingStrategy):
+    """Pin repeated prompt prefixes onto one warm model for provider cache hits.
+
+    Provider prompt caches warm when successive requests share a long identical
+    prefix on the same model. This strategy hashes the leading system/user
+    prefix (at least ``NEXUS_CACHE_HIT_STICKY_MIN_CHARS`` characters) onto a
+    domain-eligible model and keeps that mapping sticky so GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic reuses a warm pool.
+    When the sticky primary provider is unhealthy it failovers to the next
+    healthy ring member.
+    """
+
+    strategy_name = RoutingStrategyName.CACHE_HIT_STICKY_WARM_POOL
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        cache_hit_sticky_min_chars: int = 64,
+    ) -> None:
+        """Initialize cache-hit sticky warm-pool routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            cache_hit_sticky_min_chars: Minimum prefix length required before
+                sticky hashing activates (must be >= 1).
+
+        Raises:
+            ValueError: If the minimum prefix length is less than 1.
+        """
+        super().__init__(model_catalog)
+        if cache_hit_sticky_min_chars < 1:
+            raise ValueError(
+                f"cache_hit_sticky_min_chars must be >= 1, got {cache_hit_sticky_min_chars}"
+            )
+        self._provider_health = provider_health
+        self._cache_hit_sticky_min_chars = cache_hit_sticky_min_chars
+
+    def _prefix_key(self, request: RouterRequest) -> str:
+        """Build the sticky cache key from leading message content."""
+        parts: list[str] = []
+        for message in request.messages:
+            content = message.content.strip()
+            if content:
+                parts.append(content)
+            if sum(len(part) for part in parts) >= self._cache_hit_sticky_min_chars:
+                break
+        joined = "\n".join(parts)
+        if len(joined) < self._cache_hit_sticky_min_chars:
+            return request.session_id
+        return joined[: max(self._cache_hit_sticky_min_chars * 4, self._cache_hit_sticky_min_chars)]
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Pin the prompt prefix to a warm model with healthy failover."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        ordered_candidates = sorted(eligible_candidates, key=lambda candidate: candidate.model)
+        sticky_key = self._prefix_key(request)
+        digest = sha256(sticky_key.encode("utf-8")).hexdigest()
+        primary_bucket = int(digest[:8], 16) % len(ordered_candidates)
+
+        for offset in range(len(ordered_candidates)):
+            bucket = (primary_bucket + offset) % len(ordered_candidates)
+            candidate = ordered_candidates[bucket]
+            if self._provider_health.is_available(candidate.provider):
+                failover_note = (
+                    f"failover offset {offset} from primary bucket {primary_bucket}"
+                    if offset > 0
+                    else f"primary bucket {primary_bucket}"
+                )
+                rationale = (
+                    "cache-hit-sticky-warm-pool pinned prefix to "
+                    f"{candidate.model} ({failover_note}/"
+                    f"{len(ordered_candidates)} warm ring)"
+                )
+                return self._decision(candidate.model, rationale)
+
+        fallback_candidate = ordered_candidates[primary_bucket]
+        rationale = (
+            "cache-hit-sticky-warm-pool pinned prefix to "
+            f"{fallback_candidate.model} (primary bucket {primary_bucket}; "
+            "no healthy providers; sticky fallback)"
+        )
+        return self._decision(fallback_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4628,6 +4719,7 @@ def build_strategies(
     latency_hedge_ms: float = 500.0,
     prompt_length_tier_tokens: int = 8000,
     retry_budget_default: int = 3,
+    cache_hit_sticky_min_chars: int = 64,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -4707,6 +4799,8 @@ def build_strategies(
             frontier shedding for prompt-length-tier-shed routing.
         retry_budget_default: Default remaining retries when a request omits
             metadata.retry_remaining for retry-budget-aware-failover routing.
+        cache_hit_sticky_min_chars: Minimum prompt-prefix length for
+            cache-hit-sticky-warm-pool sticky hashing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -4923,6 +5017,11 @@ def build_strategies(
             provider_health=provider_health,
             latency_stats=latency_stats,
             retry_budget_default=retry_budget_default,
+        ),
+        RoutingStrategyName.CACHE_HIT_STICKY_WARM_POOL: CacheHitStickyWarmPoolStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            cache_hit_sticky_min_chars=cache_hit_sticky_min_chars,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

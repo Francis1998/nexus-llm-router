@@ -265,6 +265,24 @@ omits `retry_remaining` (integer >= 0; default `3`).
 See
 [docs/guides/RETRY_BUDGET_AWARE_FAILOVER_GUIDE.md](docs/guides/RETRY_BUDGET_AWARE_FAILOVER_GUIDE.md).
 
+
+## Cache-Hit-Sticky-Warm-Pool Routing
+
+The `cache-hit-sticky-warm-pool` strategy pins identical long prompt prefixes
+onto one domain-eligible model so provider prompt caches stay warm for GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Short prefixes fall back to
+`session_id`. Unhealthy sticky primaries failover along a deterministic ring.
+
+```dotenv
+NEXUS_CACHE_HIT_STICKY_MIN_CHARS=64
+```
+
+`NEXUS_CACHE_HIT_STICKY_MIN_CHARS` is the minimum prefix length before sticky
+hashing activates (integer >= 1; default `64`).
+
+See
+[docs/guides/CACHE_HIT_STICKY_WARM_POOL_GUIDE.md](docs/guides/CACHE_HIT_STICKY_WARM_POOL_GUIDE.md).
+
 ## Epsilon-Greedy Routing
 
 The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:
