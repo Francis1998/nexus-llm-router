@@ -67,6 +67,26 @@ class CircuitBreakerRegistry:
             return True
         return (time.monotonic() - state.opened_at) >= self._recovery_window_seconds
 
+    def is_half_open(self, provider: str) -> bool:
+        """Report whether a provider is in the half-open / recovering probe window.
+
+        A provider is half-open when its circuit was opened and the recovery
+        window has elapsed, so the next routed call is a recovery probe. Fully
+        closed providers (never opened or reset after success) are not
+        half-open. Open providers still inside the recovery window are neither
+        available nor half-open.
+
+        Args:
+            provider: Provider name.
+
+        Returns:
+            True when the provider is recovering and eligible for a limited probe.
+        """
+        state = self._states.get(provider)
+        if state is None or state.opened_at is None:
+            return False
+        return (time.monotonic() - state.opened_at) >= self._recovery_window_seconds
+
     def record_success(self, provider: str) -> None:
         """Record a successful provider call.
 
