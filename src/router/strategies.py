@@ -4669,6 +4669,99 @@ class CacheHitStickyWarmPoolStrategy(RoutingStrategy):
         return self._decision(fallback_candidate.model, rationale)
 
 
+class EmbeddingCacheKeyNamespaceStrategy(RoutingStrategy):
+    """Isolate sticky/cache routing under a tenant embedding-cache namespace.
+
+    Shared embedding or semantic-cache layers collide when multiple tenants hash
+    into the same key space. This strategy builds a namespaced sticky key
+    ``{prefix}:{tenant_or_session}`` (prefix via
+    ``NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX``, default ``embed``) from
+    ``metadata.tenant_id`` (then ``user_id`` / ``sticky_key`` / ``session_id``)
+    and consistent-hashes it onto a domain-eligible model with healthy failover
+    so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 cache affinity stays
+    isolated across tenants.
+    """
+
+    strategy_name = RoutingStrategyName.EMBEDDING_CACHE_KEY_NAMESPACE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        namespace_prefix: str = "embed",
+    ) -> None:
+        """Initialize embedding-cache key namespace routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            namespace_prefix: Prefix prepended to the tenant sticky key before
+                hashing (must be non-empty).
+
+        Raises:
+            ValueError: If the namespace prefix is empty or whitespace-only.
+        """
+        super().__init__(model_catalog)
+        cleaned_prefix = namespace_prefix.strip()
+        if not cleaned_prefix:
+            raise ValueError("namespace_prefix must be a non-empty string")
+        self._provider_health = provider_health
+        self._namespace_prefix = cleaned_prefix
+
+    def _tenant_scope(self, request: RouterRequest) -> str:
+        """Resolve the tenant/session scope used inside the namespace."""
+        metadata = request.metadata
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def _namespaced_key(self, request: RouterRequest) -> str:
+        """Build the embedding-cache namespace sticky key."""
+        return f"{self._namespace_prefix}:{self._tenant_scope(request)}"
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Pin the namespaced embedding-cache key to a warm model."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        ordered_candidates = sorted(eligible_candidates, key=lambda candidate: candidate.model)
+        namespaced_key = self._namespaced_key(request)
+        digest = sha256(namespaced_key.encode("utf-8")).hexdigest()
+        primary_bucket = int(digest[:8], 16) % len(ordered_candidates)
+
+        for offset in range(len(ordered_candidates)):
+            bucket = (primary_bucket + offset) % len(ordered_candidates)
+            candidate = ordered_candidates[bucket]
+            if self._provider_health.is_available(candidate.provider):
+                failover_note = (
+                    f"failover offset {offset} from primary bucket {primary_bucket}"
+                    if offset > 0
+                    else f"primary bucket {primary_bucket}"
+                )
+                rationale = (
+                    "embedding-cache-key-namespace pinned "
+                    f"'{namespaced_key}' to {candidate.model} ({failover_note}/"
+                    f"{len(ordered_candidates)} namespace ring)"
+                )
+                return self._decision(candidate.model, rationale)
+
+        fallback_candidate = ordered_candidates[primary_bucket]
+        rationale = (
+            "embedding-cache-key-namespace pinned "
+            f"'{namespaced_key}' to {fallback_candidate.model} "
+            f"(primary bucket {primary_bucket}; no healthy providers; "
+            "namespaced sticky fallback)"
+        )
+        return self._decision(fallback_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4720,6 +4813,7 @@ def build_strategies(
     prompt_length_tier_tokens: int = 8000,
     retry_budget_default: int = 3,
     cache_hit_sticky_min_chars: int = 64,
+    embedding_cache_namespace_prefix: str = "embed",
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -4801,6 +4895,8 @@ def build_strategies(
             metadata.retry_remaining for retry-budget-aware-failover routing.
         cache_hit_sticky_min_chars: Minimum prompt-prefix length for
             cache-hit-sticky-warm-pool sticky hashing.
+        embedding_cache_namespace_prefix: Prefix for embedding-cache-key-namespace
+            sticky hashing (isolates tenant/session cache keys).
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -5022,6 +5118,11 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             cache_hit_sticky_min_chars=cache_hit_sticky_min_chars,
+        ),
+        RoutingStrategyName.EMBEDDING_CACHE_KEY_NAMESPACE: EmbeddingCacheKeyNamespaceStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            namespace_prefix=embedding_cache_namespace_prefix,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
