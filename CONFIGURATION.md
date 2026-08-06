@@ -283,6 +283,23 @@ hashing activates (integer >= 1; default `64`).
 See
 [docs/guides/CACHE_HIT_STICKY_WARM_POOL_GUIDE.md](docs/guides/CACHE_HIT_STICKY_WARM_POOL_GUIDE.md).
 
+## Embedding-Cache-Key-Namespace Routing
+
+The `embedding-cache-key-namespace` strategy pins sticky/cache routing under a
+tenant-isolated namespace so embedding-cache keys do not collide across tenants
+for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+
+```dotenv
+NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX=embed
+```
+
+`NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX` is prepended to the tenant/session
+scope before sticky hashing (non-empty string; default `embed`).
+
+See
+[docs/guides/EMBEDDING_CACHE_KEY_NAMESPACE_GUIDE.md](docs/guides/EMBEDDING_CACHE_KEY_NAMESPACE_GUIDE.md).
+
+
 ## Epsilon-Greedy Routing
 
 The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:
@@ -619,6 +636,7 @@ Set `X-Router-Strategy` to one of:
 - `failover-priority`
 - `provider-health-score-blend`
 - `health-cost-latency`
+- `embedding-cache-key-namespace`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

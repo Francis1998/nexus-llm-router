@@ -97,6 +97,7 @@ class RouterSettings(BaseSettings):
     prompt_length_tier_tokens: Annotated[int, Field(ge=1)] = 8000
     retry_budget_default: Annotated[int, Field(ge=0)] = 3
     cache_hit_sticky_min_chars: Annotated[int, Field(ge=1)] = 64
+    embedding_cache_namespace_prefix: str = "embed"
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

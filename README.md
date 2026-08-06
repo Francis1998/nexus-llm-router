@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-354%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-361%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -132,6 +132,7 @@ Select a strategy with `X-Router-Strategy`:
 - `prompt-length-tier-shed`: sheds frontier-tier models when `prompt_tokens_estimate` exceeds `NEXUS_PROMPT_LENGTH_TIER_TOKENS` (default `8000`) and picks the best mid/economy alternative; short prompts keep pure quality ranking — LiteLLM/OpenRouter-style length tier shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `retry-budget-aware-failover`: prefers highest-quality healthy models while `metadata.retry_remaining` (or `NEXUS_RETRY_BUDGET_DEFAULT`, default `3`) is > 1, then failovers to lowest-latency healthy model on the last attempt — LiteLLM/OpenRouter-style retry-budget routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `cache-hit-sticky-warm-pool`: consistent-hashes a long prompt prefix (min `NEXUS_CACHE_HIT_STICKY_MIN_CHARS`, default `64`) onto one domain-eligible model with healthy ring failover so provider prompt caches stay warm across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
+- `embedding-cache-key-namespace`: consistent-hashes `{NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX}:{tenant}` (default prefix `embed`) onto one domain-eligible model with healthy ring failover so embedding/cache keys stay isolated across tenants for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
 - `latency-slo-shed`: sheds providers whose rolling p95 exceeds `NEXUS_LATENCY_SLO_MS` (default `2000`) when faster alternatives exist; prefers highest quality among under-SLO candidates and falls back to lowest latency when every provider is hot — LiteLLM/OpenRouter-style latency SLO shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `adaptive-timeout`: selects the highest-quality model whose risk-adjusted provider p95 fits an adaptive timeout budget derived from request urgency, recent latency, and success/error signals; prefers faster models under realtime pressure and allows slower higher-quality models when comfortable
 - `complexity-tier`: treats the classifier complexity score as a required quality target and picks the cheapest model meeting it — a catalog-adaptive quality-for-cost escalation ladder with no thresholds to tune (falls back to the top-quality model when the target is unreachable)
@@ -173,6 +174,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Soft-family-budget guide](docs/guides/SOFT_FAMILY_BUDGET_GUIDE.md) | Rolling soft spend budgets per provider family |
 | [Sticky-region-failover guide](docs/guides/STICKY_REGION_FAILOVER_GUIDE.md) | Session stickiness with ordered region failover |
 | [Sticky-tenant-hash guide](docs/guides/STICKY_TENANT_HASH_GUIDE.md) | Per-tenant consistent hashing with healthy failover |
+| [Embedding-cache-key-namespace guide](docs/guides/EMBEDDING_CACHE_KEY_NAMESPACE_GUIDE.md) | Tenant-isolated embedding/cache sticky namespace routing |
 | [SLO-aware guide](docs/guides/SLO_AWARE_GUIDE.md) | Availability-SLO quality routing |
 | [Adaptive-timeout guide](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md) | Timeout-adaptive quality routing |
 | [Semantic-cache guide](docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md) | Cache-hit cheapest / miss cost-optimal routing |
