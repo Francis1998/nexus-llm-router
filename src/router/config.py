@@ -99,6 +99,7 @@ class RouterSettings(BaseSettings):
     cache_hit_sticky_min_chars: Annotated[int, Field(ge=1)] = 64
     embedding_cache_namespace_prefix: str = "embed"
     circuit_half_open_probe_budget: Annotated[int, Field(ge=1)] = 2
+    semantic_cache_ttl_seconds: Annotated[float, Field(ge=0.0)] = 300.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

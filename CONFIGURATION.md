@@ -696,3 +696,7 @@ mean cost/1k that triggers shedding (default `2.0`).
 
 See
 [docs/guides/TOKEN_COST_ANOMALY_SHED_GUIDE.md](docs/guides/TOKEN_COST_ANOMALY_SHED_GUIDE.md).
+
+## Semantic-cache TTL affinity
+
+`NEXUS_SEMANTIC_CACHE_TTL_SECONDS` (default `300.0`) is the warm TTL window for semantic-cache-ttl-affinity.
