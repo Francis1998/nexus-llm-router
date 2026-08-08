@@ -4887,6 +4887,116 @@ class CircuitBreakerHalfOpenProbeStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class SemanticCacheTtlAffinityStrategy(RoutingStrategy):
+    """Stick cacheable requests to providers with remaining semantic-cache TTL.
+
+    Popular semantic-cache layers (GPTCache, Redis semantic caches, LiteLLM
+    cache) keep warm embeddings for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2 prompts. This strategy prefers providers whose remaining TTL
+    (``cache_ttl_remaining:<provider>`` metadata, seconds) is positive and
+    within ``NEXUS_SEMANTIC_CACHE_TTL_SECONDS`` when the request is marked
+    cacheable.
+    """
+
+    strategy_name = RoutingStrategyName.SEMANTIC_CACHE_TTL_AFFINITY
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        ttl_seconds: float = 300.0,
+    ) -> None:
+        """Initialize semantic-cache TTL affinity routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view.
+            ttl_seconds: Maximum TTL window considered warm (seconds).
+
+        Raises:
+            ValueError: If ttl_seconds is negative.
+        """
+        super().__init__(model_catalog)
+        if ttl_seconds < 0:
+            raise ValueError(f"ttl_seconds must be >= 0, got {ttl_seconds}")
+        self._provider_health = provider_health
+        self._ttl_seconds = ttl_seconds
+
+    def _ttl_remaining(self, provider: str, request: RouterRequest) -> float:
+        """Return remaining cache TTL seconds for a provider."""
+        raw = request.metadata.get(f"cache_ttl_remaining:{provider}") or request.metadata.get(
+            f"semantic_cache_ttl:{provider}", ""
+        )
+        try:
+            return max(0.0, float(raw)) if str(raw).strip() else 0.0
+        except ValueError:
+            return 0.0
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer warm semantic-cache providers for cacheable requests."""
+        eligible_candidates = (
+            [
+                candidate
+                for candidate in self._model_catalog.values()
+                if signals.domain_tag in candidate.supports_domains
+                and self._provider_health.is_available(candidate.provider)
+            ]
+            or [
+                candidate
+                for candidate in self._model_catalog.values()
+                if self._provider_health.is_available(candidate.provider)
+            ]
+            or list(self._model_catalog.values())
+        )
+
+        cacheable = str(request.metadata.get("cacheable", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "cacheable",
+        }
+        ttls = {
+            candidate.provider: self._ttl_remaining(candidate.provider, request)
+            for candidate in eligible_candidates
+        }
+        warm = [
+            candidate
+            for candidate in eligible_candidates
+            if 0.0 < ttls[candidate.provider] <= self._ttl_seconds
+        ]
+        if cacheable and warm:
+            selected = max(
+                warm,
+                key=lambda c: (
+                    ttls[c.provider],
+                    c.quality_score,
+                    -c.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    c.model,
+                ),
+            )
+            rationale = (
+                "semantic-cache-ttl-affinity pinned warm provider "
+                f"{selected.provider} (ttl remaining {ttls[selected.provider]:.1f}s / "
+                f"{self._ttl_seconds:.1f}s)"
+            )
+            return self._decision(selected.model, rationale)
+
+        selected = max(
+            eligible_candidates,
+            key=lambda c: (
+                c.quality_score,
+                -c.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                c.model,
+            ),
+        )
+        rationale = (
+            "semantic-cache-ttl-affinity fallback quality route to "
+            f"{selected.model} on {selected.provider} "
+            f"(cacheable={cacheable}; warm_providers={len(warm)})"
+        )
+        return self._decision(selected.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4940,6 +5050,7 @@ def build_strategies(
     cache_hit_sticky_min_chars: int = 64,
     embedding_cache_namespace_prefix: str = "embed",
     circuit_half_open_probe_budget: int = 2,
+    semantic_cache_ttl_seconds: float = 300.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -5258,6 +5369,11 @@ def build_strategies(
             provider_health=provider_health,
             inflight_stats=inflight_stats,
             probe_budget=circuit_half_open_probe_budget,
+        ),
+        RoutingStrategyName.SEMANTIC_CACHE_TTL_AFFINITY: SemanticCacheTtlAffinityStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            ttl_seconds=semantic_cache_ttl_seconds,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
