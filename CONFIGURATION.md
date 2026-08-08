@@ -335,6 +335,27 @@ per tenant/provider pair before that provider is skipped for the tenant
 See
 [docs/guides/TENANT_CONCURRENCY_LEASE_GUIDE.md](docs/guides/TENANT_CONCURRENCY_LEASE_GUIDE.md).
 
+## Provider-Error-Budget-Shed Routing
+
+The `provider-error-budget-shed` strategy prefers healthy domain-eligible
+providers whose rolling provider error rate stays within budget. Error rate is
+derived from shared `SuccessStats` as `1 - success_rate(provider)`, so providers
+with no observations start at 0% error and remain eligible for cold-start
+traffic across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 backends.
+
+```dotenv
+NEXUS_PROVIDER_ERROR_BUDGET_RATE=0.15
+```
+
+`NEXUS_PROVIDER_ERROR_BUDGET_RATE` is the maximum rolling provider error rate
+accepted for primary selection (float in `[0.0, 1.0]`; default `0.15`). Among
+under-budget candidates the strategy selects highest quality; when every
+eligible provider is over budget it falls back to lowest error rate, then
+highest quality.
+
+See
+[docs/guides/PROVIDER_ERROR_BUDGET_SHED_GUIDE.md](docs/guides/PROVIDER_ERROR_BUDGET_SHED_GUIDE.md).
+
 
 ## Epsilon-Greedy Routing
 

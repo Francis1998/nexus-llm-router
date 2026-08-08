@@ -5349,6 +5349,151 @@ class TenantConcurrencyLeaseStrategy(RoutingStrategy):
         )
 
 
+class ProviderErrorBudgetShedStrategy(RoutingStrategy):
+    """Prefer providers whose rolling error rate stays within budget.
+
+    Large multi-provider fleets need a soft error-budget guard before circuit
+    breakers fully open. This strategy filters to domain-eligible healthy
+    providers, keeps providers whose ``SuccessStats``-derived error rate is at
+    or below ``NEXUS_PROVIDER_ERROR_BUDGET_RATE`` (default ``0.15``), then picks
+    the highest-quality model. If every eligible provider is over budget, it
+    sheds toward the lowest error rate before quality so GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic avoids degrading backends.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_ERROR_BUDGET_SHED
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        success_stats: SuccessStats,
+        provider_error_budget_rate: float = 0.15,
+    ) -> None:
+        """Initialize provider-error-budget-shed routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view.
+            success_stats: Rolling provider success observations.
+            provider_error_budget_rate: Maximum acceptable rolling error rate
+                within ``[0.0, 1.0]`` before a provider is shed.
+
+        Raises:
+            ValueError: If the error-budget rate is outside ``[0.0, 1.0]``.
+        """
+        super().__init__(model_catalog)
+        if not 0.0 <= provider_error_budget_rate <= 1.0:
+            raise ValueError(
+                "provider_error_budget_rate must be within [0.0, 1.0], "
+                f"got {provider_error_budget_rate}"
+            )
+        self._provider_health = provider_health
+        self._success_stats = success_stats
+        self._provider_error_budget_rate = provider_error_budget_rate
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the highest-quality healthy provider under the error budget."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active_candidates = healthy_candidates or eligible_candidates
+        error_rates = {
+            candidate.model: self._provider_error_rate(candidate.provider)
+            for candidate in active_candidates
+        }
+        under_budget = [
+            candidate
+            for candidate in active_candidates
+            if error_rates[candidate.model] <= self._provider_error_budget_rate
+        ]
+
+        if under_budget:
+            selected_candidate = max(
+                under_budget,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -error_rates[candidate.model],
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "provider-error-budget-shed selected highest-quality provider under "
+                f"error budget {self._provider_error_budget_rate:.2%}; "
+                f"{selected_candidate.provider} error "
+                f"{error_rates[selected_candidate.model]:.2%}, quality "
+                f"{selected_candidate.quality_score:.2f}"
+            )
+            if not healthy_candidates:
+                rationale += "; no closed circuits were available"
+        else:
+            selected_candidate = min(
+                active_candidates,
+                key=lambda candidate: (
+                    error_rates[candidate.model],
+                    -candidate.quality_score,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "provider-error-budget-shed found every eligible provider over "
+                f"error budget {self._provider_error_budget_rate:.2%}; "
+                f"routed to lowest-error provider {selected_candidate.provider} "
+                f"({error_rates[selected_candidate.model]:.2%}) with quality "
+                f"{selected_candidate.quality_score:.2f}"
+            )
+            if not healthy_candidates:
+                rationale += "; no closed circuits were available"
+
+        fallback_candidates = self._ordered_fallback_candidates(
+            selected_candidate.model,
+            eligible_candidates,
+            request,
+            signals,
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+    def _provider_error_rate(self, provider: str) -> float:
+        """Return a provider's rolling error rate from success observations."""
+        return max(0.0, min(1.0, 1.0 - self._success_stats.success_rate(provider)))
+
+    def _ordered_fallback_candidates(
+        self,
+        chosen_model: str,
+        eligible_candidates: list[ModelCandidate],
+        request: RouterRequest,
+        signals: TaskSignals,
+    ) -> list[ModelCandidate]:
+        """Order fallbacks by health, error-budget status, error, and quality."""
+        return sorted(
+            [candidate for candidate in eligible_candidates if candidate.model != chosen_model],
+            key=lambda candidate: (
+                not self._provider_health.is_available(candidate.provider),
+                self._provider_error_rate(candidate.provider)
+                > self._provider_error_budget_rate,
+                self._provider_error_rate(candidate.provider),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -5406,6 +5551,7 @@ def build_strategies(
     provider_spend_soft_usd: float = 10.0,
     carbon_aware_max_intensity: float = 400.0,
     tenant_concurrency_lease: int = 8,
+    provider_error_budget_rate: float = 0.15,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -5492,6 +5638,8 @@ def build_strategies(
         circuit_half_open_probe_budget: Maximum concurrent in-flight attempts
             across half-open providers for circuit-breaker-half-open-probe
             routing.
+        provider_error_budget_rate: Maximum provider rolling error rate for
+            provider-error-budget-shed routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -5744,6 +5892,12 @@ def build_strategies(
             model_catalog=model_catalog,
             inflight_stats=inflight_stats,
             tenant_concurrency_lease=tenant_concurrency_lease,
+        ),
+        RoutingStrategyName.PROVIDER_ERROR_BUDGET_SHED: ProviderErrorBudgetShedStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            success_stats=resolved_success_stats,
+            provider_error_budget_rate=provider_error_budget_rate,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

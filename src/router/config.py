@@ -103,6 +103,7 @@ class RouterSettings(BaseSettings):
     provider_spend_soft_usd: Annotated[float, Field(ge=0.0)] = 10.0
     carbon_aware_max_intensity: Annotated[float, Field(ge=0.0)] = 400.0
     tenant_concurrency_lease: Annotated[int, Field(ge=1)] = 8
+    provider_error_budget_rate: Annotated[float, Field(ge=0.0, le=1.0)] = 0.15
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
