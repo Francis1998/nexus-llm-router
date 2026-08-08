@@ -5098,6 +5098,101 @@ class ProviderSpendTelemetryStrategy(RoutingStrategy):
         return self._decision(selected.model, rationale)
 
 
+class CarbonAwarePreferenceStrategy(RoutingStrategy):
+    """Prefer providers with lower carbon intensity for eligible models.
+
+    Sustainability-aware gateways increasingly bias GPT-5.5 / Claude Sonnet 4.6 /
+    Gemini 3.x / Kimi K2 traffic toward lower-carbon regions. This strategy
+    reads ``carbon_intensity:<provider>`` (gCO2eq/kWh) from request metadata
+    (with a regional heuristic fallback) and prefers intensities at or below
+    ``NEXUS_CARBON_AWARE_MAX_INTENSITY``.
+    """
+
+    strategy_name = RoutingStrategyName.CARBON_AWARE_PREFERENCE
+
+    _REGION_DEFAULTS = {
+        "eu": 250.0,
+        "us": 380.0,
+        "cn": 550.0,
+        "global": 420.0,
+    }
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        max_intensity: float = 400.0,
+    ) -> None:
+        """Initialize carbon-aware preference routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view.
+            max_intensity: Soft maximum carbon intensity (gCO2eq/kWh).
+
+        Raises:
+            ValueError: If max_intensity is negative.
+        """
+        super().__init__(model_catalog)
+        if max_intensity < 0:
+            raise ValueError(f"max_intensity must be >= 0, got {max_intensity}")
+        self._provider_health = provider_health
+        self._max_intensity = max_intensity
+
+    def _intensity_for(self, candidate: ModelCandidate, request: RouterRequest) -> float:
+        """Resolve carbon intensity for a candidate from metadata or region."""
+        raw = request.metadata.get(f"carbon_intensity:{candidate.provider}")
+        if raw is not None and str(raw).strip():
+            try:
+                return max(0.0, float(raw))
+            except ValueError:
+                pass
+        region = (
+            request.metadata.get("region") or request.metadata.get("preferred_region") or "global"
+        ).lower()
+        return float(self._REGION_DEFAULTS.get(region, self._REGION_DEFAULTS["global"]))
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer lower-carbon eligible healthy providers under the intensity cap."""
+        eligible_candidates = (
+            [
+                candidate
+                for candidate in self._model_catalog.values()
+                if signals.domain_tag in candidate.supports_domains
+                and self._provider_health.is_available(candidate.provider)
+            ]
+            or [
+                candidate
+                for candidate in self._model_catalog.values()
+                if self._provider_health.is_available(candidate.provider)
+            ]
+            or list(self._model_catalog.values())
+        )
+
+        intensities = {
+            candidate.model: self._intensity_for(candidate, request)
+            for candidate in eligible_candidates
+        }
+        under_cap = [c for c in eligible_candidates if intensities[c.model] <= self._max_intensity]
+        pool = under_cap or eligible_candidates
+        selected = min(
+            pool,
+            key=lambda c: (
+                intensities[c.model],
+                -c.quality_score,
+                c.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                c.model,
+            ),
+        )
+        rationale = (
+            "carbon-aware-preference selected "
+            f"{selected.model} on {selected.provider} "
+            f"(intensity {intensities[selected.model]:.1f} gCO2eq/kWh; "
+            f"max {self._max_intensity:.1f})"
+        )
+        return self._decision(selected.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -5153,6 +5248,7 @@ def build_strategies(
     circuit_half_open_probe_budget: int = 2,
     semantic_cache_ttl_seconds: float = 300.0,
     provider_spend_soft_usd: float = 10.0,
+    carbon_aware_max_intensity: float = 400.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -5481,6 +5577,11 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             soft_spend_usd=provider_spend_soft_usd,
+        ),
+        RoutingStrategyName.CARBON_AWARE_PREFERENCE: CarbonAwarePreferenceStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            max_intensity=carbon_aware_max_intensity,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

@@ -74,6 +74,7 @@ class RoutingStrategyName(StrEnum):
     CIRCUIT_BREAKER_HALF_OPEN_PROBE = "circuit-breaker-half-open-probe"
     SEMANTIC_CACHE_TTL_AFFINITY = "semantic-cache-ttl-affinity"
     PROVIDER_SPEND_TELEMETRY = "provider-spend-telemetry"
+    CARBON_AWARE_PREFERENCE = "carbon-aware-preference"
     AB_TEST = "ab"
 
 

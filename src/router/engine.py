@@ -136,6 +136,7 @@ class NexusRouter:
             circuit_half_open_probe_budget=settings.circuit_half_open_probe_budget,
             semantic_cache_ttl_seconds=settings.semantic_cache_ttl_seconds,
             provider_spend_soft_usd=settings.provider_spend_soft_usd,
+            carbon_aware_max_intensity=settings.carbon_aware_max_intensity,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

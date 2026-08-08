@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-382%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-389%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -133,6 +133,7 @@ Select a strategy with `X-Router-Strategy`:
 - `retry-budget-aware-failover`: prefers highest-quality healthy models while `metadata.retry_remaining` (or `NEXUS_RETRY_BUDGET_DEFAULT`, default `3`) is > 1, then failovers to lowest-latency healthy model on the last attempt — LiteLLM/OpenRouter-style retry-budget routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `cache-hit-sticky-warm-pool`: consistent-hashes a long prompt prefix (min `NEXUS_CACHE_HIT_STICKY_MIN_CHARS`, default `64`) onto one domain-eligible model with healthy ring failover so provider prompt caches stay warm across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
 - `embedding-cache-key-namespace`: consistent-hashes `{NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX}:{tenant}` (default prefix `embed`) onto one domain-eligible model with healthy ring failover so embedding/cache keys stay isolated across tenants for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
+- `carbon-aware-preference`: prefers lower carbon-intensity providers under `NEXUS_CARBON_AWARE_MAX_INTENSITY` (default `400`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-spend-telemetry`: prefers lower-spend providers once soft USD spend telemetry exceeds `NEXUS_PROVIDER_SPEND_SOFT_USD` (default `10`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 fleets
 - `semantic-cache-ttl-affinity`: pins cacheable requests to providers with warm TTL under `NEXUS_SEMANTIC_CACHE_TTL_SECONDS` (default `300`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `circuit-breaker-half-open-probe`: prefers healthy closed providers and allows only limited concurrent probes into half-open/recovering providers (`NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET`, default `2`) — LiteLLM/Portkey-style half-open probe budgeting for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
