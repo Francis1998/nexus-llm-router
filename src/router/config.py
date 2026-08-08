@@ -98,6 +98,7 @@ class RouterSettings(BaseSettings):
     retry_budget_default: Annotated[int, Field(ge=0)] = 3
     cache_hit_sticky_min_chars: Annotated[int, Field(ge=1)] = 64
     embedding_cache_namespace_prefix: str = "embed"
+    circuit_half_open_probe_budget: Annotated[int, Field(ge=1)] = 2
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

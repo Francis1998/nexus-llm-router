@@ -71,6 +71,7 @@ class RoutingStrategyName(StrEnum):
     RETRY_BUDGET_AWARE_FAILOVER = "retry-budget-aware-failover"
     CACHE_HIT_STICKY_WARM_POOL = "cache-hit-sticky-warm-pool"
     EMBEDDING_CACHE_KEY_NAMESPACE = "embedding-cache-key-namespace"
+    CIRCUIT_BREAKER_HALF_OPEN_PROBE = "circuit-breaker-half-open-probe"
     AB_TEST = "ab"
 
 

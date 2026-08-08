@@ -300,6 +300,24 @@ See
 [docs/guides/EMBEDDING_CACHE_KEY_NAMESPACE_GUIDE.md](docs/guides/EMBEDDING_CACHE_KEY_NAMESPACE_GUIDE.md).
 
 
+## Circuit-Breaker-Half-Open-Probe Routing
+
+The `circuit-breaker-half-open-probe` strategy prefers healthy closed providers
+and allows only limited concurrent probes into half-open/recovering providers
+for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+
+```dotenv
+NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET=2
+```
+
+`NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET` is the maximum concurrent in-flight
+attempts across half-open providers before probes are deferred (integer >= 1;
+default `2`).
+
+See
+[docs/guides/CIRCUIT_BREAKER_HALF_OPEN_PROBE_GUIDE.md](docs/guides/CIRCUIT_BREAKER_HALF_OPEN_PROBE_GUIDE.md).
+
+
 ## Epsilon-Greedy Routing
 
 The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:
@@ -637,6 +655,7 @@ Set `X-Router-Strategy` to one of:
 - `provider-health-score-blend`
 - `health-cost-latency`
 - `embedding-cache-key-namespace`
+- `circuit-breaker-half-open-probe`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

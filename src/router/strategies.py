@@ -4762,6 +4762,131 @@ class EmbeddingCacheKeyNamespaceStrategy(RoutingStrategy):
         return self._decision(fallback_candidate.model, rationale)
 
 
+class CircuitBreakerHalfOpenProbeStrategy(RoutingStrategy):
+    """Prefer healthy providers; allow limited probes into half-open circuits.
+
+    When a provider circuit opens after failures, the recovery window eventually
+    allows a probe. Unbounded probe traffic can slam recovering GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 backends (a LiteLLM/Portkey-style
+    gap). This strategy prefers fully closed (healthy) providers, and only
+    routes to half-open/recovering providers while live probe load stays under
+    ``NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET``.
+    """
+
+    strategy_name = RoutingStrategyName.CIRCUIT_BREAKER_HALF_OPEN_PROBE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        inflight_stats: InflightStats,
+        probe_budget: int = 2,
+    ) -> None:
+        """Initialize circuit-breaker half-open probe routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            inflight_stats: Live provider in-flight attempt counters used to
+                measure concurrent probe load on recovering providers.
+            probe_budget: Maximum concurrent in-flight attempts allowed across
+                half-open providers before probes are deferred (must be >= 1).
+
+        Raises:
+            ValueError: If the probe budget is less than 1.
+        """
+        super().__init__(model_catalog)
+        if probe_budget < 1:
+            raise ValueError(f"probe_budget must be >= 1, got {probe_budget}")
+        self._provider_health = provider_health
+        self._inflight_stats = inflight_stats
+        self._probe_budget = probe_budget
+
+    def _is_half_open(self, provider: str) -> bool:
+        """Return whether a provider is in the half-open recovery window."""
+        half_open = getattr(self._provider_health, "is_half_open", None)
+        if callable(half_open):
+            return bool(half_open(provider))
+        return False
+
+    def _quality_key(
+        self, candidate: ModelCandidate, request: RouterRequest, signals: TaskSignals
+    ) -> tuple[float, float, str]:
+        """Rank candidates by quality, then cheaper estimated cost, then name."""
+        return (
+            candidate.quality_score,
+            -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+            candidate.model,
+        )
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer healthy providers; probe half-open ones under the budget."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        healthy_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._provider_health.is_available(candidate.provider)
+            and not self._is_half_open(candidate.provider)
+        ]
+        half_open_candidates = [
+            candidate for candidate in eligible_candidates if self._is_half_open(candidate.provider)
+        ]
+
+        if healthy_candidates:
+            selected_candidate = max(
+                healthy_candidates,
+                key=lambda candidate: self._quality_key(candidate, request, signals),
+            )
+            rationale = (
+                "circuit-breaker-half-open-probe preferred healthy provider "
+                f"{selected_candidate.provider} (quality "
+                f"{selected_candidate.quality_score:.2f}; probe budget "
+                f"{self._probe_budget})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        if half_open_candidates:
+            half_open_providers = {candidate.provider for candidate in half_open_candidates}
+            probe_inflight = sum(
+                self._inflight_stats.load_score(provider) for provider in half_open_providers
+            )
+            selected_candidate = max(
+                half_open_candidates,
+                key=lambda candidate: self._quality_key(candidate, request, signals),
+            )
+            if probe_inflight < self._probe_budget:
+                rationale = (
+                    "circuit-breaker-half-open-probe allowed recovery probe to "
+                    f"{selected_candidate.provider} (half-open load "
+                    f"{probe_inflight}/{self._probe_budget}; quality "
+                    f"{selected_candidate.quality_score:.2f})"
+                )
+            else:
+                rationale = (
+                    "circuit-breaker-half-open-probe probe budget exhausted "
+                    f"({probe_inflight}/{self._probe_budget}); routed to "
+                    f"half-open fallback {selected_candidate.provider} "
+                    f"(quality {selected_candidate.quality_score:.2f})"
+                )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: self._quality_key(candidate, request, signals),
+        )
+        rationale = (
+            "circuit-breaker-half-open-probe found no healthy or half-open "
+            "provider; routed to highest-quality eligible "
+            f"{selected_candidate.model}"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -4814,6 +4939,7 @@ def build_strategies(
     retry_budget_default: int = 3,
     cache_hit_sticky_min_chars: int = 64,
     embedding_cache_namespace_prefix: str = "embed",
+    circuit_half_open_probe_budget: int = 2,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -4897,6 +5023,9 @@ def build_strategies(
             cache-hit-sticky-warm-pool sticky hashing.
         embedding_cache_namespace_prefix: Prefix for embedding-cache-key-namespace
             sticky hashing (isolates tenant/session cache keys).
+        circuit_half_open_probe_budget: Maximum concurrent in-flight attempts
+            across half-open providers for circuit-breaker-half-open-probe
+            routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -5123,6 +5252,12 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             namespace_prefix=embedding_cache_namespace_prefix,
+        ),
+        RoutingStrategyName.CIRCUIT_BREAKER_HALF_OPEN_PROBE: CircuitBreakerHalfOpenProbeStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            inflight_stats=inflight_stats,
+            probe_budget=circuit_half_open_probe_budget,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
