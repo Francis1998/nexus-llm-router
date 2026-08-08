@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `provider-spend-telemetry` routing strategy with `NEXUS_PROVIDER_SPEND_SOFT_USD` (GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2).
 - `semantic-cache-ttl-affinity` routing strategy with `NEXUS_SEMANTIC_CACHE_TTL_SECONDS` (GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2).
 - `circuit-breaker-half-open-probe` routing strategy: prefers fully closed (healthy) providers and allows limited concurrent probes into half-open/recovering providers while live probe load stays under `NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET` (default `2`). Targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/CIRCUIT_BREAKER_HALF_OPEN_PROBE_GUIDE.md`.
 - `embedding-cache-key-namespace` routing strategy: consistent-hashes `{NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX}:{tenant}` (default prefix `embed`) onto one domain-eligible model with healthy ring failover so embedding/cache affinity stays isolated across tenants. Targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/EMBEDDING_CACHE_KEY_NAMESPACE_GUIDE.md`.

@@ -135,6 +135,7 @@ class NexusRouter:
             embedding_cache_namespace_prefix=settings.embedding_cache_namespace_prefix,
             circuit_half_open_probe_budget=settings.circuit_half_open_probe_budget,
             semantic_cache_ttl_seconds=settings.semantic_cache_ttl_seconds,
+            provider_spend_soft_usd=settings.provider_spend_soft_usd,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
