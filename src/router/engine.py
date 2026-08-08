@@ -137,6 +137,7 @@ class NexusRouter:
             semantic_cache_ttl_seconds=settings.semantic_cache_ttl_seconds,
             provider_spend_soft_usd=settings.provider_spend_soft_usd,
             carbon_aware_max_intensity=settings.carbon_aware_max_intensity,
+            tenant_concurrency_lease=settings.tenant_concurrency_lease,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -217,13 +218,16 @@ class NexusRouter:
                 if dispatchable_state:
                     state_machine.transition(RequestState.DISPATCHED)
                 sanitized_messages = self._pii_scrubber.scrub_messages(request.messages)
+                tenant_key = self._tenant_inflight_key(request)
                 self._inflight_stats.begin(candidate.provider)
+                self._inflight_stats.begin_for_tenant(tenant_key, candidate.provider)
                 try:
                     provider_response = await asyncio.wait_for(
                         adapter.complete(model_name, sanitized_messages, request.max_tokens),
                         timeout=self._settings.provider_settings.request_timeout_seconds,
                     )
                 finally:
+                    self._inflight_stats.finish_for_tenant(tenant_key, candidate.provider)
                     self._inflight_stats.finish(candidate.provider)
                 return self._respond(
                     request=request,
@@ -324,6 +328,19 @@ class NexusRouter:
             cost_usd=response.cost_usd,
         )
         return response
+
+    @staticmethod
+    def _tenant_inflight_key(request: RouterRequest) -> str:
+        """Resolve the tenant/session key used for tenant-scoped InflightStats."""
+        metadata = request.metadata
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
 
     @staticmethod
     def _rationale(base_rationale: str, model_name: str, attempt_index: int) -> str:

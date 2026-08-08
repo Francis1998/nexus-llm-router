@@ -318,6 +318,24 @@ See
 [docs/guides/CIRCUIT_BREAKER_HALF_OPEN_PROBE_GUIDE.md](docs/guides/CIRCUIT_BREAKER_HALF_OPEN_PROBE_GUIDE.md).
 
 
+## Tenant-Concurrency-Lease Routing
+
+The `tenant-concurrency-lease` strategy prefers providers with remaining
+per-tenant in-flight headroom so one noisy tenant cannot saturate GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 backends for everyone else.
+
+```dotenv
+NEXUS_TENANT_CONCURRENCY_LEASE=8
+```
+
+`NEXUS_TENANT_CONCURRENCY_LEASE` is the maximum concurrent in-flight attempts
+per tenant/provider pair before that provider is skipped for the tenant
+(integer >= 1; default `8`).
+
+See
+[docs/guides/TENANT_CONCURRENCY_LEASE_GUIDE.md](docs/guides/TENANT_CONCURRENCY_LEASE_GUIDE.md).
+
+
 ## Epsilon-Greedy Routing
 
 The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:

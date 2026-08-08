@@ -102,6 +102,7 @@ class RouterSettings(BaseSettings):
     semantic_cache_ttl_seconds: Annotated[float, Field(ge=0.0)] = 300.0
     provider_spend_soft_usd: Annotated[float, Field(ge=0.0)] = 10.0
     carbon_aware_max_intensity: Annotated[float, Field(ge=0.0)] = 400.0
+    tenant_concurrency_lease: Annotated[int, Field(ge=1)] = 8
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

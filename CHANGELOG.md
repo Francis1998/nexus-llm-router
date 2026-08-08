@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `tenant-concurrency-lease` routing strategy: prefers domain-eligible providers with remaining per-tenant in-flight headroom via tenant-scoped `InflightStats` keys (`NEXUS_TENANT_CONCURRENCY_LEASE`, default `8`), falling back to the least-loaded tenant/provider pair when every lease is saturated. Targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/TENANT_CONCURRENCY_LEASE_GUIDE.md`.
 - `carbon-aware-preference` routing strategy with `NEXUS_CARBON_AWARE_MAX_INTENSITY`.
 - `provider-spend-telemetry` routing strategy with `NEXUS_PROVIDER_SPEND_SOFT_USD` (GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2).
 - `semantic-cache-ttl-affinity` routing strategy with `NEXUS_SEMANTIC_CACHE_TTL_SECONDS` (GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2).
