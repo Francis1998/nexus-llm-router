@@ -138,6 +138,7 @@ class NexusRouter:
             provider_spend_soft_usd=settings.provider_spend_soft_usd,
             carbon_aware_max_intensity=settings.carbon_aware_max_intensity,
             tenant_concurrency_lease=settings.tenant_concurrency_lease,
+            provider_error_budget_rate=settings.provider_error_budget_rate,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

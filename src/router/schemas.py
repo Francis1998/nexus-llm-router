@@ -76,6 +76,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_SPEND_TELEMETRY = "provider-spend-telemetry"
     CARBON_AWARE_PREFERENCE = "carbon-aware-preference"
     TENANT_CONCURRENCY_LEASE = "tenant-concurrency-lease"
+    PROVIDER_ERROR_BUDGET_SHED = "provider-error-budget-shed"
     AB_TEST = "ab"
 
 
