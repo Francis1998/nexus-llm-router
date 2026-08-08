@@ -4997,6 +4997,107 @@ class SemanticCacheTtlAffinityStrategy(RoutingStrategy):
         return self._decision(selected.model, rationale)
 
 
+class ProviderSpendTelemetryStrategy(RoutingStrategy):
+    """Prefer lower estimated provider spend when soft spend threshold is exceeded.
+
+    Gateway routers (LiteLLM / Portkey style) increasingly expose spend
+    telemetry so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic can
+    shed away from high-burn providers. This strategy ranks eligible healthy
+    providers by estimated spend from request metadata (``provider_spend_usd``
+    keyed as ``spend:<provider>``) once any observed spend meets the soft USD
+    threshold.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_SPEND_TELEMETRY
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        soft_spend_usd: float = 10.0,
+    ) -> None:
+        """Initialize provider spend telemetry routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view.
+            soft_spend_usd: Soft spend threshold in USD that activates
+                spend-aware preference (must be >= 0).
+
+        Raises:
+            ValueError: If soft_spend_usd is negative.
+        """
+        super().__init__(model_catalog)
+        if soft_spend_usd < 0:
+            raise ValueError(f"soft_spend_usd must be >= 0, got {soft_spend_usd}")
+        self._provider_health = provider_health
+        self._soft_spend_usd = soft_spend_usd
+
+    def _spend_for(self, provider: str, request: RouterRequest) -> float:
+        """Return estimated spend USD for a provider from request metadata."""
+        raw = request.metadata.get(f"spend:{provider}") or request.metadata.get(
+            f"provider_spend_usd:{provider}", ""
+        )
+        try:
+            return max(0.0, float(raw)) if str(raw).strip() else 0.0
+        except ValueError:
+            return 0.0
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a model preferring lower spend when soft threshold is met."""
+        eligible_candidates = (
+            [
+                candidate
+                for candidate in self._model_catalog.values()
+                if signals.domain_tag in candidate.supports_domains
+                and self._provider_health.is_available(candidate.provider)
+            ]
+            or [
+                candidate
+                for candidate in self._model_catalog.values()
+                if self._provider_health.is_available(candidate.provider)
+            ]
+            or list(self._model_catalog.values())
+        )
+
+        spends = {
+            candidate.provider: self._spend_for(candidate.provider, request)
+            for candidate in eligible_candidates
+        }
+        max_spend = max(spends.values()) if spends else 0.0
+        if max_spend < self._soft_spend_usd:
+            selected = max(
+                eligible_candidates,
+                key=lambda c: (
+                    c.quality_score,
+                    -c.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    c.model,
+                ),
+            )
+            rationale = (
+                "provider-spend-telemetry under soft spend "
+                f"{self._soft_spend_usd:.2f} USD (max observed {max_spend:.2f}); "
+                f"selected {selected.model} on {selected.provider}"
+            )
+            return self._decision(selected.model, rationale)
+
+        selected = min(
+            eligible_candidates,
+            key=lambda c: (
+                spends[c.provider],
+                -c.quality_score,
+                c.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                c.model,
+            ),
+        )
+        rationale = (
+            "provider-spend-telemetry preferred lower-spend provider "
+            f"{selected.provider} (spend {spends[selected.provider]:.2f} USD; "
+            f"soft threshold {self._soft_spend_usd:.2f})"
+        )
+        return self._decision(selected.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -5051,6 +5152,7 @@ def build_strategies(
     embedding_cache_namespace_prefix: str = "embed",
     circuit_half_open_probe_budget: int = 2,
     semantic_cache_ttl_seconds: float = 300.0,
+    provider_spend_soft_usd: float = 10.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -5374,6 +5476,11 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             ttl_seconds=semantic_cache_ttl_seconds,
+        ),
+        RoutingStrategyName.PROVIDER_SPEND_TELEMETRY: ProviderSpendTelemetryStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            soft_spend_usd=provider_spend_soft_usd,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

@@ -100,6 +100,7 @@ class RouterSettings(BaseSettings):
     embedding_cache_namespace_prefix: str = "embed"
     circuit_half_open_probe_budget: Annotated[int, Field(ge=1)] = 2
     semantic_cache_ttl_seconds: Annotated[float, Field(ge=0.0)] = 300.0
+    provider_spend_soft_usd: Annotated[float, Field(ge=0.0)] = 10.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

@@ -73,6 +73,7 @@ class RoutingStrategyName(StrEnum):
     EMBEDDING_CACHE_KEY_NAMESPACE = "embedding-cache-key-namespace"
     CIRCUIT_BREAKER_HALF_OPEN_PROBE = "circuit-breaker-half-open-probe"
     SEMANTIC_CACHE_TTL_AFFINITY = "semantic-cache-ttl-affinity"
+    PROVIDER_SPEND_TELEMETRY = "provider-spend-telemetry"
     AB_TEST = "ab"
 
 
