@@ -1399,3 +1399,7 @@ See
 ## Provider spend telemetry
 
 `NEXUS_PROVIDER_SPEND_SOFT_USD` (default `10.0`) activates lower-spend preference once any provider spend metadata meets the soft threshold.
+
+## Carbon-aware preference
+
+`NEXUS_CARBON_AWARE_MAX_INTENSITY` (default `400.0`).
