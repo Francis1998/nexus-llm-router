@@ -294,6 +294,32 @@ class InflightStats:
         return self._inflight.get(provider, 0)
 
 
+    @staticmethod
+    def tenant_provider_key(tenant_key: str, provider: str) -> str:
+        """Build a composite InflightStats key for tenant-scoped load.
+
+        Args:
+            tenant_key: Tenant or session identity.
+            provider: Provider name.
+
+        Returns:
+            Composite key used by tenant concurrency lease tracking.
+        """
+        return f"tenant:{tenant_key}|provider:{provider}"
+
+    def begin_for_tenant(self, tenant_key: str, provider: str) -> None:
+        """Record a tenant-scoped in-flight attempt for a provider."""
+        self.begin(self.tenant_provider_key(tenant_key, provider))
+
+    def finish_for_tenant(self, tenant_key: str, provider: str) -> None:
+        """Clear a tenant-scoped in-flight attempt for a provider."""
+        self.finish(self.tenant_provider_key(tenant_key, provider))
+
+    def tenant_load_score(self, tenant_key: str, provider: str) -> int:
+        """Return live in-flight count for a tenant on a provider."""
+        return self.load_score(self.tenant_provider_key(tenant_key, provider))
+
+
 class RateLimitStats:
     """Rolling provider rate-limit observations used by soft-rate-limit routing."""
 
@@ -5193,6 +5219,136 @@ class CarbonAwarePreferenceStrategy(RoutingStrategy):
         return self._decision(selected.model, rationale)
 
 
+
+class TenantConcurrencyLeaseStrategy(RoutingStrategy):
+    """Prefer providers with remaining per-tenant concurrency lease headroom.
+
+    Global concurrency caps ignore multi-tenant fairness: one noisy tenant can
+    saturate a provider for everyone else. This strategy resolves a tenant key
+    from ``metadata.tenant_id`` (then ``user_id`` / ``sticky_key`` /
+    ``session_id``) and prefers domain-eligible models whose
+    tenant-scoped ``InflightStats`` load stays below
+    ``NEXUS_TENANT_CONCURRENCY_LEASE``. When every provider is at the lease it
+    falls back to the least-loaded tenant/provider pair so GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic keeps moving.
+    """
+
+    strategy_name = RoutingStrategyName.TENANT_CONCURRENCY_LEASE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        inflight_stats: InflightStats,
+        tenant_concurrency_lease: int = 8,
+    ) -> None:
+        """Initialize per-tenant concurrency lease routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            inflight_stats: Live in-flight counters, including tenant-scoped keys.
+            tenant_concurrency_lease: Maximum concurrent in-flight attempts per
+                tenant/provider pair before that provider is skipped (must be >= 1).
+
+        Raises:
+            ValueError: If the lease is less than 1.
+        """
+        super().__init__(model_catalog)
+        if tenant_concurrency_lease < 1:
+            raise ValueError(
+                f"tenant_concurrency_lease must be >= 1, got {tenant_concurrency_lease}"
+            )
+        self._inflight_stats = inflight_stats
+        self._tenant_concurrency_lease = tenant_concurrency_lease
+
+    def _tenant_key(self, request: RouterRequest) -> str:
+        """Resolve the tenant/session key used for lease accounting."""
+        metadata = request.metadata
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best model still under the tenant concurrency lease."""
+        tenant_key = self._tenant_key(request)
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        under_lease_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._inflight_stats.tenant_load_score(tenant_key, candidate.provider)
+            < self._tenant_concurrency_lease
+        ]
+
+        if under_lease_candidates:
+            selected_candidate = max(
+                under_lease_candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            load_score = self._inflight_stats.tenant_load_score(
+                tenant_key, selected_candidate.provider
+            )
+            rationale = (
+                "tenant-concurrency-lease selected under lease "
+                f"{self._tenant_concurrency_lease} for tenant '{tenant_key}'; "
+                f"{selected_candidate.provider} load {load_score}/"
+                f"{self._tenant_concurrency_lease} with highest eligible quality "
+                f"{selected_candidate.quality_score:.2f}"
+            )
+        else:
+            selected_candidate = min(
+                eligible_candidates,
+                key=lambda candidate: (
+                    self._inflight_stats.tenant_load_score(tenant_key, candidate.provider),
+                    -candidate.quality_score,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            load_score = self._inflight_stats.tenant_load_score(
+                tenant_key, selected_candidate.provider
+            )
+            rationale = (
+                "tenant-concurrency-lease found every eligible provider at or above "
+                f"lease {self._tenant_concurrency_lease} for tenant '{tenant_key}'; "
+                f"routed to least-loaded fallback {selected_candidate.provider} load "
+                f"{load_score}/{self._tenant_concurrency_lease}"
+            )
+
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                self._inflight_stats.tenant_load_score(tenant_key, candidate.provider)
+                >= self._tenant_concurrency_lease,
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -5249,6 +5405,7 @@ def build_strategies(
     semantic_cache_ttl_seconds: float = 300.0,
     provider_spend_soft_usd: float = 10.0,
     carbon_aware_max_intensity: float = 400.0,
+    tenant_concurrency_lease: int = 8,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -5582,6 +5739,11 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             max_intensity=carbon_aware_max_intensity,
+        ),
+        RoutingStrategyName.TENANT_CONCURRENCY_LEASE: TenantConcurrencyLeaseStrategy(
+            model_catalog=model_catalog,
+            inflight_stats=inflight_stats,
+            tenant_concurrency_lease=tenant_concurrency_lease,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

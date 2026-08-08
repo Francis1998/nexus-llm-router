@@ -75,6 +75,7 @@ class RoutingStrategyName(StrEnum):
     SEMANTIC_CACHE_TTL_AFFINITY = "semantic-cache-ttl-affinity"
     PROVIDER_SPEND_TELEMETRY = "provider-spend-telemetry"
     CARBON_AWARE_PREFERENCE = "carbon-aware-preference"
+    TENANT_CONCURRENCY_LEASE = "tenant-concurrency-lease"
     AB_TEST = "ab"
 
 
