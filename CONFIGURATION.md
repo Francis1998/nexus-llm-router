@@ -397,6 +397,28 @@ See
 [docs/guides/STICKY_CANARY_COST_GUIDE.md](docs/guides/STICKY_CANARY_COST_GUIDE.md).
 
 
+
+## Queue-Depth-Fairness Routing
+
+The `queue-depth-fairness` strategy prefers domain-eligible providers whose live
+`InflightStats` queue depth stays under a soft fairness cap. Providers at or
+above the cap are shed when shallower alternatives exist, so GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic shares capacity fairly instead
+of concentrating on one deep queue.
+
+```dotenv
+NEXUS_QUEUE_DEPTH_SOFT_CAP=4
+```
+
+`NEXUS_QUEUE_DEPTH_SOFT_CAP` is the soft maximum in-flight depth per provider
+accepted for primary selection (integer >= 1; default `4`). Among under-cap
+candidates the strategy selects highest quality; when every eligible provider is
+at or above the cap it falls back to lowest depth, then highest quality.
+
+See
+[docs/guides/QUEUE_DEPTH_FAIRNESS_GUIDE.md](docs/guides/QUEUE_DEPTH_FAIRNESS_GUIDE.md).
+
+
 ## Epsilon-Greedy Routing
 
 The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:
