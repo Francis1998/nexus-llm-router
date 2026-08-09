@@ -140,6 +140,7 @@ class NexusRouter:
             tenant_concurrency_lease=settings.tenant_concurrency_lease,
             provider_error_budget_rate=settings.provider_error_budget_rate,
             region_latency_p99_ms=settings.region_latency_p99_ms,
+            sticky_canary_cost_percent=settings.sticky_canary_cost_percent,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

@@ -5610,6 +5610,139 @@ class RegionLatencyP99ShedStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class StickyCanaryCostStrategy(RoutingStrategy):
+    """Sticky tenant routing with canary cost-aware blend toward cheaper models.
+
+    Pins tenants via consistent hashing on tenant identity (like
+    ``sticky-tenant-hash``), then on a deterministic ``request_id`` explore
+    slice blends toward cheaper healthy models. The majority of GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic keeps sticky affinity
+    while ``NEXUS_STICKY_CANARY_COST_PERCENT`` samples lower-cost SKUs.
+    """
+
+    strategy_name = RoutingStrategyName.STICKY_CANARY_COST
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        sticky_canary_cost_percent: float = 10.0,
+    ) -> None:
+        """Initialize sticky-canary-cost routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            sticky_canary_cost_percent: Percentage of traffic that explores a
+                cheaper healthy model, within ``[0.0, 100.0]``.
+
+        Raises:
+            ValueError: If the explore percentage is outside ``[0.0, 100.0]``.
+        """
+        super().__init__(model_catalog)
+        if not 0.0 <= sticky_canary_cost_percent <= 100.0:
+            raise ValueError(
+                "sticky_canary_cost_percent must be within [0.0, 100.0], "
+                f"got {sticky_canary_cost_percent}"
+            )
+        self._provider_health = provider_health
+        self._sticky_canary_cost_percent = sticky_canary_cost_percent
+
+    def _sticky_key(self, request: RouterRequest) -> str:
+        """Resolve the tenant sticky key for consistent hashing."""
+        metadata = request.metadata
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def _explore_bucket(self, request: RouterRequest) -> float:
+        digest = sha256(request.request_id.encode("utf-8")).hexdigest()
+        return int(digest[:8], 16) / 0xFFFFFFFF
+
+    def _in_explore_slice(self, request: RouterRequest) -> bool:
+        return self._explore_bucket(request) < (self._sticky_canary_cost_percent / 100.0)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Pin sticky tenants, with a cost-aware canary explore slice."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        ordered_candidates = sorted(eligible_candidates, key=lambda candidate: candidate.model)
+        sticky_key = self._sticky_key(request)
+        digest = sha256(sticky_key.encode("utf-8")).hexdigest()
+        primary_bucket = int(digest[:8], 16) % len(ordered_candidates)
+        sticky_primary = ordered_candidates[primary_bucket]
+        sticky_cost = sticky_primary.estimate_cost(
+            signals.prompt_tokens_estimate, request.max_tokens
+        )
+        bucket = self._explore_bucket(request)
+
+        if self._in_explore_slice(request):
+            cheaper_healthy = [
+                candidate
+                for candidate in eligible_candidates
+                if self._provider_health.is_available(candidate.provider)
+                and candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens)
+                < sticky_cost
+            ]
+            if cheaper_healthy:
+                selected_candidate = min(
+                    cheaper_healthy,
+                    key=lambda candidate: (
+                        candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                        -candidate.quality_score,
+                        candidate.model,
+                    ),
+                )
+                selected_cost = selected_candidate.estimate_cost(
+                    signals.prompt_tokens_estimate, request.max_tokens
+                )
+                rationale = (
+                    "sticky-canary-cost explore slice "
+                    f"(bucket={bucket:.4f} < {self._sticky_canary_cost_percent:.1f}%); "
+                    f"blended tenant '{sticky_key}' from sticky {sticky_primary.model} "
+                    f"toward cheaper healthy {selected_candidate.model} "
+                    f"(est ${selected_cost:.6f} < sticky ${sticky_cost:.6f})"
+                )
+                return self._decision(selected_candidate.model, rationale)
+
+        for offset in range(len(ordered_candidates)):
+            ring_bucket = (primary_bucket + offset) % len(ordered_candidates)
+            candidate = ordered_candidates[ring_bucket]
+            if self._provider_health.is_available(candidate.provider):
+                explore_note = (
+                    f"explore slice bucket={bucket:.4f} but no cheaper healthy option; "
+                    if self._in_explore_slice(request)
+                    else f"bucket={bucket:.4f} >= {self._sticky_canary_cost_percent:.1f}%; "
+                )
+                failover_note = (
+                    f"failover offset {offset} from primary bucket {primary_bucket}"
+                    if offset > 0
+                    else f"primary bucket {primary_bucket}"
+                )
+                rationale = (
+                    "sticky-canary-cost "
+                    f"{explore_note}pinned tenant '{sticky_key}' to "
+                    f"{candidate.model} ({failover_note}/"
+                    f"{len(ordered_candidates)} healthy ring)"
+                )
+                return self._decision(candidate.model, rationale)
+
+        rationale = (
+            f"sticky-canary-cost pinned tenant '{sticky_key}' to "
+            f"{sticky_primary.model} (primary bucket {primary_bucket}; "
+            "no healthy providers; sticky fallback)"
+        )
+        return self._decision(sticky_primary.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -5669,6 +5802,7 @@ def build_strategies(
     tenant_concurrency_lease: int = 8,
     provider_error_budget_rate: float = 0.15,
     region_latency_p99_ms: float = 3000.0,
+    sticky_canary_cost_percent: float = 10.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -5759,6 +5893,8 @@ def build_strategies(
             provider-error-budget-shed routing.
         region_latency_p99_ms: Maximum acceptable provider p99 latency in
             milliseconds for region-latency-p99-shed routing.
+        sticky_canary_cost_percent: Percentage of traffic that explores a cheaper
+            healthy model for sticky-canary-cost routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -6022,6 +6158,11 @@ def build_strategies(
             model_catalog=model_catalog,
             latency_stats=latency_stats,
             region_latency_p99_ms=region_latency_p99_ms,
+        ),
+        RoutingStrategyName.STICKY_CANARY_COST: StickyCanaryCostStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            sticky_canary_cost_percent=sticky_canary_cost_percent,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
