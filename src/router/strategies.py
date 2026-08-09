@@ -254,6 +254,21 @@ class LatencyStats:
         index = min(len(observations) - 1, int(0.50 * (len(observations) - 1)))
         return observations[index]
 
+    def p99(self, provider: str) -> float:
+        """Return rolling p99 latency for a provider.
+
+        Args:
+            provider: Provider name.
+
+        Returns:
+            Provider p99 latency in milliseconds.
+        """
+        observations = sorted(self._observations.get(provider, []))
+        if not observations:
+            return 0.0
+        index = min(len(observations) - 1, int(0.99 * (len(observations) - 1)))
+        return observations[index]
+
 
 class InflightStats:
     """Provider in-flight counters used by least-busy routing."""
@@ -292,7 +307,6 @@ class InflightStats:
             Number of live attempts currently dispatched to the provider.
         """
         return self._inflight.get(provider, 0)
-
 
     @staticmethod
     def tenant_provider_key(tenant_key: str, provider: str) -> str:
@@ -5219,7 +5233,6 @@ class CarbonAwarePreferenceStrategy(RoutingStrategy):
         return self._decision(selected.model, rationale)
 
 
-
 class TenantConcurrencyLeaseStrategy(RoutingStrategy):
     """Prefer providers with remaining per-tenant concurrency lease headroom.
 
@@ -5484,14 +5497,117 @@ class ProviderErrorBudgetShedStrategy(RoutingStrategy):
             [candidate for candidate in eligible_candidates if candidate.model != chosen_model],
             key=lambda candidate: (
                 not self._provider_health.is_available(candidate.provider),
-                self._provider_error_rate(candidate.provider)
-                > self._provider_error_budget_rate,
+                self._provider_error_rate(candidate.provider) > self._provider_error_budget_rate,
                 self._provider_error_rate(candidate.provider),
                 -candidate.quality_score,
                 candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
                 candidate.model,
             ),
         )
+
+
+class RegionLatencyP99ShedStrategy(RoutingStrategy):
+    """Shed region providers whose recent p99 latency exceeds a threshold.
+
+    Multi-region fleets often need a softer tail-latency gate than p95 SLO
+    shedding: prefer domain-eligible models that match the request region, then
+    keep providers whose rolling ``LatencyStats`` p99 stays at or below
+    ``NEXUS_REGION_LATENCY_P99_MS``. When every regional candidate is over the
+    threshold it falls back to the lowest p99 so GPT-5.5 / Claude Sonnet 4.6 /
+    Gemini 3.x / Kimi K2 traffic still routes deterministically.
+    """
+
+    strategy_name = RoutingStrategyName.REGION_LATENCY_P99_SHED
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        region_latency_p99_ms: float = 3000.0,
+    ) -> None:
+        """Initialize region-latency-p99-shed routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_stats: Rolling provider latency observations.
+            region_latency_p99_ms: Maximum acceptable provider p99 latency in
+                milliseconds for primary selection.
+
+        Raises:
+            ValueError: If the p99 threshold is negative.
+        """
+        super().__init__(model_catalog)
+        if region_latency_p99_ms < 0.0:
+            raise ValueError(
+                f"region_latency_p99_ms must be non-negative, got {region_latency_p99_ms}"
+            )
+        self._latency_stats = latency_stats
+        self._region_latency_p99_ms = region_latency_p99_ms
+
+    def _matches_region(self, candidate: ModelCandidate, region: str) -> bool:
+        """Return whether a candidate advertises the requested region."""
+        return region in {supported.lower() for supported in candidate.supported_regions}
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer under-p99 regional candidates and shed slower providers."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        requested_region = (request.region or "global").strip().lower()
+        region_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._matches_region(candidate, requested_region)
+        ] or eligible_candidates
+
+        p99_by_model = {
+            candidate.model: self._latency_stats.p99(candidate.provider)
+            for candidate in region_candidates
+        }
+        under_threshold = [
+            candidate
+            for candidate in region_candidates
+            if p99_by_model[candidate.model] <= self._region_latency_p99_ms
+        ]
+
+        if under_threshold:
+            selected_candidate = max(
+                under_threshold,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -p99_by_model[candidate.model],
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "region-latency-p99-shed selected highest quality "
+                f"{selected_candidate.quality_score:.2f} in region '{requested_region}' "
+                f"under {self._region_latency_p99_ms:.0f}ms p99 "
+                f"(provider p99 {p99_by_model[selected_candidate.model]:.1f}ms; "
+                "shed slower alternatives)"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = min(
+            region_candidates,
+            key=lambda candidate: (
+                p99_by_model[candidate.model],
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        rationale = (
+            "region-latency-p99-shed found no provider in region "
+            f"'{requested_region}' under {self._region_latency_p99_ms:.0f}ms p99; "
+            f"shed fallback to lowest-p99 model "
+            f"(provider p99 {p99_by_model[selected_candidate.model]:.1f}ms)"
+        )
+        return self._decision(selected_candidate.model, rationale)
 
 
 def build_strategies(
@@ -5552,6 +5668,7 @@ def build_strategies(
     carbon_aware_max_intensity: float = 400.0,
     tenant_concurrency_lease: int = 8,
     provider_error_budget_rate: float = 0.15,
+    region_latency_p99_ms: float = 3000.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -5640,6 +5757,8 @@ def build_strategies(
             routing.
         provider_error_budget_rate: Maximum provider rolling error rate for
             provider-error-budget-shed routing.
+        region_latency_p99_ms: Maximum acceptable provider p99 latency in
+            milliseconds for region-latency-p99-shed routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -5898,6 +6017,11 @@ def build_strategies(
             provider_health=provider_health,
             success_stats=resolved_success_stats,
             provider_error_budget_rate=provider_error_budget_rate,
+        ),
+        RoutingStrategyName.REGION_LATENCY_P99_SHED: RegionLatencyP99ShedStrategy(
+            model_catalog=model_catalog,
+            latency_stats=latency_stats,
+            region_latency_p99_ms=region_latency_p99_ms,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

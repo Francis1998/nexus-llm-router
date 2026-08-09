@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-403%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-411%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -136,6 +136,7 @@ Select a strategy with `X-Router-Strategy`:
 - `carbon-aware-preference`: prefers lower carbon-intensity providers under `NEXUS_CARBON_AWARE_MAX_INTENSITY` (default `400`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `tenant-concurrency-lease`: prefers providers with remaining per-tenant in-flight headroom (`NEXUS_TENANT_CONCURRENCY_LEASE`, default `8`) using `InflightStats` keyed by tenant/session — LiteLLM/Portkey-style tenant fairness for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-error-budget-shed`: prefers healthy domain-eligible providers whose rolling `SuccessStats` error rate stays under `NEXUS_PROVIDER_ERROR_BUDGET_RATE` (default `0.15`); when every provider is over budget it falls back to lowest error rate, then quality, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
+- `region-latency-p99-shed`: prefers region-matching domain-eligible providers whose rolling `LatencyStats` p99 stays under `NEXUS_REGION_LATENCY_P99_MS` (default `3000`); when every regional provider is hot it falls back to lowest p99, then quality — LiteLLM/OpenRouter-style regional tail shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-spend-telemetry`: prefers lower-spend providers once soft USD spend telemetry exceeds `NEXUS_PROVIDER_SPEND_SOFT_USD` (default `10`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 fleets
 - `semantic-cache-ttl-affinity`: pins cacheable requests to providers with warm TTL under `NEXUS_SEMANTIC_CACHE_TTL_SECONDS` (default `300`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `circuit-breaker-half-open-probe`: prefers healthy closed providers and allows only limited concurrent probes into half-open/recovering providers (`NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET`, default `2`) — LiteLLM/Portkey-style half-open probe budgeting for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
@@ -184,6 +185,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Semantic-cache-ttl-affinity guide](docs/guides/SEMANTIC_CACHE_TTL_AFFINITY_GUIDE.md) | Warm semantic-cache TTL sticky routing |
 | [Tenant-concurrency-lease guide](docs/guides/TENANT_CONCURRENCY_LEASE_GUIDE.md) | Per-tenant in-flight concurrency lease routing |
 | [Provider-error-budget-shed guide](docs/guides/PROVIDER_ERROR_BUDGET_SHED_GUIDE.md) | Rolling provider error-budget shedding |
+| [Region-latency-p99-shed guide](docs/guides/REGION_LATENCY_P99_SHED_GUIDE.md) | Regional p99 tail-latency shedding |
 | [Circuit-breaker-half-open-probe guide](docs/guides/CIRCUIT_BREAKER_HALF_OPEN_PROBE_GUIDE.md) | Half-open recovery probe budget routing |
 | [SLO-aware guide](docs/guides/SLO_AWARE_GUIDE.md) | Availability-SLO quality routing |
 | [Adaptive-timeout guide](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md) | Timeout-adaptive quality routing |
