@@ -5743,6 +5743,116 @@ class StickyCanaryCostStrategy(RoutingStrategy):
         return self._decision(sticky_primary.model, rationale)
 
 
+class QueueDepthFairnessStrategy(RoutingStrategy):
+    """Prefer providers with lower local queue/inflight depth for fair sharing.
+
+    Multi-tenant fleets can starve quieter tenants when traffic concentrates on
+    one high-quality provider. This strategy treats live ``InflightStats`` load as
+    queue depth: providers at or above ``NEXUS_QUEUE_DEPTH_SOFT_CAP`` are shed
+    when shallower alternatives exist. Among under-cap providers it picks highest
+    quality; when every provider is deep it falls back to lowest depth so
+    GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic keeps moving.
+    """
+
+    strategy_name = RoutingStrategyName.QUEUE_DEPTH_FAIRNESS
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        inflight_stats: InflightStats,
+        queue_depth_soft_cap: int = 4,
+    ) -> None:
+        """Initialize queue-depth-fairness routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            inflight_stats: Live provider in-flight / queue-depth counters.
+            queue_depth_soft_cap: Soft maximum in-flight depth per provider
+                before that provider is shed (must be >= 1).
+
+        Raises:
+            ValueError: If the soft cap is less than 1.
+        """
+        super().__init__(model_catalog)
+        if queue_depth_soft_cap < 1:
+            raise ValueError(f"queue_depth_soft_cap must be >= 1, got {queue_depth_soft_cap}")
+        self._inflight_stats = inflight_stats
+        self._queue_depth_soft_cap = queue_depth_soft_cap
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best model still under the soft queue-depth cap."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        depths = {
+            candidate.model: self._inflight_stats.load_score(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        under_cap = [
+            candidate
+            for candidate in eligible_candidates
+            if depths[candidate.model] < self._queue_depth_soft_cap
+        ]
+
+        if under_cap:
+            selected_candidate = max(
+                under_cap,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -depths[candidate.model],
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "queue-depth-fairness selected under soft cap "
+                f"{self._queue_depth_soft_cap}; {selected_candidate.provider} depth "
+                f"{depths[selected_candidate.model]}/{self._queue_depth_soft_cap} with "
+                f"highest eligible quality {selected_candidate.quality_score:.2f}"
+            )
+        else:
+            selected_candidate = min(
+                eligible_candidates,
+                key=lambda candidate: (
+                    depths[candidate.model],
+                    -candidate.quality_score,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "queue-depth-fairness found every eligible provider at or above soft cap "
+                f"{self._queue_depth_soft_cap}; routed to lowest-depth fallback "
+                f"{selected_candidate.provider} depth "
+                f"{depths[selected_candidate.model]}/{self._queue_depth_soft_cap}"
+            )
+
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                depths[candidate.model] >= self._queue_depth_soft_cap,
+                depths[candidate.model],
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -5803,6 +5913,7 @@ def build_strategies(
     provider_error_budget_rate: float = 0.15,
     region_latency_p99_ms: float = 3000.0,
     sticky_canary_cost_percent: float = 10.0,
+    queue_depth_soft_cap: int = 4,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -5895,6 +6006,8 @@ def build_strategies(
             milliseconds for region-latency-p99-shed routing.
         sticky_canary_cost_percent: Percentage of traffic that explores a cheaper
             healthy model for sticky-canary-cost routing.
+        queue_depth_soft_cap: Soft maximum in-flight queue depth per provider for
+            queue-depth-fairness routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -6163,6 +6276,11 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             sticky_canary_cost_percent=sticky_canary_cost_percent,
+        ),
+        RoutingStrategyName.QUEUE_DEPTH_FAIRNESS: QueueDepthFairnessStrategy(
+            model_catalog=model_catalog,
+            inflight_stats=inflight_stats,
+            queue_depth_soft_cap=queue_depth_soft_cap,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
