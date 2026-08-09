@@ -78,6 +78,7 @@ class RoutingStrategyName(StrEnum):
     TENANT_CONCURRENCY_LEASE = "tenant-concurrency-lease"
     PROVIDER_ERROR_BUDGET_SHED = "provider-error-budget-shed"
     REGION_LATENCY_P99_SHED = "region-latency-p99-shed"
+    STICKY_CANARY_COST = "sticky-canary-cost"
     AB_TEST = "ab"
 
 

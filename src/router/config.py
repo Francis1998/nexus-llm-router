@@ -105,6 +105,7 @@ class RouterSettings(BaseSettings):
     tenant_concurrency_lease: Annotated[int, Field(ge=1)] = 8
     provider_error_budget_rate: Annotated[float, Field(ge=0.0, le=1.0)] = 0.15
     region_latency_p99_ms: Annotated[float, Field(ge=0.0)] = 3000.0
+    sticky_canary_cost_percent: Annotated[float, Field(ge=0.0, le=100.0)] = 10.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

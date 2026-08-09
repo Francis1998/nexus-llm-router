@@ -377,6 +377,25 @@ quality.
 See
 [docs/guides/REGION_LATENCY_P99_SHED_GUIDE.md](docs/guides/REGION_LATENCY_P99_SHED_GUIDE.md).
 
+## Sticky-Canary-Cost Routing
+
+The `sticky-canary-cost` strategy pins tenants to a primary model via consistent
+hashing, then blends a deterministic explore slice toward cheaper healthy
+models. Off-slice GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
+keeps sticky affinity with healthy ring failover.
+
+```dotenv
+NEXUS_STICKY_CANARY_COST_PERCENT=10.0
+```
+
+`NEXUS_STICKY_CANARY_COST_PERCENT` is the percentage of traffic (within
+`[0.0, 100.0]`; default `10`) that explores a strictly cheaper healthy model
+than the sticky primary. When no cheaper healthy option exists the explore
+slice still returns the sticky primary.
+
+See
+[docs/guides/STICKY_CANARY_COST_GUIDE.md](docs/guides/STICKY_CANARY_COST_GUIDE.md).
+
 
 ## Epsilon-Greedy Routing
 
