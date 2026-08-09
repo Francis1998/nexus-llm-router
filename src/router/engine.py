@@ -139,6 +139,7 @@ class NexusRouter:
             carbon_aware_max_intensity=settings.carbon_aware_max_intensity,
             tenant_concurrency_lease=settings.tenant_concurrency_lease,
             provider_error_budget_rate=settings.provider_error_budget_rate,
+            region_latency_p99_ms=settings.region_latency_p99_ms,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -341,7 +342,6 @@ class NexusRouter:
         if request.user_id != "anonymous":
             return request.user_id
         return request.session_id
-
 
     @staticmethod
     def _rationale(base_rationale: str, model_name: str, attempt_index: int) -> str:

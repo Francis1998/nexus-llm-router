@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `region-latency-p99-shed` routing strategy: prefers domain-eligible models matching the request region whose rolling `LatencyStats` p99 stays under `NEXUS_REGION_LATENCY_P99_MS` (default `3000`), selecting highest quality under threshold and falling back to lowest p99 then quality when every regional provider is hot. Targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/REGION_LATENCY_P99_SHED_GUIDE.md`.
 - `provider-error-budget-shed` routing strategy: prefers healthy domain-eligible providers whose rolling `SuccessStats` error rate stays under `NEXUS_PROVIDER_ERROR_BUDGET_RATE` (default `0.15`), selecting highest quality under budget and falling back to lowest error rate then quality when every provider is over budget. Targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/PROVIDER_ERROR_BUDGET_SHED_GUIDE.md`.
 - `tenant-concurrency-lease` routing strategy: prefers domain-eligible providers with remaining per-tenant in-flight headroom via tenant-scoped `InflightStats` keys (`NEXUS_TENANT_CONCURRENCY_LEASE`, default `8`), falling back to the least-loaded tenant/provider pair when every lease is saturated. Targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/TENANT_CONCURRENCY_LEASE_GUIDE.md`.
 - `carbon-aware-preference` routing strategy with `NEXUS_CARBON_AWARE_MAX_INTENSITY`.

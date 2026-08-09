@@ -356,6 +356,27 @@ highest quality.
 See
 [docs/guides/PROVIDER_ERROR_BUDGET_SHED_GUIDE.md](docs/guides/PROVIDER_ERROR_BUDGET_SHED_GUIDE.md).
 
+## Region-Latency-P99-Shed Routing
+
+The `region-latency-p99-shed` strategy prefers domain-eligible models that match
+the request region and whose rolling provider p99 latency stays under threshold.
+Providers above `NEXUS_REGION_LATENCY_P99_MS` are shed when faster regional
+alternatives exist, so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+traffic avoids hot regional tails.
+
+```dotenv
+NEXUS_REGION_LATENCY_P99_MS=3000.0
+```
+
+`NEXUS_REGION_LATENCY_P99_MS` is the maximum rolling provider p99 latency
+accepted for primary selection (float >= 0; default `3000`). Among under-
+threshold regional candidates the strategy selects highest quality; when every
+regional provider is over threshold it falls back to lowest p99, then highest
+quality.
+
+See
+[docs/guides/REGION_LATENCY_P99_SHED_GUIDE.md](docs/guides/REGION_LATENCY_P99_SHED_GUIDE.md).
+
 
 ## Epsilon-Greedy Routing
 
