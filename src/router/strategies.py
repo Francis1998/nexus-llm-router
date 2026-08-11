@@ -32,11 +32,13 @@ class ProviderHealth(Protocol):
     def is_available(self, provider: str) -> bool:
         """Return whether a provider may currently be routed to.
 
-        Args:
-            provider: Provider name.
+            Args:
+                provider: Provider name.
 
+                token_bucket_tenant_rate: Per-tenant request-token refill rate
+                per second for token-bucket-tenant routing.
         Returns:
-            True when the provider is routable.
+                True when the provider is routable.
         """
 
 
@@ -6097,6 +6099,184 @@ class AdaptiveTimeoutHedgeStrategy(RoutingStrategy):
         return self._decision(top_choice.model, rationale)
 
 
+@dataclass
+class _TenantTokenBucket:
+    """Mutable per-tenant request-token bucket."""
+
+    tokens: float
+    updated_at: float
+
+
+class TenantTokenBucketStats:
+    """Per-tenant token buckets with a one-second burst horizon."""
+
+    def __init__(self, rate_per_second: float = 5.0) -> None:
+        """Initialize tenant request-token budgets.
+
+        Each request consumes one quota token. Bucket capacity is one second of
+        configured rate, with a minimum one-request burst.
+
+        Args:
+            rate_per_second: Quota tokens refilled per tenant per second.
+
+        Raises:
+            ValueError: If the refill rate is not positive.
+        """
+        if rate_per_second <= 0.0:
+            raise ValueError(f"rate_per_second must be positive, got {rate_per_second}")
+        self._rate_per_second = rate_per_second
+        self._capacity = max(1.0, rate_per_second)
+        self._buckets: dict[str, _TenantTokenBucket] = {}
+
+    @property
+    def rate_per_second(self) -> float:
+        """Return the configured per-tenant quota-token rate."""
+        return self._rate_per_second
+
+    @property
+    def capacity(self) -> float:
+        """Return the one-second burst capacity."""
+        return self._capacity
+
+    def available_tokens(self, tenant_key: str) -> float:
+        """Return a tenant's available quota tokens after refill."""
+        return self._refill(tenant_key)
+
+    def try_consume(self, tenant_key: str) -> bool:
+        """Consume one request token when budget remains."""
+        available = self._refill(tenant_key)
+        if available < 1.0:
+            return False
+        self._buckets[tenant_key].tokens = available - 1.0
+        return True
+
+    def _refill(self, tenant_key: str) -> float:
+        """Refill and return one tenant bucket using monotonic time."""
+        now = time.monotonic()
+        bucket = self._buckets.get(tenant_key)
+        if bucket is None:
+            bucket = _TenantTokenBucket(tokens=self._capacity, updated_at=now)
+            self._buckets[tenant_key] = bucket
+            return bucket.tokens
+
+        elapsed_seconds = max(0.0, now - bucket.updated_at)
+        bucket.tokens = min(
+            self._capacity,
+            bucket.tokens + elapsed_seconds * self._rate_per_second,
+        )
+        bucket.updated_at = now
+        return bucket.tokens
+
+
+class TokenBucketTenantStrategy(RoutingStrategy):
+    """Use a per-tenant token bucket to shed over-budget traffic to low cost.
+
+    ``token-bucket-burst`` balances provider-side burst quota. This strategy
+    instead keys one request-token bucket by tenant identity. In-budget requests
+    keep quality-first selection; requests arriving without a tenant quota token
+    are still served but shed to the cheapest eligible model.
+    """
+
+    strategy_name = RoutingStrategyName.TOKEN_BUCKET_TENANT
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        tenant_token_bucket_stats: TenantTokenBucketStats,
+    ) -> None:
+        """Initialize per-tenant token-bucket routing."""
+        super().__init__(model_catalog)
+        self._tenant_token_bucket_stats = tenant_token_bucket_stats
+
+    @staticmethod
+    def _tenant_key(request: RouterRequest) -> str:
+        """Resolve tenant identity from metadata, user, then session."""
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = request.metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Keep quality within tenant budget and shed over-budget requests to cost."""
+        tenant_key = self._tenant_key(request)
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        within_budget = self._tenant_token_bucket_stats.try_consume(tenant_key)
+
+        if within_budget:
+            selected_candidate = max(
+                eligible_candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            remaining = self._tenant_token_bucket_stats.available_tokens(tenant_key)
+            rationale = (
+                f"token-bucket-tenant tenant '{tenant_key}' within budget; "
+                f"selected highest-quality {selected_candidate.model} with "
+                f"{remaining:.2f}/{self._tenant_token_bucket_stats.capacity:.2f} "
+                "request tokens remaining"
+            )
+            fallback_candidates = sorted(
+                [
+                    candidate
+                    for candidate in eligible_candidates
+                    if candidate.model != selected_candidate.model
+                ],
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+        else:
+            selected_candidate = min(
+                eligible_candidates,
+                key=lambda candidate: (
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            estimated_cost = selected_candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            rationale = (
+                f"token-bucket-tenant tenant '{tenant_key}' over "
+                f"{self._tenant_token_bucket_stats.rate_per_second:.2f}/s budget; "
+                f"shed to cheapest eligible {selected_candidate.model} "
+                f"at estimated ${estimated_cost:.6f}"
+            )
+            fallback_candidates = sorted(
+                [
+                    candidate
+                    for candidate in eligible_candidates
+                    if candidate.model != selected_candidate.model
+                ],
+                key=lambda candidate: (
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -6160,6 +6340,7 @@ def build_strategies(
     queue_depth_soft_cap: int = 4,
     provider_quota_lookback: int = 100,
     adaptive_timeout_hedge_ratio: float = 1.5,
+    token_bucket_tenant_rate: float = 5.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -6304,6 +6485,7 @@ def build_strategies(
     ]
     resolved_cost_anomaly_stats = cost_anomaly_stats or CostAnomalyStats()
     provider_request_share_stats = ProviderRequestShareStats(provider_quota_lookback)
+    tenant_token_bucket_stats = TenantTokenBucketStats(token_bucket_tenant_rate)
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -6541,6 +6723,10 @@ def build_strategies(
             model_catalog=model_catalog,
             latency_stats=latency_stats,
             hedge_ratio=adaptive_timeout_hedge_ratio,
+        ),
+        RoutingStrategyName.TOKEN_BUCKET_TENANT: TokenBucketTenantStrategy(
+            model_catalog,
+            tenant_token_bucket_stats,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

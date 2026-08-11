@@ -420,6 +420,7 @@ See
 
 
 ## Provider-Quota-Fair-Share Routing
+- `token-bucket-tenant`
 
 The `provider-quota-fair-share` strategy keeps a bounded local window of recent
 provider selections and computes equal share across providers eligible for the
@@ -598,6 +599,27 @@ NEXUS_ADAPTIVE_TIMEOUT_HEDGE_RATIO=1.5
 This strategy is distinct from `adaptive-timeout`'s urgency/error-risk budget
 and `multi-region-latency-hedge`'s fixed p50 regional threshold. See
 [docs/guides/ADAPTIVE_TIMEOUT_HEDGE_GUIDE.md](docs/guides/ADAPTIVE_TIMEOUT_HEDGE_GUIDE.md).
+
+## Token-Bucket-Tenant Routing
+
+The `token-bucket-tenant` strategy maintains an independent local request-token
+bucket for each `metadata.tenant_id` (with metadata user/sticky, top-level user,
+and session fallbacks). Each routing decision consumes one quota token.
+In-budget requests select the highest-quality domain-eligible model; over-budget
+requests remain available but shed to the cheapest eligible GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 model.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=token-bucket-tenant
+NEXUS_TOKEN_BUCKET_TENANT_RATE=5.0
+```
+
+`NEXUS_TOKEN_BUCKET_TENANT_RATE` is the positive quota-token refill rate per
+tenant per second (default `5.0`). Capacity equals one second of refill, with a
+minimum one-request burst. This is distinct from `token-bucket-burst`, whose
+buckets represent provider capacity. See
+[docs/guides/TOKEN_BUCKET_TENANT_GUIDE.md](docs/guides/TOKEN_BUCKET_TENANT_GUIDE.md).
+
 
 ## Semantic-Cache Routing
 
