@@ -5853,6 +5853,144 @@ class QueueDepthFairnessStrategy(RoutingStrategy):
         )
 
 
+class ProviderRequestShareStats:
+    """Rolling provider selections used by fair-share quota routing."""
+
+    def __init__(self, lookback: int = 100) -> None:
+        """Initialize the bounded provider request window.
+
+        Args:
+            lookback: Maximum recent routing decisions retained.
+
+        Raises:
+            ValueError: If ``lookback`` is less than one.
+        """
+        if lookback < 1:
+            raise ValueError(f"lookback must be >= 1, got {lookback}")
+        self._lookback = lookback
+        self._observations: list[str] = []
+
+    @property
+    def lookback(self) -> int:
+        """Return the configured rolling-window size."""
+        return self._lookback
+
+    def observe(self, provider: str) -> None:
+        """Record one provider routing decision."""
+        self._observations.append(provider)
+        if len(self._observations) > self._lookback:
+            del self._observations[0]
+
+    def observation_count(self, eligible_providers: Iterable[str]) -> int:
+        """Return observations belonging to the currently eligible provider set."""
+        eligible = set(eligible_providers)
+        return sum(provider in eligible for provider in self._observations)
+
+    def request_share(self, provider: str, eligible_providers: Iterable[str]) -> float:
+        """Return a provider's recent share among currently eligible providers."""
+        eligible = set(eligible_providers)
+        eligible_observations = [
+            observed_provider
+            for observed_provider in self._observations
+            if observed_provider in eligible
+        ]
+        if not eligible_observations:
+            return 0.0
+        return eligible_observations.count(provider) / len(eligible_observations)
+
+
+class ProviderQuotaFairShareStrategy(RoutingStrategy):
+    """Shed providers above their equal share of recent eligible traffic.
+
+    The strategy tracks a bounded window of provider selections. Providers below
+    the equal fair share (``1 / eligible providers``) form the preferred pool;
+    providers at or above that share are shed while an under-share alternative
+    exists. Quality and cost retain deterministic tie-breaking within the pool.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_QUOTA_FAIR_SHARE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        request_share_stats: ProviderRequestShareStats,
+    ) -> None:
+        """Initialize provider-quota-fair-share routing."""
+        super().__init__(model_catalog)
+        self._request_share_stats = request_share_stats
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer providers below equal share and record the selected provider."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        eligible_providers = {candidate.provider for candidate in eligible_candidates}
+        fair_share = 1.0 / len(eligible_providers)
+        shares = {
+            provider: self._request_share_stats.request_share(provider, eligible_providers)
+            for provider in eligible_providers
+        }
+        observation_count = self._request_share_stats.observation_count(eligible_providers)
+        under_share = [
+            candidate
+            for candidate in eligible_candidates
+            if shares[candidate.provider] < fair_share
+        ]
+        preferred_candidates = under_share or eligible_candidates
+        selected_candidate = max(
+            preferred_candidates,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+
+        if observation_count == 0:
+            rationale = (
+                "provider-quota-fair-share cold start; selected highest-quality eligible "
+                f"{selected_candidate.model} with equal target {fair_share:.2%} "
+                f"over lookback {self._request_share_stats.lookback}"
+            )
+        elif under_share:
+            rationale = (
+                "provider-quota-fair-share shed providers at or above equal share "
+                f"{fair_share:.2%}; selected under-share provider "
+                f"{selected_candidate.provider} at {shares[selected_candidate.provider]:.2%} "
+                f"over {observation_count}/{self._request_share_stats.lookback} observations"
+            )
+        else:
+            rationale = (
+                "provider-quota-fair-share found eligible provider shares balanced at "
+                f"{fair_share:.2%}; selected highest-quality {selected_candidate.model}"
+            )
+
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                shares[candidate.provider] >= fair_share,
+                shares[candidate.provider],
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        self._request_share_stats.observe(selected_candidate.provider)
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -5914,6 +6052,7 @@ def build_strategies(
     region_latency_p99_ms: float = 3000.0,
     sticky_canary_cost_percent: float = 10.0,
     queue_depth_soft_cap: int = 4,
+    provider_quota_lookback: int = 100,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -6008,6 +6147,8 @@ def build_strategies(
             healthy model for sticky-canary-cost routing.
         queue_depth_soft_cap: Soft maximum in-flight queue depth per provider for
             queue-depth-fairness routing.
+        provider_quota_lookback: Recent provider selection count retained for
+            provider-quota-fair-share routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -6053,6 +6194,7 @@ def build_strategies(
         "global",
     ]
     resolved_cost_anomaly_stats = cost_anomaly_stats or CostAnomalyStats()
+    provider_request_share_stats = ProviderRequestShareStats(provider_quota_lookback)
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -6281,6 +6423,10 @@ def build_strategies(
             model_catalog=model_catalog,
             inflight_stats=inflight_stats,
             queue_depth_soft_cap=queue_depth_soft_cap,
+        ),
+        RoutingStrategyName.PROVIDER_QUOTA_FAIR_SHARE: ProviderQuotaFairShareStrategy(
+            model_catalog=model_catalog,
+            request_share_stats=provider_request_share_stats,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

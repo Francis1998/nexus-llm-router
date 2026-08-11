@@ -80,6 +80,7 @@ class RoutingStrategyName(StrEnum):
     REGION_LATENCY_P99_SHED = "region-latency-p99-shed"
     STICKY_CANARY_COST = "sticky-canary-cost"
     QUEUE_DEPTH_FAIRNESS = "queue-depth-fairness"
+    PROVIDER_QUOTA_FAIR_SHARE = "provider-quota-fair-share"
     AB_TEST = "ab"
 
 
