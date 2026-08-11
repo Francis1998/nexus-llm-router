@@ -419,6 +419,24 @@ See
 [docs/guides/QUEUE_DEPTH_FAIRNESS_GUIDE.md](docs/guides/QUEUE_DEPTH_FAIRNESS_GUIDE.md).
 
 
+## Provider-Quota-Fair-Share Routing
+
+The `provider-quota-fair-share` strategy keeps a bounded local window of recent
+provider selections and computes equal share across providers eligible for the
+current request domain. Providers at or above equal share are shed whenever an
+under-share alternative exists; quality and estimated cost break ties within the
+preferred pool for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+
+```dotenv
+NEXUS_PROVIDER_QUOTA_LOOKBACK=100
+```
+
+`NEXUS_PROVIDER_QUOTA_LOOKBACK` is the number of recent routing decisions
+retained by each router process (integer >= 1; default `100`). Lower values react
+faster; higher values smooth bursts. See
+[docs/guides/PROVIDER_QUOTA_FAIR_SHARE_GUIDE.md](docs/guides/PROVIDER_QUOTA_FAIR_SHARE_GUIDE.md).
+
+
 ## Epsilon-Greedy Routing
 
 The `epsilon-greedy` strategy is a classic bandit policy over the model catalog:
@@ -757,6 +775,7 @@ Set `X-Router-Strategy` to one of:
 - `health-cost-latency`
 - `embedding-cache-key-namespace`
 - `circuit-breaker-half-open-probe`
+- `provider-quota-fair-share`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

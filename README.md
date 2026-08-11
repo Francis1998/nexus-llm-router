@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-426%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-434%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -139,6 +139,7 @@ Select a strategy with `X-Router-Strategy`:
 - `region-latency-p99-shed`: prefers region-matching domain-eligible providers whose rolling `LatencyStats` p99 stays under `NEXUS_REGION_LATENCY_P99_MS` (default `3000`); when every regional provider is hot it falls back to lowest p99, then quality — LiteLLM/OpenRouter-style regional tail shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `sticky-canary-cost`: pins tenants via consistent hashing on `metadata.tenant_id` (with user/session fallbacks) and blends a deterministic `request_id` explore slice (`NEXUS_STICKY_CANARY_COST_PERCENT`, default `10`) toward cheaper healthy models while keeping sticky affinity off-slice — LiteLLM/Portkey-style sticky cost canaries for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `queue-depth-fairness`: prefers domain-eligible providers whose live `InflightStats` queue depth stays under `NEXUS_QUEUE_DEPTH_SOFT_CAP` (default `4`); when every provider is saturated it falls back to lowest depth, then quality — LiteLLM/Portkey-style queue fairness for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `provider-quota-fair-share`: tracks the last `NEXUS_PROVIDER_QUOTA_LOOKBACK` selections (default `100`) and prefers eligible providers below equal request share, shedding over-share providers while preserving quality/cost tie-breaks for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-spend-telemetry`: prefers lower-spend providers once soft USD spend telemetry exceeds `NEXUS_PROVIDER_SPEND_SOFT_USD` (default `10`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 fleets
 - `semantic-cache-ttl-affinity`: pins cacheable requests to providers with warm TTL under `NEXUS_SEMANTIC_CACHE_TTL_SECONDS` (default `300`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `circuit-breaker-half-open-probe`: prefers healthy closed providers and allows only limited concurrent probes into half-open/recovering providers (`NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET`, default `2`) — LiteLLM/Portkey-style half-open probe budgeting for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
@@ -190,6 +191,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Region-latency-p99-shed guide](docs/guides/REGION_LATENCY_P99_SHED_GUIDE.md) | Regional p99 tail-latency shedding |
 | [Sticky-canary-cost guide](docs/guides/STICKY_CANARY_COST_GUIDE.md) | Sticky tenant affinity with cost canary blend |
 | [Queue-depth-fairness guide](docs/guides/QUEUE_DEPTH_FAIRNESS_GUIDE.md) | Soft queue-depth fairness across providers |
+| [Provider-quota-fair-share guide](docs/guides/PROVIDER_QUOTA_FAIR_SHARE_GUIDE.md) | Rolling equal-share provider quota routing |
 | [Circuit-breaker-half-open-probe guide](docs/guides/CIRCUIT_BREAKER_HALF_OPEN_PROBE_GUIDE.md) | Half-open recovery probe budget routing |
 | [SLO-aware guide](docs/guides/SLO_AWARE_GUIDE.md) | Availability-SLO quality routing |
 | [Adaptive-timeout guide](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md) | Timeout-adaptive quality routing |
