@@ -5991,6 +5991,112 @@ class ProviderQuotaFairShareStrategy(RoutingStrategy):
         )
 
 
+class AdaptiveTimeoutHedgeStrategy(RoutingStrategy):
+    """Hedge a slow quality-first choice using a latency-derived threshold.
+
+    Unlike ``adaptive-timeout``, which filters candidates against a timeout
+    budget and provider success risk, this strategy first picks the
+    highest-quality eligible model. It hedges only when that provider's rolling
+    p95 exceeds the fastest observed eligible p95 multiplied by a configurable
+    ratio. Unlike ``multi-region-latency-hedge``, it has no region boundary and
+    compares rolling p95 rather than a fixed p50 threshold.
+    """
+
+    strategy_name = RoutingStrategyName.ADAPTIVE_TIMEOUT_HEDGE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        hedge_ratio: float = 1.5,
+    ) -> None:
+        """Initialize adaptive-timeout-hedge routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_stats: Rolling provider latency observations.
+            hedge_ratio: Multiplier applied to the fastest observed eligible p95.
+
+        Raises:
+            ValueError: If ``hedge_ratio`` is less than one.
+        """
+        super().__init__(model_catalog)
+        if hedge_ratio < 1.0:
+            raise ValueError(f"hedge_ratio must be >= 1.0, got {hedge_ratio}")
+        self._latency_stats = latency_stats
+        self._hedge_ratio = hedge_ratio
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Keep the quality leader unless adaptive latency pressure triggers a hedge."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        top_choice = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        p95_by_model = {
+            candidate.model: self._latency_stats.p95(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        observed_candidates = [
+            candidate for candidate in eligible_candidates if p95_by_model[candidate.model] > 0.0
+        ]
+        top_p95 = p95_by_model[top_choice.model]
+
+        if not observed_candidates or top_p95 <= 0.0:
+            rationale = (
+                "adaptive-timeout-hedge kept highest-quality "
+                f"{top_choice.model}; insufficient positive p95 observations "
+                "for an adaptive hedge threshold"
+            )
+            return self._decision(top_choice.model, rationale)
+
+        fastest_p95 = min(p95_by_model[candidate.model] for candidate in observed_candidates)
+        adaptive_threshold = fastest_p95 * self._hedge_ratio
+        faster_alternatives = [
+            candidate
+            for candidate in observed_candidates
+            if candidate.provider != top_choice.provider and p95_by_model[candidate.model] < top_p95
+        ]
+
+        if top_p95 > adaptive_threshold and faster_alternatives:
+            selected_candidate = min(
+                faster_alternatives,
+                key=lambda candidate: (
+                    p95_by_model[candidate.model],
+                    -candidate.quality_score,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "adaptive-timeout-hedge hedged from quality leader "
+                f"{top_choice.model} at p95 {top_p95:.1f}ms because it exceeded "
+                f"adaptive threshold {adaptive_threshold:.1f}ms "
+                f"(fastest observed {fastest_p95:.1f}ms x {self._hedge_ratio:.2f}); "
+                f"selected faster alternative {selected_candidate.model} at p95 "
+                f"{p95_by_model[selected_candidate.model]:.1f}ms"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        rationale = (
+            "adaptive-timeout-hedge kept quality leader "
+            f"{top_choice.model} at p95 {top_p95:.1f}ms within adaptive threshold "
+            f"{adaptive_threshold:.1f}ms (fastest observed {fastest_p95:.1f}ms x "
+            f"{self._hedge_ratio:.2f})"
+        )
+        if not faster_alternatives:
+            rationale += "; no faster observed provider alternative"
+        return self._decision(top_choice.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -6053,6 +6159,7 @@ def build_strategies(
     sticky_canary_cost_percent: float = 10.0,
     queue_depth_soft_cap: int = 4,
     provider_quota_lookback: int = 100,
+    adaptive_timeout_hedge_ratio: float = 1.5,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -6149,6 +6256,8 @@ def build_strategies(
             queue-depth-fairness routing.
         provider_quota_lookback: Recent provider selection count retained for
             provider-quota-fair-share routing.
+        adaptive_timeout_hedge_ratio: Multiplier applied to the fastest observed
+            eligible p95 for adaptive-timeout-hedge routing.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -6427,6 +6536,11 @@ def build_strategies(
         RoutingStrategyName.PROVIDER_QUOTA_FAIR_SHARE: ProviderQuotaFairShareStrategy(
             model_catalog=model_catalog,
             request_share_stats=provider_request_share_stats,
+        ),
+        RoutingStrategyName.ADAPTIVE_TIMEOUT_HEDGE: AdaptiveTimeoutHedgeStrategy(
+            model_catalog=model_catalog,
+            latency_stats=latency_stats,
+            hedge_ratio=adaptive_timeout_hedge_ratio,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

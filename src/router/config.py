@@ -108,6 +108,7 @@ class RouterSettings(BaseSettings):
     sticky_canary_cost_percent: Annotated[float, Field(ge=0.0, le=100.0)] = 10.0
     queue_depth_soft_cap: Annotated[int, Field(ge=1)] = 4
     provider_quota_lookback: Annotated[int, Field(ge=1)] = 100
+    adaptive_timeout_hedge_ratio: Annotated[float, Field(ge=1.0)] = 1.5
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

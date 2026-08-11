@@ -81,6 +81,7 @@ class RoutingStrategyName(StrEnum):
     STICKY_CANARY_COST = "sticky-canary-cost"
     QUEUE_DEPTH_FAIRNESS = "queue-depth-fairness"
     PROVIDER_QUOTA_FAIR_SHARE = "provider-quota-fair-share"
+    ADAPTIVE_TIMEOUT_HEDGE = "adaptive-timeout-hedge"
     AB_TEST = "ab"
 
 

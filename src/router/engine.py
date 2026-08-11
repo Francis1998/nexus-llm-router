@@ -143,6 +143,7 @@ class NexusRouter:
             sticky_canary_cost_percent=settings.sticky_canary_cost_percent,
             queue_depth_soft_cap=settings.queue_depth_soft_cap,
             provider_quota_lookback=settings.provider_quota_lookback,
+            adaptive_timeout_hedge_ratio=settings.adaptive_timeout_hedge_ratio,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
