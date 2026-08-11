@@ -579,6 +579,26 @@ NEXUS_DEFAULT_STRATEGY=adaptive-timeout
 NEXUS_LATENCY_SLA_MS=750
 ```
 
+## Adaptive-Timeout-Hedge Routing
+
+The `adaptive-timeout-hedge` strategy starts from the highest-quality
+domain-eligible model, then compares its rolling provider p95 with an adaptive
+threshold derived from the fastest positive p95 in shared `LatencyStats`.
+When the quality leader exceeds
+`fastest_p95 * NEXUS_ADAPTIVE_TIMEOUT_HEDGE_RATIO`, Nexus hedges to the fastest
+observed provider alternative. Unknown (`0.0ms`) latency is excluded from hedge
+targets.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=adaptive-timeout-hedge
+NEXUS_ADAPTIVE_TIMEOUT_HEDGE_RATIO=1.5
+```
+
+`NEXUS_ADAPTIVE_TIMEOUT_HEDGE_RATIO` must be at least `1.0` (default `1.5`).
+This strategy is distinct from `adaptive-timeout`'s urgency/error-risk budget
+and `multi-region-latency-hedge`'s fixed p50 regional threshold. See
+[docs/guides/ADAPTIVE_TIMEOUT_HEDGE_GUIDE.md](docs/guides/ADAPTIVE_TIMEOUT_HEDGE_GUIDE.md).
+
 ## Semantic-Cache Routing
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
@@ -776,6 +796,7 @@ Set `X-Router-Strategy` to one of:
 - `embedding-cache-key-namespace`
 - `circuit-breaker-half-open-probe`
 - `provider-quota-fair-share`
+- `adaptive-timeout-hedge`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

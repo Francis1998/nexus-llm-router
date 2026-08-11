@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-434%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-442%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -128,6 +128,7 @@ Select a strategy with `X-Router-Strategy`:
 - `canary-cost-blend`: blends cost exploration with healthy-provider minimization — default picks the cheapest healthy model, while `NEXUS_CANARY_COST_BLEND_PERCENT` (default `10`) explores the next-cheaper healthy tier via deterministic `request_id` hashing; distinct from `canary-tier-blend`
 - `token-cost-anomaly-shed`: sheds to cheaper healthy models when the top quality pick's projected cost/1k exceeds the rolling mean times `NEXUS_TOKEN_COST_ANOMALY_RATIO` (default `2.0`); falls back to quality ranking when no cheaper healthy option exists — LiteLLM/OpenRouter-style spend spike guardrails for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `multi-region-latency-hedge`: stays on highest-quality primary-region models but hedges to the lowest-p50 secondary-region candidate when the primary provider p50 exceeds `NEXUS_LATENCY_HEDGE_MS` (default `500`) — regional latency escape hatch for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `adaptive-timeout-hedge`: keeps the highest-quality eligible model unless its rolling provider p95 exceeds the fastest observed eligible p95 by `NEXUS_ADAPTIVE_TIMEOUT_HEDGE_RATIO` (default `1.5`), then hedges to the fastest observed alternative for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `latency-budget`: selects the highest-quality model whose provider rolling p95 latency stays within a hard SLA (`NEXUS_LATENCY_SLA_MS`); the latency-domain dual of `budget-aware`, trading quality for speed only when the SLA requires it
 - `prompt-length-tier-shed`: sheds frontier-tier models when `prompt_tokens_estimate` exceeds `NEXUS_PROMPT_LENGTH_TIER_TOKENS` (default `8000`) and picks the best mid/economy alternative; short prompts keep pure quality ranking — LiteLLM/OpenRouter-style length tier shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `retry-budget-aware-failover`: prefers highest-quality healthy models while `metadata.retry_remaining` (or `NEXUS_RETRY_BUDGET_DEFAULT`, default `3`) is > 1, then failovers to lowest-latency healthy model on the last attempt — LiteLLM/OpenRouter-style retry-budget routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
@@ -195,6 +196,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Circuit-breaker-half-open-probe guide](docs/guides/CIRCUIT_BREAKER_HALF_OPEN_PROBE_GUIDE.md) | Half-open recovery probe budget routing |
 | [SLO-aware guide](docs/guides/SLO_AWARE_GUIDE.md) | Availability-SLO quality routing |
 | [Adaptive-timeout guide](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md) | Timeout-adaptive quality routing |
+| [Adaptive-timeout-hedge guide](docs/guides/ADAPTIVE_TIMEOUT_HEDGE_GUIDE.md) | Relative p95 hedge from a quality-first provider choice |
 | [Semantic-cache guide](docs/guides/SEMANTIC_CACHE_STRATEGY_GUIDE.md) | Cache-hit cheapest / miss cost-optimal routing |
 | [Least-busy guide](docs/guides/LEAST_BUSY_GUIDE.md) | Live in-flight load-aware routing |
 | [Prompt-prefix-cache guide](docs/guides/PROMPT_PREFIX_CACHE_STRATEGY_GUIDE.md) | Sticky system-prompt prefix affinity for provider KV-cache hits |
