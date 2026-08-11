@@ -144,6 +144,7 @@ class NexusRouter:
             queue_depth_soft_cap=settings.queue_depth_soft_cap,
             provider_quota_lookback=settings.provider_quota_lookback,
             adaptive_timeout_hedge_ratio=settings.adaptive_timeout_hedge_ratio,
+            token_bucket_tenant_rate=settings.token_bucket_tenant_rate,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

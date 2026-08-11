@@ -82,6 +82,7 @@ class RoutingStrategyName(StrEnum):
     QUEUE_DEPTH_FAIRNESS = "queue-depth-fairness"
     PROVIDER_QUOTA_FAIR_SHARE = "provider-quota-fair-share"
     ADAPTIVE_TIMEOUT_HEDGE = "adaptive-timeout-hedge"
+    TOKEN_BUCKET_TENANT = "token-bucket-tenant"  # noqa: S105  # strategy name
     AB_TEST = "ab"
 
 

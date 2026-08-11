@@ -109,6 +109,7 @@ class RouterSettings(BaseSettings):
     queue_depth_soft_cap: Annotated[int, Field(ge=1)] = 4
     provider_quota_lookback: Annotated[int, Field(ge=1)] = 100
     adaptive_timeout_hedge_ratio: Annotated[float, Field(ge=1.0)] = 1.5
+    token_bucket_tenant_rate: Annotated[float, Field(gt=0.0)] = 5.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
