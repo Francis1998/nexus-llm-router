@@ -83,6 +83,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_QUOTA_FAIR_SHARE = "provider-quota-fair-share"
     ADAPTIVE_TIMEOUT_HEDGE = "adaptive-timeout-hedge"
     TOKEN_BUCKET_TENANT = "token-bucket-tenant"  # noqa: S105  # strategy name
+    REGION_CARBON_BLEND = "region-carbon-blend"
     AB_TEST = "ab"
 
 

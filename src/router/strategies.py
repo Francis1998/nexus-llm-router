@@ -6277,6 +6277,133 @@ class TokenBucketTenantStrategy(RoutingStrategy):
         )
 
 
+class RegionCarbonBlendStrategy(RoutingStrategy):
+    """Blend regional carbon intensity preference with latency scoring.
+
+    Sustainability-aware gateways often want a tunable mix of green routing and
+    responsiveness. This strategy scores domain-eligible models by blending an
+    inverse-normalized carbon intensity (lower gCO2eq/kWh is better) with an
+    inverse-normalized rolling provider p95 latency. ``blend_weight`` of ``0``
+    is latency-only; ``1`` is carbon-only. Intensity comes from
+    ``carbon_intensity:<provider>`` metadata or a regional heuristic, matching
+    carbon-aware-preference for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2 traffic.
+    """
+
+    strategy_name = RoutingStrategyName.REGION_CARBON_BLEND
+
+    _REGION_DEFAULTS = {
+        "eu": 250.0,
+        "us": 380.0,
+        "cn": 550.0,
+        "global": 420.0,
+    }
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        blend_weight: float = 0.5,
+    ) -> None:
+        """Initialize region-carbon-blend routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_stats: Rolling provider latency observations.
+            blend_weight: Carbon share in ``[0.0, 1.0]`` (``0`` = latency only).
+
+        Raises:
+            ValueError: If blend_weight is outside ``[0.0, 1.0]``.
+        """
+        super().__init__(model_catalog)
+        if not 0.0 <= blend_weight <= 1.0:
+            raise ValueError(f"blend_weight must be within [0.0, 1.0], got {blend_weight}")
+        self._latency_stats = latency_stats
+        self._blend_weight = blend_weight
+
+    def _intensity_for(self, candidate: ModelCandidate, request: RouterRequest) -> float:
+        """Resolve carbon intensity for a candidate from metadata or region."""
+        raw = request.metadata.get(f"carbon_intensity:{candidate.provider}")
+        if raw is not None and str(raw).strip():
+            try:
+                return max(0.0, float(raw))
+            except ValueError:
+                pass
+        region = (
+            request.metadata.get("region")
+            or request.metadata.get("preferred_region")
+            or getattr(request, "region", None)
+            or "global"
+        )
+        region_key = str(region).lower()
+        return float(self._REGION_DEFAULTS.get(region_key, self._REGION_DEFAULTS["global"]))
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Select by blended carbon and latency scores."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        intensities = {
+            candidate.model: self._intensity_for(candidate, request)
+            for candidate in eligible_candidates
+        }
+        latencies = {
+            candidate.model: self._latency_stats.p95(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        carbon_scores = _inverse_min_max(intensities)
+        latency_scores = _inverse_min_max(latencies)
+        carbon_weight = self._blend_weight
+        latency_weight = 1.0 - carbon_weight
+
+        def blended_score(candidate: ModelCandidate) -> float:
+            return (
+                carbon_weight * carbon_scores[candidate.model]
+                + latency_weight * latency_scores[candidate.model]
+            )
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                blended_score(candidate),
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        rationale = (
+            "region-carbon-blend selected "
+            f"{selected_candidate.model} on {selected_candidate.provider} "
+            f"(score {blended_score(selected_candidate):.3f}; "
+            f"carbon_weight={carbon_weight:.2f}, "
+            f"intensity {intensities[selected_candidate.model]:.1f} gCO2eq/kWh, "
+            f"p95 {latencies[selected_candidate.model]:.1f}ms)"
+        )
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                -blended_score(candidate),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -6341,6 +6468,7 @@ def build_strategies(
     provider_quota_lookback: int = 100,
     adaptive_timeout_hedge_ratio: float = 1.5,
     token_bucket_tenant_rate: float = 5.0,
+    region_carbon_blend_weight: float = 0.5,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -6439,6 +6567,9 @@ def build_strategies(
             provider-quota-fair-share routing.
         adaptive_timeout_hedge_ratio: Multiplier applied to the fastest observed
             eligible p95 for adaptive-timeout-hedge routing.
+
+        region_carbon_blend_weight: Carbon share in ``[0.0, 1.0]`` for
+            region-carbon-blend routing (``0`` = latency only, ``1`` = carbon only).
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -6727,6 +6858,11 @@ def build_strategies(
         RoutingStrategyName.TOKEN_BUCKET_TENANT: TokenBucketTenantStrategy(
             model_catalog,
             tenant_token_bucket_stats,
+        ),
+        RoutingStrategyName.REGION_CARBON_BLEND: RegionCarbonBlendStrategy(
+            model_catalog=model_catalog,
+            latency_stats=latency_stats,
+            blend_weight=region_carbon_blend_weight,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

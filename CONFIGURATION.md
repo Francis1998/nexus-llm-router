@@ -621,6 +621,24 @@ buckets represent provider capacity. See
 [docs/guides/TOKEN_BUCKET_TENANT_GUIDE.md](docs/guides/TOKEN_BUCKET_TENANT_GUIDE.md).
 
 
+
+## Region-Carbon-Blend Routing
+
+The `region-carbon-blend` strategy blends inverse-normalized carbon intensity
+with rolling provider p95 latency. Intensity comes from
+`carbon_intensity:<provider>` metadata or regional heuristics (`eu`/`us`/`cn`/
+`global`). `NEXUS_REGION_CARBON_BLEND_WEIGHT` defaults to `0.5` (`0` = latency
+only, `1` = carbon only) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2 traffic.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=region-carbon-blend
+NEXUS_REGION_CARBON_BLEND_WEIGHT=0.5
+```
+
+See
+[docs/guides/REGION_CARBON_BLEND_GUIDE.md](docs/guides/REGION_CARBON_BLEND_GUIDE.md).
+
 ## Semantic-Cache Routing
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
@@ -819,6 +837,8 @@ Set `X-Router-Strategy` to one of:
 - `circuit-breaker-half-open-probe`
 - `provider-quota-fair-share`
 - `adaptive-timeout-hedge`
+- `token-bucket-tenant`
+- `region-carbon-blend`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

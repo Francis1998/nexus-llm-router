@@ -110,6 +110,7 @@ class RouterSettings(BaseSettings):
     provider_quota_lookback: Annotated[int, Field(ge=1)] = 100
     adaptive_timeout_hedge_ratio: Annotated[float, Field(ge=1.0)] = 1.5
     token_bucket_tenant_rate: Annotated[float, Field(gt=0.0)] = 5.0
+    region_carbon_blend_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.5
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
