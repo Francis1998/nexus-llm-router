@@ -85,6 +85,7 @@ class RoutingStrategyName(StrEnum):
     TOKEN_BUCKET_TENANT = "token-bucket-tenant"  # noqa: S105  # strategy name
     REGION_CARBON_BLEND = "region-carbon-blend"
     PROVIDER_WEIGHT_DECAY = "provider-weight-decay"
+    RETRY_AFTER_RESPECT = "retry-after-respect"
     AB_TEST = "ab"
 
 

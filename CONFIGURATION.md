@@ -658,6 +658,25 @@ NEXUS_PROVIDER_WEIGHT_RECOVER=0.1
 See
 [docs/guides/PROVIDER_WEIGHT_DECAY_GUIDE.md](docs/guides/PROVIDER_WEIGHT_DECAY_GUIDE.md).
 
+
+## Retry-After-Respect Routing
+
+The `retry-after-respect` strategy skips providers still inside a Retry-After
+cooldown window and prefers the highest-quality healthy ready provider. When
+every healthy provider is cooling it falls back to the next healthy provider
+with the soonest remaining wait. The engine records cooldowns on rate-limit
+failures using the response `Retry-After` value when present, otherwise
+`NEXUS_RETRY_AFTER_DEFAULT_SECONDS` (default `30`) for GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=retry-after-respect
+NEXUS_RETRY_AFTER_DEFAULT_SECONDS=30
+```
+
+See
+[docs/guides/RETRY_AFTER_RESPECT_GUIDE.md](docs/guides/RETRY_AFTER_RESPECT_GUIDE.md).
+
 ## Semantic-Cache Routing
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
@@ -859,6 +878,7 @@ Set `X-Router-Strategy` to one of:
 - `token-bucket-tenant`
 - `region-carbon-blend`
 - `provider-weight-decay`
+- `retry-after-respect`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

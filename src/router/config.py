@@ -113,6 +113,7 @@ class RouterSettings(BaseSettings):
     region_carbon_blend_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.5
     provider_weight_decay_factor: Annotated[float, Field(gt=0.0, le=1.0)] = 0.5
     provider_weight_recover: Annotated[float, Field(ge=0.0)] = 0.1
+    retry_after_default_seconds: Annotated[float, Field(ge=0.0)] = 30.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
