@@ -639,6 +639,25 @@ NEXUS_REGION_CARBON_BLEND_WEIGHT=0.5
 See
 [docs/guides/REGION_CARBON_BLEND_GUIDE.md](docs/guides/REGION_CARBON_BLEND_GUIDE.md).
 
+
+## Provider-Weight-Decay Routing
+
+The `provider-weight-decay` strategy multiplies each provider's selection weight
+by model quality. Failures multiply weight by
+`NEXUS_PROVIDER_WEIGHT_DECAY_FACTOR` (default `0.5`); successes add
+`NEXUS_PROVIDER_WEIGHT_RECOVER` (default `0.1`, capped at `1.0`). Cold-start
+weights are `1.0`. Targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2 traffic.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-weight-decay
+NEXUS_PROVIDER_WEIGHT_DECAY_FACTOR=0.5
+NEXUS_PROVIDER_WEIGHT_RECOVER=0.1
+```
+
+See
+[docs/guides/PROVIDER_WEIGHT_DECAY_GUIDE.md](docs/guides/PROVIDER_WEIGHT_DECAY_GUIDE.md).
+
 ## Semantic-Cache Routing
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
@@ -839,6 +858,7 @@ Set `X-Router-Strategy` to one of:
 - `adaptive-timeout-hedge`
 - `token-bucket-tenant`
 - `region-carbon-blend`
+- `provider-weight-decay`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
