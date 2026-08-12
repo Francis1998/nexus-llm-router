@@ -6529,6 +6529,180 @@ class ProviderWeightDecayStrategy(RoutingStrategy):
         )
 
 
+class ProviderRetryAfterCooldown:
+    """Per-provider Retry-After cooldown map for retry-after-respect routing."""
+
+    def __init__(self, default_seconds: float = 30.0) -> None:
+        """Initialize provider cooldown tracking.
+
+        Args:
+            default_seconds: Fallback wait when a Retry-After value is absent.
+
+        Raises:
+            ValueError: If ``default_seconds`` is negative.
+        """
+        if default_seconds < 0.0:
+            raise ValueError(f"default_seconds must be >= 0, got {default_seconds}")
+        self._default_seconds = default_seconds
+        self._until: dict[str, float] = {}
+
+    @property
+    def default_seconds(self) -> float:
+        """Return the configured default Retry-After wait in seconds."""
+        return self._default_seconds
+
+    def set_cooldown(
+        self,
+        provider: str,
+        seconds: float | None = None,
+        *,
+        now: float | None = None,
+    ) -> None:
+        """Mark a provider unavailable until the Retry-After wait expires."""
+        wait = self._default_seconds if seconds is None else max(0.0, float(seconds))
+        clock = time.monotonic() if now is None else now
+        self._until[provider] = clock + wait
+
+    def clear(self, provider: str) -> None:
+        """Clear any active cooldown for a provider."""
+        self._until.pop(provider, None)
+
+    def remaining_seconds(self, provider: str, *, now: float | None = None) -> float:
+        """Return remaining cooldown seconds (``0`` when ready)."""
+        until = self._until.get(provider)
+        if until is None:
+            return 0.0
+        clock = time.monotonic() if now is None else now
+        return max(0.0, until - clock)
+
+    def is_cooling_down(self, provider: str, *, now: float | None = None) -> bool:
+        """Return whether the provider is still inside a Retry-After wait."""
+        return self.remaining_seconds(provider, now=now) > 0.0
+
+
+class RetryAfterRespectStrategy(RoutingStrategy):
+    """Skip providers still honoring a Retry-After cooldown.
+
+    When providers return HTTP 429 with ``Retry-After``, hammering them before
+    the wait expires wastes GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+    retry budget. This strategy prefers healthy providers whose cooldown has
+    expired, then falls back to the next healthy cooling provider (soonest
+    expiry) so decide-time remains deterministic.
+    """
+
+    strategy_name = RoutingStrategyName.RETRY_AFTER_RESPECT
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        retry_after_cooldown: ProviderRetryAfterCooldown,
+    ) -> None:
+        """Initialize retry-after-respect routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view.
+            retry_after_cooldown: Shared provider Retry-After cooldown map.
+        """
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._retry_after_cooldown = retry_after_cooldown
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer healthy ready providers; fall back to next healthy cooling one."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        def quality_key(candidate: ModelCandidate) -> tuple[float, float, str]:
+            return (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            )
+
+        healthy_ready = [
+            candidate
+            for candidate in eligible_candidates
+            if self._provider_health.is_available(candidate.provider)
+            and not self._retry_after_cooldown.is_cooling_down(candidate.provider)
+        ]
+        healthy_cooling = [
+            candidate
+            for candidate in eligible_candidates
+            if self._provider_health.is_available(candidate.provider)
+            and self._retry_after_cooldown.is_cooling_down(candidate.provider)
+        ]
+        ready = [
+            candidate
+            for candidate in eligible_candidates
+            if not self._retry_after_cooldown.is_cooling_down(candidate.provider)
+        ]
+
+        if healthy_ready:
+            selected_candidate = max(healthy_ready, key=quality_key)
+            rationale = (
+                "retry-after-respect selected healthy ready provider "
+                f"{selected_candidate.provider} "
+                f"(quality {selected_candidate.quality_score:.2f}; "
+                f"default wait {self._retry_after_cooldown.default_seconds:.0f}s)"
+            )
+        elif healthy_cooling:
+            selected_candidate = min(
+                healthy_cooling,
+                key=lambda candidate: (
+                    self._retry_after_cooldown.remaining_seconds(candidate.provider),
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            remaining = self._retry_after_cooldown.remaining_seconds(selected_candidate.provider)
+            rationale = (
+                "retry-after-respect all healthy providers cooling; "
+                f"fell back to next healthy {selected_candidate.provider} "
+                f"with {remaining:.1f}s remaining"
+            )
+        elif ready:
+            selected_candidate = max(ready, key=quality_key)
+            rationale = (
+                "retry-after-respect no healthy ready providers; "
+                f"selected ready {selected_candidate.provider} "
+                f"(quality {selected_candidate.quality_score:.2f})"
+            )
+        else:
+            selected_candidate = max(eligible_candidates, key=quality_key)
+            remaining = self._retry_after_cooldown.remaining_seconds(selected_candidate.provider)
+            rationale = (
+                "retry-after-respect every eligible provider cooling; "
+                f"selected {selected_candidate.provider} with {remaining:.1f}s remaining"
+            )
+
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                self._retry_after_cooldown.is_cooling_down(candidate.provider),
+                not self._provider_health.is_available(candidate.provider),
+                self._retry_after_cooldown.remaining_seconds(candidate.provider),
+                -candidate.quality_score,
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -6597,6 +6771,8 @@ def build_strategies(
     provider_weight_decay_factor: float = 0.5,
     provider_weight_recover: float = 0.1,
     provider_weight_stats: ProviderWeightStats | None = None,
+    retry_after_default_seconds: float = 30.0,
+    retry_after_cooldown: ProviderRetryAfterCooldown | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -6704,6 +6880,10 @@ def build_strategies(
             provider-weight-decay routing.
         provider_weight_stats: Optional shared provider selection weights for
             provider-weight-decay routing. When omitted a fresh map is created.
+        retry_after_default_seconds: Default Retry-After wait in seconds for
+            retry-after-respect routing when a provider omits the header.
+        retry_after_cooldown: Optional shared provider cooldown map for
+            retry-after-respect routing. When omitted a fresh map is created.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -6754,6 +6934,9 @@ def build_strategies(
     resolved_provider_weight_stats = provider_weight_stats or ProviderWeightStats(
         provider_weight_decay_factor,
         provider_weight_recover,
+    )
+    resolved_retry_after_cooldown = retry_after_cooldown or ProviderRetryAfterCooldown(
+        retry_after_default_seconds
     )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
@@ -7005,6 +7188,11 @@ def build_strategies(
         RoutingStrategyName.PROVIDER_WEIGHT_DECAY: ProviderWeightDecayStrategy(
             model_catalog=model_catalog,
             provider_weight_stats=resolved_provider_weight_stats,
+        ),
+        RoutingStrategyName.RETRY_AFTER_RESPECT: RetryAfterRespectStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            retry_after_cooldown=resolved_retry_after_cooldown,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

@@ -28,6 +28,7 @@ from router.strategies import (
     FamilySpendWindow,
     InflightStats,
     LatencyStats,
+    ProviderRetryAfterCooldown,
     ProviderWeightStats,
     RateLimitStats,
     RoutingStrategy,
@@ -84,6 +85,9 @@ class NexusRouter:
         self._provider_weight_stats = ProviderWeightStats(
             settings.provider_weight_decay_factor,
             settings.provider_weight_recover,
+        )
+        self._retry_after_cooldown = ProviderRetryAfterCooldown(
+            settings.retry_after_default_seconds
         )
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
@@ -154,6 +158,8 @@ class NexusRouter:
             provider_weight_decay_factor=settings.provider_weight_decay_factor,
             provider_weight_recover=settings.provider_weight_recover,
             provider_weight_stats=self._provider_weight_stats,
+            retry_after_default_seconds=settings.retry_after_default_seconds,
+            retry_after_cooldown=self._retry_after_cooldown,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -259,10 +265,16 @@ class NexusRouter:
                 self._circuit_breakers.record_failure(candidate.provider)
                 self._success_stats.observe(candidate.provider, success=False)
                 self._provider_weight_stats.observe(candidate.provider, success=False)
+                rate_limited = self._is_rate_limit_error(exception)
                 self._rate_limit_stats.observe(
                     candidate.provider,
-                    rate_limited=self._is_rate_limit_error(exception),
+                    rate_limited=rate_limited,
                 )
+                if rate_limited:
+                    self._retry_after_cooldown.set_cooldown(
+                        candidate.provider,
+                        self._extract_retry_after_seconds(exception),
+                    )
                 provider_error_rate.labels(candidate.provider, model_name).inc()
                 self._logger.warning(
                     "provider_attempt_failed",
@@ -295,6 +307,7 @@ class NexusRouter:
         self._success_stats.observe(provider, success=True)
         self._provider_weight_stats.observe(provider, success=True)
         self._rate_limit_stats.observe(provider, rate_limited=False)
+        self._retry_after_cooldown.clear(provider)
         state_machine.transition(RequestState.RESPONDED)
         latency_ms = (time.perf_counter() - started_at) * 1000.0
         latency_seconds = latency_ms / 1000.0
@@ -374,6 +387,31 @@ class NexusRouter:
         if attempt_index == 0:
             return base_rationale
         return f"{base_rationale}; fallback attempt {attempt_index} succeeded with {model_name}"
+
+    @staticmethod
+    def _extract_retry_after_seconds(exception: Exception) -> float | None:
+        """Parse a numeric Retry-After wait from a provider exception when present."""
+        candidates: list[object] = [
+            getattr(exception, "retry_after", None),
+            getattr(exception, "retry_after_seconds", None),
+        ]
+        headers = getattr(exception, "headers", None)
+        if isinstance(headers, Mapping):
+            candidates.append(headers.get("Retry-After") or headers.get("retry-after"))
+        response = getattr(exception, "response", None)
+        response_headers = getattr(response, "headers", None)
+        if isinstance(response_headers, Mapping):
+            candidates.append(
+                response_headers.get("Retry-After") or response_headers.get("retry-after")
+            )
+        for candidate in candidates:
+            if candidate is None:
+                continue
+            try:
+                return max(0.0, float(str(candidate)))
+            except (TypeError, ValueError):
+                continue
+        return None
 
     @staticmethod
     def _is_rate_limit_error(exception: Exception) -> bool:
