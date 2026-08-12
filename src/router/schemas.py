@@ -84,6 +84,7 @@ class RoutingStrategyName(StrEnum):
     ADAPTIVE_TIMEOUT_HEDGE = "adaptive-timeout-hedge"
     TOKEN_BUCKET_TENANT = "token-bucket-tenant"  # noqa: S105  # strategy name
     REGION_CARBON_BLEND = "region-carbon-blend"
+    PROVIDER_WEIGHT_DECAY = "provider-weight-decay"
     AB_TEST = "ab"
 
 

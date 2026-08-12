@@ -6404,6 +6404,131 @@ class RegionCarbonBlendStrategy(RoutingStrategy):
         )
 
 
+class ProviderWeightStats:
+    """Per-provider selection weights with exponential decay and slow recovery."""
+
+    def __init__(self, decay_factor: float = 0.5, recover: float = 0.1) -> None:
+        """Initialize provider selection weights.
+
+        Args:
+            decay_factor: Multiplicative penalty applied after each failure in
+                ``(0.0, 1.0]``.
+            recover: Additive recovery applied after each success (``>= 0``).
+
+        Raises:
+            ValueError: If ``decay_factor`` is outside ``(0.0, 1.0]`` or
+                ``recover`` is negative.
+        """
+        if not 0.0 < decay_factor <= 1.0:
+            raise ValueError(f"decay_factor must be within (0.0, 1.0], got {decay_factor}")
+        if recover < 0.0:
+            raise ValueError(f"recover must be >= 0, got {recover}")
+        self._decay_factor = decay_factor
+        self._recover = recover
+        self._weights: dict[str, float] = {}
+
+    @property
+    def decay_factor(self) -> float:
+        """Return the configured failure decay factor."""
+        return self._decay_factor
+
+    @property
+    def recover(self) -> float:
+        """Return the configured success recovery step."""
+        return self._recover
+
+    def weight(self, provider: str) -> float:
+        """Return the current selection weight (defaults to ``1.0``)."""
+        return self._weights.get(provider, 1.0)
+
+    def observe(self, provider: str, *, success: bool) -> None:
+        """Decay on failure or slowly recover toward ``1.0`` on success."""
+        current = self.weight(provider)
+        if success:
+            self._weights[provider] = min(1.0, current + self._recover)
+        else:
+            self._weights[provider] = current * self._decay_factor
+
+
+class ProviderWeightDecayStrategy(RoutingStrategy):
+    """Select providers using exponentially decaying selection weights.
+
+    Repeated failures multiply a provider's weight by
+    ``NEXUS_PROVIDER_WEIGHT_DECAY_FACTOR``; successes add
+    ``NEXUS_PROVIDER_WEIGHT_RECOVER`` capped at ``1.0``. Routing multiplies the
+    live weight by model quality so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2 traffic gradually shifts away from failing backends and recovers
+    slowly once they stabilize.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_WEIGHT_DECAY
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_weight_stats: ProviderWeightStats,
+    ) -> None:
+        """Initialize provider-weight-decay routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_weight_stats: Shared per-provider selection weights.
+        """
+        super().__init__(model_catalog)
+        self._provider_weight_stats = provider_weight_stats
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer higher weight times quality among domain-eligible models."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        def score(candidate: ModelCandidate) -> float:
+            return self._provider_weight_stats.weight(candidate.provider) * candidate.quality_score
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                score(candidate),
+                self._provider_weight_stats.weight(candidate.provider),
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        weight = self._provider_weight_stats.weight(selected_candidate.provider)
+        rationale = (
+            "provider-weight-decay selected "
+            f"{selected_candidate.model} on {selected_candidate.provider} "
+            f"(weight {weight:.3f}; score {score(selected_candidate):.3f}; "
+            f"decay={self._provider_weight_stats.decay_factor:.2f}, "
+            f"recover={self._provider_weight_stats.recover:.2f})"
+        )
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                -score(candidate),
+                -self._provider_weight_stats.weight(candidate.provider),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -6469,6 +6594,9 @@ def build_strategies(
     adaptive_timeout_hedge_ratio: float = 1.5,
     token_bucket_tenant_rate: float = 5.0,
     region_carbon_blend_weight: float = 0.5,
+    provider_weight_decay_factor: float = 0.5,
+    provider_weight_recover: float = 0.1,
+    provider_weight_stats: ProviderWeightStats | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -6570,6 +6698,12 @@ def build_strategies(
 
         region_carbon_blend_weight: Carbon share in ``[0.0, 1.0]`` for
             region-carbon-blend routing (``0`` = latency only, ``1`` = carbon only).
+        provider_weight_decay_factor: Multiplicative failure penalty in
+            ``(0.0, 1.0]`` for provider-weight-decay routing.
+        provider_weight_recover: Additive success recovery step for
+            provider-weight-decay routing.
+        provider_weight_stats: Optional shared provider selection weights for
+            provider-weight-decay routing. When omitted a fresh map is created.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -6617,6 +6751,10 @@ def build_strategies(
     resolved_cost_anomaly_stats = cost_anomaly_stats or CostAnomalyStats()
     provider_request_share_stats = ProviderRequestShareStats(provider_quota_lookback)
     tenant_token_bucket_stats = TenantTokenBucketStats(token_bucket_tenant_rate)
+    resolved_provider_weight_stats = provider_weight_stats or ProviderWeightStats(
+        provider_weight_decay_factor,
+        provider_weight_recover,
+    )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -6863,6 +7001,10 @@ def build_strategies(
             model_catalog=model_catalog,
             latency_stats=latency_stats,
             blend_weight=region_carbon_blend_weight,
+        ),
+        RoutingStrategyName.PROVIDER_WEIGHT_DECAY: ProviderWeightDecayStrategy(
+            model_catalog=model_catalog,
+            provider_weight_stats=resolved_provider_weight_stats,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

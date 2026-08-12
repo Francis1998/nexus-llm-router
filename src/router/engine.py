@@ -28,6 +28,7 @@ from router.strategies import (
     FamilySpendWindow,
     InflightStats,
     LatencyStats,
+    ProviderWeightStats,
     RateLimitStats,
     RoutingStrategy,
     SuccessStats,
@@ -80,6 +81,10 @@ class NexusRouter:
             settings.soft_family_budget_window_seconds,
         )
         self._cost_anomaly_stats = CostAnomalyStats()
+        self._provider_weight_stats = ProviderWeightStats(
+            settings.provider_weight_decay_factor,
+            settings.provider_weight_recover,
+        )
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -146,6 +151,9 @@ class NexusRouter:
             adaptive_timeout_hedge_ratio=settings.adaptive_timeout_hedge_ratio,
             token_bucket_tenant_rate=settings.token_bucket_tenant_rate,
             region_carbon_blend_weight=settings.region_carbon_blend_weight,
+            provider_weight_decay_factor=settings.provider_weight_decay_factor,
+            provider_weight_recover=settings.provider_weight_recover,
+            provider_weight_stats=self._provider_weight_stats,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -250,6 +258,7 @@ class NexusRouter:
                 last_error = exception
                 self._circuit_breakers.record_failure(candidate.provider)
                 self._success_stats.observe(candidate.provider, success=False)
+                self._provider_weight_stats.observe(candidate.provider, success=False)
                 self._rate_limit_stats.observe(
                     candidate.provider,
                     rate_limited=self._is_rate_limit_error(exception),
@@ -284,6 +293,7 @@ class NexusRouter:
         """Build the router response and persist observability side effects."""
         self._circuit_breakers.record_success(provider)
         self._success_stats.observe(provider, success=True)
+        self._provider_weight_stats.observe(provider, success=True)
         self._rate_limit_stats.observe(provider, rate_limited=False)
         state_machine.transition(RequestState.RESPONDED)
         latency_ms = (time.perf_counter() - started_at) * 1000.0
