@@ -88,6 +88,7 @@ class RoutingStrategyName(StrEnum):
     RETRY_AFTER_RESPECT = "retry-after-respect"
     LATENCY_SLOPE_SHED = "latency-slope-shed"
     PROVIDER_HOURLY_COST_CEILING = "provider-hourly-cost-ceiling"
+    QUALITY_WEIGHTED_STICKY = "quality-weighted-sticky"
     AB_TEST = "ab"
 
 

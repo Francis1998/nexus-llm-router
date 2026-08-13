@@ -714,6 +714,22 @@ NEXUS_PROVIDER_HOURLY_COST_CEILING_USD=5.0
 See
 [docs/guides/PROVIDER_HOURLY_COST_CEILING_GUIDE.md](docs/guides/PROVIDER_HOURLY_COST_CEILING_GUIDE.md).
 
+## Quality-Weighted-Sticky Routing
+
+The `quality-weighted-sticky` strategy pins `session_id` via consistent hashing
+like `sticky-session`, but allocates hash-ring share proportional to each
+candidate's `quality_score`. Higher-quality models (for example Claude Sonnet
+4.6 / GPT-5.5) absorb more sticky sessions while Gemini 3.x / Kimi K2 arms
+still receive some. No extra `NEXUS_*` knobs — weights come from catalog
+quality priors. Distinct from `sticky-tenant-hash`.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=quality-weighted-sticky
+```
+
+See
+[docs/guides/QUALITY_WEIGHTED_STICKY_GUIDE.md](docs/guides/QUALITY_WEIGHTED_STICKY_GUIDE.md).
+
 ## Semantic-Cache Routing
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
@@ -918,6 +934,7 @@ Set `X-Router-Strategy` to one of:
 - `retry-after-respect`
 - `latency-slope-shed`
 - `provider-hourly-cost-ceiling`
+- `quality-weighted-sticky`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
