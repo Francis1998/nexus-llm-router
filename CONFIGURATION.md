@@ -677,6 +677,25 @@ NEXUS_RETRY_AFTER_DEFAULT_SECONDS=30
 See
 [docs/guides/RETRY_AFTER_RESPECT_GUIDE.md](docs/guides/RETRY_AFTER_RESPECT_GUIDE.md).
 
+
+## Latency-Slope-Shed Routing
+
+The `latency-slope-shed` strategy tracks a short per-provider latency sample
+window (`NEXUS_LATENCY_SLOPE_WINDOW`, default `10`) and computes an EWMA slope
+in ms per sample step. When the quality leader's slope exceeds
+`NEXUS_LATENCY_SLOPE_THRESHOLD_MS` (default `25`), traffic sheds to a
+lower-latency / cheaper healthy alternative for GPT-5.5 / Claude Sonnet 4.6 /
+Gemini 3.x / Kimi K2.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=latency-slope-shed
+NEXUS_LATENCY_SLOPE_WINDOW=10
+NEXUS_LATENCY_SLOPE_THRESHOLD_MS=25.0
+```
+
+See
+[docs/guides/LATENCY_SLOPE_SHED_GUIDE.md](docs/guides/LATENCY_SLOPE_SHED_GUIDE.md).
+
 ## Semantic-Cache Routing
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
@@ -879,6 +898,7 @@ Set `X-Router-Strategy` to one of:
 - `region-carbon-blend`
 - `provider-weight-decay`
 - `retry-after-respect`
+- `latency-slope-shed`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.

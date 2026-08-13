@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-476%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-485%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -133,6 +133,7 @@ Select a strategy with `X-Router-Strategy`:
 - `region-carbon-blend`: blends regional carbon intensity with rolling provider p95 latency via `NEXUS_REGION_CARBON_BLEND_WEIGHT` (default `0.5`; `0` = latency only, `1` = carbon only) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-weight-decay`: exponentially decays provider selection weight after failures (`NEXUS_PROVIDER_WEIGHT_DECAY_FACTOR`, default `0.5`) and recovers slowly on success (`NEXUS_PROVIDER_WEIGHT_RECOVER`, default `0.1`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `retry-after-respect`: skips providers still inside a Retry-After cooldown (`NEXUS_RETRY_AFTER_DEFAULT_SECONDS`, default `30`) and falls back to the next healthy provider for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `latency-slope-shed`: sheds the quality leader when its EWMA latency slope exceeds `NEXUS_LATENCY_SLOPE_THRESHOLD_MS` (default `25` ms/step; window via `NEXUS_LATENCY_SLOPE_WINDOW`, default `10`) to a lower-latency / cheaper healthy model for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `latency-budget`: selects the highest-quality model whose provider rolling p95 latency stays within a hard SLA (`NEXUS_LATENCY_SLA_MS`); the latency-domain dual of `budget-aware`, trading quality for speed only when the SLA requires it
 - `prompt-length-tier-shed`: sheds frontier-tier models when `prompt_tokens_estimate` exceeds `NEXUS_PROMPT_LENGTH_TIER_TOKENS` (default `8000`) and picks the best mid/economy alternative; short prompts keep pure quality ranking — LiteLLM/OpenRouter-style length tier shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `retry-budget-aware-failover`: prefers highest-quality healthy models while `metadata.retry_remaining` (or `NEXUS_RETRY_BUDGET_DEFAULT`, default `3`) is > 1, then failovers to lowest-latency healthy model on the last attempt — LiteLLM/OpenRouter-style retry-budget routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
