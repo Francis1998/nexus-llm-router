@@ -6898,6 +6898,158 @@ class LatencySlopeShedStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class ProviderHourlySpendWindow:
+    """Rolling hourly estimated-spend tracker per provider."""
+
+    def __init__(self, window_seconds: float = 3600.0) -> None:
+        """Initialize empty provider hourly spend windows.
+
+        Args:
+            window_seconds: Rolling window length in seconds (default one hour).
+
+        Raises:
+            ValueError: If the window length is not positive.
+        """
+        if window_seconds <= 0:
+            raise ValueError(f"window_seconds must be positive, got {window_seconds}")
+        self._window_seconds = window_seconds
+        self._entries: dict[str, list[tuple[float, float]]] = {}
+
+    @property
+    def window_seconds(self) -> float:
+        """Return the configured rolling window length in seconds."""
+        return self._window_seconds
+
+    def record(self, provider: str, amount_usd: float, *, now: float | None = None) -> None:
+        """Record estimated spend against a provider.
+
+        Args:
+            provider: Provider name.
+            amount_usd: Estimated spend in USD.
+            now: Optional monotonic timestamp override for tests.
+        """
+        timestamp = time.monotonic() if now is None else now
+        entries = self._entries.setdefault(provider, [])
+        entries.append((timestamp, amount_usd))
+        self._prune(provider, timestamp)
+
+    def provider_spend(self, provider: str, *, now: float | None = None) -> float:
+        """Return rolling estimated spend for a provider inside the window."""
+        timestamp = time.monotonic() if now is None else now
+        self._prune(provider, timestamp)
+        return sum(amount for _, amount in self._entries.get(provider, []))
+
+    def is_over_ceiling(
+        self, provider: str, ceiling_usd: float, *, now: float | None = None
+    ) -> bool:
+        """Return whether provider rolling spend exceeds the hourly ceiling."""
+        return self.provider_spend(provider, now=now) > ceiling_usd
+
+    def _prune(self, provider: str, now: float) -> None:
+        cutoff = now - self._window_seconds
+        entries = self._entries.get(provider, [])
+        while entries and entries[0][0] < cutoff:
+            entries.pop(0)
+        if not entries:
+            self._entries.pop(provider, None)
+
+
+class ProviderHourlyCostCeilingStrategy(RoutingStrategy):
+    """Skip providers whose rolling hourly estimated spend exceeds a ceiling.
+
+    Distinct from :class:`ProviderFamilyCostCeilingStrategy` (a hard *per-request*
+    family ceiling) and :class:`SoftFamilyBudgetStrategy` (soft deprioritization
+    of observed family spend). This strategy tracks rolling *hourly estimated*
+    spend per provider and hard-skips providers already over
+    ``NEXUS_PROVIDER_HOURLY_COST_CEILING_USD``. Among under-ceiling providers it
+    picks highest quality; when every provider is over ceiling it falls back to
+    the cheapest eligible model so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2 traffic still routes deterministically.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_HOURLY_COST_CEILING
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_hourly_spend_window: ProviderHourlySpendWindow,
+        provider_hourly_cost_ceiling_usd: float = 5.0,
+    ) -> None:
+        """Initialize provider-hourly-cost-ceiling routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_hourly_spend_window: Rolling estimated spend per provider.
+            provider_hourly_cost_ceiling_usd: Hard hourly estimated-spend
+                ceiling per provider in USD.
+
+        Raises:
+            ValueError: If the ceiling is negative.
+        """
+        super().__init__(model_catalog)
+        if provider_hourly_cost_ceiling_usd < 0.0:
+            raise ValueError(
+                "provider_hourly_cost_ceiling_usd must be non-negative, "
+                f"got {provider_hourly_cost_ceiling_usd}"
+            )
+        self._spend_window = provider_hourly_spend_window
+        self._ceiling_usd = provider_hourly_cost_ceiling_usd
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer highest quality among providers under the hourly ceiling."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+        under_ceiling = [
+            candidate
+            for candidate in eligible_candidates
+            if not self._spend_window.is_over_ceiling(candidate.provider, self._ceiling_usd)
+        ]
+        if under_ceiling:
+            selected_candidate = max(
+                under_ceiling,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            spend = self._spend_window.provider_spend(selected_candidate.provider)
+            rationale = (
+                "provider-hourly-cost-ceiling selected "
+                f"{selected_candidate.provider}/{selected_candidate.model} "
+                f"quality {selected_candidate.quality_score:.2f} under "
+                f"${self._ceiling_usd:.4f}/hr ceiling "
+                f"(rolling est ${spend:.6f})"
+            )
+            return self._decision(selected_candidate.model, rationale)
+
+        selected_candidate = min(
+            eligible_candidates,
+            key=lambda candidate: (
+                costs[candidate.model],
+                -candidate.quality_score,
+                candidate.model,
+            ),
+        )
+        rationale = (
+            "provider-hourly-cost-ceiling every provider over "
+            f"${self._ceiling_usd:.4f}/hr ceiling; fell back to cheapest "
+            f"{selected_candidate.provider}/{selected_candidate.model} "
+            f"(est ${costs[selected_candidate.model]:.6f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -6971,6 +7123,8 @@ def build_strategies(
     latency_slope_window: int = 10,
     latency_slope_threshold_ms: float = 25.0,
     latency_slope_stats: LatencySlopeStats | None = None,
+    provider_hourly_cost_ceiling_usd: float = 5.0,
+    provider_hourly_spend_window: ProviderHourlySpendWindow | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -7089,6 +7243,13 @@ def build_strategies(
         latency_slope_stats: Optional shared EWMA slope window for
             latency-slope-shed routing. When omitted a fresh window is created.
 
+        provider_hourly_cost_ceiling_usd: Hard rolling hourly estimated-spend
+            ceiling per provider in USD for provider-hourly-cost-ceiling
+            routing.
+        provider_hourly_spend_window: Optional shared rolling hourly estimated
+            spend tracker for provider-hourly-cost-ceiling routing. When
+            omitted a fresh one-hour window is created.
+
     Returns:
         Routing strategies keyed by strategy name.
     """
@@ -7143,6 +7304,9 @@ def build_strategies(
         retry_after_default_seconds
     )
     resolved_latency_slope_stats = latency_slope_stats or LatencySlopeStats(latency_slope_window)
+    resolved_provider_hourly_spend_window = (
+        provider_hourly_spend_window or ProviderHourlySpendWindow()
+    )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -7404,6 +7568,11 @@ def build_strategies(
             latency_slope_stats=resolved_latency_slope_stats,
             provider_health=provider_health,
             latency_slope_threshold_ms=latency_slope_threshold_ms,
+        ),
+        RoutingStrategyName.PROVIDER_HOURLY_COST_CEILING: ProviderHourlyCostCeilingStrategy(
+            model_catalog=model_catalog,
+            provider_hourly_spend_window=resolved_provider_hourly_spend_window,
+            provider_hourly_cost_ceiling_usd=provider_hourly_cost_ceiling_usd,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

@@ -87,6 +87,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_WEIGHT_DECAY = "provider-weight-decay"
     RETRY_AFTER_RESPECT = "retry-after-respect"
     LATENCY_SLOPE_SHED = "latency-slope-shed"
+    PROVIDER_HOURLY_COST_CEILING = "provider-hourly-cost-ceiling"
     AB_TEST = "ab"
 
 

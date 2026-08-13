@@ -696,6 +696,24 @@ NEXUS_LATENCY_SLOPE_THRESHOLD_MS=25.0
 See
 [docs/guides/LATENCY_SLOPE_SHED_GUIDE.md](docs/guides/LATENCY_SLOPE_SHED_GUIDE.md).
 
+## Provider-Hourly-Cost-Ceiling Routing
+
+The `provider-hourly-cost-ceiling` strategy tracks rolling hourly estimated
+spend per provider and hard-skips providers already over
+`NEXUS_PROVIDER_HOURLY_COST_CEILING_USD` (default `5.0`). Distinct from
+`provider-family-cost-ceiling` (per-request family ceilings). Among
+under-ceiling providers it selects highest quality for GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2; when every provider is over it
+falls back to the cheapest eligible model.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-hourly-cost-ceiling
+NEXUS_PROVIDER_HOURLY_COST_CEILING_USD=5.0
+```
+
+See
+[docs/guides/PROVIDER_HOURLY_COST_CEILING_GUIDE.md](docs/guides/PROVIDER_HOURLY_COST_CEILING_GUIDE.md).
+
 ## Semantic-Cache Routing
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
@@ -899,6 +917,7 @@ Set `X-Router-Strategy` to one of:
 - `provider-weight-decay`
 - `retry-after-respect`
 - `latency-slope-shed`
+- `provider-hourly-cost-ceiling`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
