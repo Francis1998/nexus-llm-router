@@ -86,6 +86,7 @@ class RoutingStrategyName(StrEnum):
     REGION_CARBON_BLEND = "region-carbon-blend"
     PROVIDER_WEIGHT_DECAY = "provider-weight-decay"
     RETRY_AFTER_RESPECT = "retry-after-respect"
+    LATENCY_SLOPE_SHED = "latency-slope-shed"
     AB_TEST = "ab"
 
 

@@ -6703,6 +6703,201 @@ class RetryAfterRespectStrategy(RoutingStrategy):
         )
 
 
+class LatencySlopeStats:
+    """Rolling per-provider latency samples for EWMA slope shedding."""
+
+    def __init__(self, window: int = 10, alpha: float = 0.3) -> None:
+        """Initialize empty latency slope observations.
+
+        Args:
+            window: Maximum recent samples retained per provider.
+            alpha: EWMA smoothing factor in ``(0.0, 1.0]``.
+
+        Raises:
+            ValueError: If ``window`` is less than 2 or ``alpha`` is outside
+                ``(0.0, 1.0]``.
+        """
+        if window < 2:
+            raise ValueError(f"window must be >= 2, got {window}")
+        if not 0.0 < alpha <= 1.0:
+            raise ValueError(f"alpha must be within (0.0, 1.0], got {alpha}")
+        self._window = window
+        self._alpha = alpha
+        self._samples: dict[str, list[float]] = {}
+
+    @property
+    def window(self) -> int:
+        """Return the configured sample window size."""
+        return self._window
+
+    def observe(self, provider: str, latency_ms: float) -> None:
+        """Record a latency observation for a provider.
+
+        Args:
+            provider: Provider name.
+            latency_ms: Observed latency in milliseconds.
+        """
+        samples = self._samples.setdefault(provider, [])
+        samples.append(latency_ms)
+        if len(samples) > self._window:
+            del samples[0]
+
+    def mean_latency(self, provider: str) -> float:
+        """Return the mean of recent latency samples (``0.0`` when cold)."""
+        samples = self._samples.get(provider, [])
+        if not samples:
+            return 0.0
+        return sum(samples) / len(samples)
+
+    def ewma_slope(self, provider: str) -> float:
+        """Return EWMA slope in ms/step for a provider.
+
+        Builds an EWMA series over the recent window and returns the average
+        change per step from the first EWMA value to the latest. Cold starts
+        (fewer than two samples) report ``0.0`` so routing does not shed
+        before a trend is observable.
+
+        Args:
+            provider: Provider name.
+
+        Returns:
+            Average EWMA change per sample step in milliseconds.
+        """
+        samples = self._samples.get(provider, [])
+        if len(samples) < 2:
+            return 0.0
+        ewma = samples[0]
+        series = [ewma]
+        for sample in samples[1:]:
+            ewma = self._alpha * sample + (1.0 - self._alpha) * ewma
+            series.append(ewma)
+        return (series[-1] - series[0]) / float(len(series) - 1)
+
+
+class LatencySlopeShedStrategy(RoutingStrategy):
+    """Shed providers whose EWMA latency slope is rising above a threshold.
+
+    LiteLLM/OpenRouter-style gateways often react when a provider's recent
+    latency trend is climbing, not only when absolute p95 is already hot.
+    This strategy tracks a short per-provider sample window, computes the
+    EWMA slope (ms per sample step), and when the quality leader's slope
+    exceeds ``NEXUS_LATENCY_SLOPE_THRESHOLD_MS`` it sheds to a lower-latency /
+    cheaper healthy alternative. Cold starts (flat slope) keep quality-first
+    selection for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+    """
+
+    strategy_name = RoutingStrategyName.LATENCY_SLOPE_SHED
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_slope_stats: LatencySlopeStats,
+        provider_health: ProviderHealth,
+        latency_slope_threshold_ms: float = 25.0,
+    ) -> None:
+        """Initialize latency-slope-shed routing.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            latency_slope_stats: Shared per-provider EWMA slope window.
+            provider_health: Live provider health view (circuit breaker).
+            latency_slope_threshold_ms: Maximum acceptable EWMA slope in
+                milliseconds per sample step before shedding.
+
+        Raises:
+            ValueError: If the slope threshold is negative.
+        """
+        super().__init__(model_catalog)
+        if latency_slope_threshold_ms < 0.0:
+            raise ValueError(
+                f"latency_slope_threshold_ms must be non-negative, got {latency_slope_threshold_ms}"
+            )
+        self._latency_slope_stats = latency_slope_stats
+        self._provider_health = provider_health
+        self._latency_slope_threshold_ms = latency_slope_threshold_ms
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer quality unless the leader's EWMA slope requires shedding."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible_candidates
+        }
+        slopes = {
+            candidate.model: self._latency_slope_stats.ewma_slope(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        means = {
+            candidate.model: self._latency_slope_stats.mean_latency(candidate.provider)
+            for candidate in eligible_candidates
+        }
+
+        primary = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -costs[candidate.model],
+                candidate.model,
+            ),
+        )
+        primary_slope = slopes[primary.model]
+        if primary_slope <= self._latency_slope_threshold_ms:
+            rationale = (
+                "latency-slope-shed kept highest quality "
+                f"{primary.quality_score:.2f} "
+                f"(EWMA slope {primary_slope:.2f}ms/step <= "
+                f"{self._latency_slope_threshold_ms:.2f}ms threshold)"
+            )
+            return self._decision(primary.model, rationale)
+
+        stable = [
+            candidate
+            for candidate in eligible_candidates
+            if slopes[candidate.model] <= self._latency_slope_threshold_ms
+        ]
+        healthy_stable = [
+            candidate
+            for candidate in stable
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        shed_pool = (
+            healthy_stable
+            or [
+                candidate
+                for candidate in eligible_candidates
+                if self._provider_health.is_available(candidate.provider)
+            ]
+            or stable
+            or eligible_candidates
+        )
+
+        selected_candidate = min(
+            shed_pool,
+            key=lambda candidate: (
+                means[candidate.model],
+                costs[candidate.model],
+                -candidate.quality_score,
+                candidate.model,
+            ),
+        )
+        rationale = (
+            "latency-slope-shed shed rising "
+            f"{primary.provider} (EWMA slope {primary_slope:.2f}ms/step > "
+            f"{self._latency_slope_threshold_ms:.2f}ms) to lower-latency/cheaper "
+            f"{selected_candidate.model} "
+            f"(mean {means[selected_candidate.model]:.1f}ms, "
+            f"est ${costs[selected_candidate.model]:.6f})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -6773,6 +6968,9 @@ def build_strategies(
     provider_weight_stats: ProviderWeightStats | None = None,
     retry_after_default_seconds: float = 30.0,
     retry_after_cooldown: ProviderRetryAfterCooldown | None = None,
+    latency_slope_window: int = 10,
+    latency_slope_threshold_ms: float = 25.0,
+    latency_slope_stats: LatencySlopeStats | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -6884,6 +7082,12 @@ def build_strategies(
             retry-after-respect routing when a provider omits the header.
         retry_after_cooldown: Optional shared provider cooldown map for
             retry-after-respect routing. When omitted a fresh map is created.
+        latency_slope_window: Recent latency sample window size for
+            latency-slope-shed routing.
+        latency_slope_threshold_ms: Maximum acceptable EWMA slope in
+            milliseconds per sample step for latency-slope-shed routing.
+        latency_slope_stats: Optional shared EWMA slope window for
+            latency-slope-shed routing. When omitted a fresh window is created.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -6938,6 +7142,7 @@ def build_strategies(
     resolved_retry_after_cooldown = retry_after_cooldown or ProviderRetryAfterCooldown(
         retry_after_default_seconds
     )
+    resolved_latency_slope_stats = latency_slope_stats or LatencySlopeStats(latency_slope_window)
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -7193,6 +7398,12 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             retry_after_cooldown=resolved_retry_after_cooldown,
+        ),
+        RoutingStrategyName.LATENCY_SLOPE_SHED: LatencySlopeShedStrategy(
+            model_catalog=model_catalog,
+            latency_slope_stats=resolved_latency_slope_stats,
+            provider_health=provider_health,
+            latency_slope_threshold_ms=latency_slope_threshold_ms,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

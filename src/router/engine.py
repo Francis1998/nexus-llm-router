@@ -27,6 +27,7 @@ from router.strategies import (
     CostAnomalyStats,
     FamilySpendWindow,
     InflightStats,
+    LatencySlopeStats,
     LatencyStats,
     ProviderRetryAfterCooldown,
     ProviderWeightStats,
@@ -89,6 +90,7 @@ class NexusRouter:
         self._retry_after_cooldown = ProviderRetryAfterCooldown(
             settings.retry_after_default_seconds
         )
+        self._latency_slope_stats = LatencySlopeStats(settings.latency_slope_window)
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -160,6 +162,9 @@ class NexusRouter:
             provider_weight_stats=self._provider_weight_stats,
             retry_after_default_seconds=settings.retry_after_default_seconds,
             retry_after_cooldown=self._retry_after_cooldown,
+            latency_slope_window=settings.latency_slope_window,
+            latency_slope_threshold_ms=settings.latency_slope_threshold_ms,
+            latency_slope_stats=self._latency_slope_stats,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -312,6 +317,7 @@ class NexusRouter:
         latency_ms = (time.perf_counter() - started_at) * 1000.0
         latency_seconds = latency_ms / 1000.0
         self._latency_stats.observe(provider, latency_ms)
+        self._latency_slope_stats.observe(provider, latency_ms)
         self._budget_guardrail.record_spend(request.user_id, provider_response.cost_usd)
         self._family_spend_window.record(provider, provider_response.cost_usd)
         total_tokens = provider_response.input_tokens + provider_response.output_tokens

@@ -114,6 +114,8 @@ class RouterSettings(BaseSettings):
     provider_weight_decay_factor: Annotated[float, Field(gt=0.0, le=1.0)] = 0.5
     provider_weight_recover: Annotated[float, Field(ge=0.0)] = 0.1
     retry_after_default_seconds: Annotated[float, Field(ge=0.0)] = 30.0
+    latency_slope_window: Annotated[int, Field(ge=2)] = 10
+    latency_slope_threshold_ms: Annotated[float, Field(ge=0.0)] = 25.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
