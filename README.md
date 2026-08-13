@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-493%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-499%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -175,6 +175,7 @@ Select a strategy with `X-Router-Strategy`:
 - `provider-health-score-blend`: blends circuit availability, rolling success rate, inverse p95 latency, model quality, and inverse estimated cost; open circuits are skipped whenever a healthy provider exists (`NEXUS_HEALTH_BLEND_*`)
 - `health-cost-latency`: ternary blend of rolling provider success rate, inverse estimated cost, and inverse p95 latency for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic (`NEXUS_HCL_*`)
 - `provider-hourly-cost-ceiling`: skips providers whose rolling hourly estimated spend exceeds `NEXUS_PROVIDER_HOURLY_COST_CEILING_USD` (default `5.0`), preferring highest quality under ceiling — distinct from `provider-family-cost-ceiling` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `quality-weighted-sticky`: sticky-session hashing with hash-ring bucket weights proportional to `quality_score` (higher quality gets larger sticky share) — distinct from uniform `sticky-session` and `sticky-tenant-hash` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation

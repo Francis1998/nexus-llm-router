@@ -7050,6 +7050,57 @@ class ProviderHourlyCostCeilingStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class QualityWeightedStickyStrategy(RoutingStrategy):
+    """Sticky-session hashing with bucket weights proportional to quality.
+
+    Like :class:`StickySessionStrategy`, this pins every request sharing a
+    ``session_id`` to one domain-eligible model via a stable hash. Unlike
+    uniform sticky hashing (and unlike :class:`StickyTenantHashStrategy`, which
+    hashes tenant identity onto an equal ring), each candidate receives a hash
+    ring share proportional to ``quality_score`` so higher-quality models such
+    as Claude Sonnet 4.6 / GPT-5.5 absorb a larger sticky share while cheaper
+    Gemini 3.x / Kimi K2 arms still receive some sessions.
+    """
+
+    strategy_name = RoutingStrategyName.QUALITY_WEIGHTED_STICKY
+
+    _WEIGHT_SCALE = 100
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Pin the session onto a quality-weighted sticky hash ring."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+
+        ordered_candidates = sorted(eligible_candidates, key=lambda candidate: candidate.model)
+        weights = [
+            max(1, int(round(candidate.quality_score * self._WEIGHT_SCALE)))
+            for candidate in ordered_candidates
+        ]
+        total_weight = sum(weights)
+        digest = sha256(request.session_id.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) % total_weight
+
+        cumulative = 0
+        selected_index = 0
+        for index, weight in enumerate(weights):
+            cumulative += weight
+            if bucket < cumulative:
+                selected_index = index
+                break
+
+        selected_candidate = ordered_candidates[selected_index]
+        rationale = (
+            f"quality-weighted-sticky pinned session '{request.session_id}' to "
+            f"{selected_candidate.model} "
+            f"(quality weight {weights[selected_index]}/{total_weight}; "
+            f"bucket {bucket})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -7573,6 +7624,9 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_hourly_spend_window=resolved_provider_hourly_spend_window,
             provider_hourly_cost_ceiling_usd=provider_hourly_cost_ceiling_usd,
+        ),
+        RoutingStrategyName.QUALITY_WEIGHTED_STICKY: QualityWeightedStickyStrategy(
+            model_catalog,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
