@@ -117,6 +117,8 @@ class RouterSettings(BaseSettings):
     latency_slope_window: Annotated[int, Field(ge=2)] = 10
     latency_slope_threshold_ms: Annotated[float, Field(ge=0.0)] = 25.0
 
+    provider_hourly_cost_ceiling_usd: Annotated[float, Field(ge=0.0)] = 5.0
+
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
     """Return the built-in model catalog with cost and quality priors.
