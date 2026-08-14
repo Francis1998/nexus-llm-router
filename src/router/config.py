@@ -120,6 +120,8 @@ class RouterSettings(BaseSettings):
     provider_hourly_cost_ceiling_usd: Annotated[float, Field(ge=0.0)] = 5.0
     token_rpm_ceiling: Annotated[int, Field(ge=1)] = 100_000
     provider_circuit_probe_budget: Annotated[int, Field(ge=1)] = 1
+    carbon_latency_latency_weight: Annotated[float, Field(ge=0.0)] = 0.5
+    carbon_latency_carbon_weight: Annotated[float, Field(ge=0.0)] = 0.5
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

@@ -7416,6 +7416,143 @@ class ProviderCircuitProbeStrategy(RoutingStrategy):
         )
 
 
+class CarbonLatencyBlendStrategy(RoutingStrategy):
+    """Blend provider-region carbon intensity with rolling provider latency.
+
+    This strategy extends the carbon metadata pattern with provider-and-region
+    keys and separate carbon/latency weights. It scores each domain-eligible
+    candidate as ``w_carbon * normalized_inverse_carbon + w_latency *
+    normalized_inverse_latency``. Unlike ``region-carbon-blend``, the two
+    weights are independent rather than complementary, so operators can
+    increase or suppress either signal for GPT-5.5 / Claude Sonnet 4.6 /
+    Gemini 3.x / Kimi K2 traffic.
+    """
+
+    strategy_name = RoutingStrategyName.CARBON_LATENCY_BLEND
+
+    _PROVIDER_REGION_DEFAULTS: dict[str, dict[str, float]] = {
+        "openai": {"eu": 260.0, "us": 380.0, "cn": 540.0, "global": 420.0},
+        "anthropic": {"eu": 180.0, "us": 350.0, "cn": 520.0, "global": 360.0},
+        "google": {"eu": 220.0, "us": 400.0, "cn": 500.0, "global": 390.0},
+        "moonshot": {"eu": 300.0, "us": 430.0, "cn": 550.0, "global": 500.0},
+    }
+    _REGION_DEFAULTS = {
+        "eu": 250.0,
+        "us": 380.0,
+        "cn": 550.0,
+        "global": 420.0,
+    }
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        carbon_weight: float = 0.5,
+        latency_weight: float = 0.5,
+    ) -> None:
+        """Initialize carbon-latency-blend routing."""
+        super().__init__(model_catalog)
+        if carbon_weight < 0.0:
+            raise ValueError(f"carbon_weight must be non-negative, got {carbon_weight}")
+        if latency_weight < 0.0:
+            raise ValueError(f"latency_weight must be non-negative, got {latency_weight}")
+        self._latency_stats = latency_stats
+        self._carbon_weight = carbon_weight
+        self._latency_weight = latency_weight
+
+    @staticmethod
+    def _region_for(request: RouterRequest) -> str:
+        region = (
+            request.metadata.get("region")
+            or request.metadata.get("preferred_region")
+            or request.region
+            or "global"
+        )
+        return str(region).lower()
+
+    def _intensity_for(self, candidate: ModelCandidate, request: RouterRequest) -> float:
+        """Resolve provider-region carbon intensity from metadata or defaults."""
+        region = self._region_for(request)
+        for key in (
+            f"carbon_intensity:{candidate.provider}:{region}",
+            f"carbon_intensity:{candidate.provider}",
+        ):
+            raw = request.metadata.get(key)
+            if raw is not None and str(raw).strip():
+                try:
+                    return max(0.0, float(raw))
+                except ValueError:
+                    continue
+        provider_defaults = self._PROVIDER_REGION_DEFAULTS.get(candidate.provider)
+        if provider_defaults is not None:
+            return float(provider_defaults.get(region, provider_defaults.get("global", 420.0)))
+        return float(self._REGION_DEFAULTS.get(region, self._REGION_DEFAULTS["global"]))
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Select the highest independently weighted carbon/latency score."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        intensities = {
+            candidate.model: self._intensity_for(candidate, request)
+            for candidate in eligible_candidates
+        }
+        latencies = {
+            candidate.model: self._latency_stats.p95(candidate.provider)
+            for candidate in eligible_candidates
+        }
+        carbon_scores = _inverse_min_max(intensities)
+        latency_scores = _inverse_min_max(latencies)
+
+        def blended_score(candidate: ModelCandidate) -> float:
+            return (
+                self._carbon_weight * carbon_scores[candidate.model]
+                + self._latency_weight * latency_scores[candidate.model]
+            )
+
+        selected_candidate = max(
+            eligible_candidates,
+            key=lambda candidate: (
+                blended_score(candidate),
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        rationale = (
+            "carbon-latency-blend selected "
+            f"{selected_candidate.provider}/{selected_candidate.model} at score "
+            f"{blended_score(selected_candidate):.3f} "
+            f"(w_carbon={self._carbon_weight:.2f}, "
+            f"w_latency={self._latency_weight:.2f}, intensity "
+            f"{intensities[selected_candidate.model]:.1f} gCO2eq/kWh, p95 "
+            f"{latencies[selected_candidate.model]:.1f}ms, region "
+            f"'{self._region_for(request)}')"
+        )
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                -blended_score(candidate),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -7494,6 +7631,8 @@ def build_strategies(
     token_rpm_ceiling: int = 100_000,
     token_rpm_window: TokenRpmWindow | None = None,
     provider_circuit_probe_budget: int = 1,
+    carbon_latency_carbon_weight: float = 0.5,
+    carbon_latency_latency_weight: float = 0.5,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -7960,6 +8099,12 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             probe_budget=provider_circuit_probe_budget,
+        ),
+        RoutingStrategyName.CARBON_LATENCY_BLEND: CarbonLatencyBlendStrategy(
+            model_catalog=model_catalog,
+            latency_stats=latency_stats,
+            carbon_weight=carbon_latency_carbon_weight,
+            latency_weight=carbon_latency_latency_weight,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

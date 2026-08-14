@@ -91,6 +91,7 @@ class RoutingStrategyName(StrEnum):
     QUALITY_WEIGHTED_STICKY = "quality-weighted-sticky"
     TOKEN_RPM_CEILING = "token-rpm-ceiling"  # noqa: S105  # strategy name
     PROVIDER_CIRCUIT_PROBE = "provider-circuit-probe"
+    CARBON_LATENCY_BLEND = "carbon-latency-blend"
     AB_TEST = "ab"
 
 
