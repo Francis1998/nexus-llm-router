@@ -173,6 +173,8 @@ class NexusRouter:
             provider_hourly_spend_window=self._provider_hourly_spend_window,
             token_rpm_ceiling=settings.token_rpm_ceiling,
             provider_circuit_probe_budget=settings.provider_circuit_probe_budget,
+            carbon_latency_latency_weight=settings.carbon_latency_latency_weight,
+            carbon_latency_carbon_weight=settings.carbon_latency_carbon_weight,
             token_rpm_window=self._token_rpm_window,
         )
         self._audit_log = AuditLog(settings.audit_log_path)

@@ -1718,3 +1718,23 @@ NEXUS_PROVIDER_CIRCUIT_PROBE_BUDGET=1
 
 See
 [docs/guides/PROVIDER_CIRCUIT_PROBE_GUIDE.md](docs/guides/PROVIDER_CIRCUIT_PROBE_GUIDE.md).
+
+## Carbon-Latency-Blend Routing
+
+The `carbon-latency-blend` strategy independently weights inverse-normalized
+provider-region carbon intensity and rolling provider p95 latency:
+`score = w_carbon * normalized_inverse_carbon + w_latency *
+normalized_inverse_latency`. Carbon data resolves from
+`carbon_intensity:<provider>:<region>`, then provider-only metadata, then a
+built-in provider/region map. Unlike `region-carbon-blend`, these two weights do
+not have to be complementary. Defaults are `0.5`/`0.5` for GPT-5.5 / Claude
+Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=carbon-latency-blend
+NEXUS_CARBON_LATENCY_CARBON_WEIGHT=0.5
+NEXUS_CARBON_LATENCY_LATENCY_WEIGHT=0.5
+```
+
+See
+[docs/guides/CARBON_LATENCY_BLEND_GUIDE.md](docs/guides/CARBON_LATENCY_BLEND_GUIDE.md).
