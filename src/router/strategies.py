@@ -7956,6 +7956,11 @@ def build_strategies(
             token_rpm_window=resolved_token_rpm_window,
             token_rpm_ceiling=token_rpm_ceiling,
         ),
+        RoutingStrategyName.PROVIDER_CIRCUIT_PROBE: ProviderCircuitProbeStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            probe_budget=provider_circuit_probe_budget,
+        ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
             ab_model_a,
