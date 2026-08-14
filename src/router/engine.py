@@ -172,6 +172,7 @@ class NexusRouter:
             provider_hourly_cost_ceiling_usd=settings.provider_hourly_cost_ceiling_usd,
             provider_hourly_spend_window=self._provider_hourly_spend_window,
             token_rpm_ceiling=settings.token_rpm_ceiling,
+            provider_circuit_probe_budget=settings.provider_circuit_probe_budget,
             token_rpm_window=self._token_rpm_window,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
