@@ -89,6 +89,7 @@ class RoutingStrategyName(StrEnum):
     LATENCY_SLOPE_SHED = "latency-slope-shed"
     PROVIDER_HOURLY_COST_CEILING = "provider-hourly-cost-ceiling"
     QUALITY_WEIGHTED_STICKY = "quality-weighted-sticky"
+    TOKEN_RPM_CEILING = "token-rpm-ceiling"  # noqa: S105  # strategy name
     AB_TEST = "ab"
 
 

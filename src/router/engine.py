@@ -37,6 +37,7 @@ from router.strategies import (
     SuccessStats,
     TierRequestStats,
     TokenBucketStats,
+    TokenRpmWindow,
     build_strategies,
 )
 from safety.budget import BudgetExceededError, BudgetGuardrail
@@ -93,6 +94,7 @@ class NexusRouter:
         )
         self._latency_slope_stats = LatencySlopeStats(settings.latency_slope_window)
         self._provider_hourly_spend_window = ProviderHourlySpendWindow()
+        self._token_rpm_window = TokenRpmWindow()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -169,6 +171,8 @@ class NexusRouter:
             latency_slope_stats=self._latency_slope_stats,
             provider_hourly_cost_ceiling_usd=settings.provider_hourly_cost_ceiling_usd,
             provider_hourly_spend_window=self._provider_hourly_spend_window,
+            token_rpm_ceiling=settings.token_rpm_ceiling,
+            token_rpm_window=self._token_rpm_window,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -268,6 +272,7 @@ class NexusRouter:
                     state_machine=state_machine,
                     started_at=started_at,
                     provider=candidate.provider,
+                    prompt_tokens_estimate=signals.prompt_tokens_estimate,
                 )
             except Exception as exception:
                 last_error = exception
@@ -310,6 +315,7 @@ class NexusRouter:
         state_machine: RoutingStateMachine,
         started_at: float,
         provider: str,
+        prompt_tokens_estimate: int,
     ) -> RouterResponse:
         """Build the router response and persist observability side effects."""
         self._circuit_breakers.record_success(provider)
@@ -325,6 +331,7 @@ class NexusRouter:
         self._budget_guardrail.record_spend(request.user_id, provider_response.cost_usd)
         self._family_spend_window.record(provider, provider_response.cost_usd)
         self._provider_hourly_spend_window.record(provider, provider_response.cost_usd)
+        self._token_rpm_window.record(provider, prompt_tokens_estimate)
         total_tokens = provider_response.input_tokens + provider_response.output_tokens
         if total_tokens > 0:
             self._cost_anomaly_stats.observe((provider_response.cost_usd / total_tokens) * 1000.0)

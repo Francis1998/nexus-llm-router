@@ -7101,6 +7101,167 @@ class QualityWeightedStickyStrategy(RoutingStrategy):
         return self._decision(selected_candidate.model, rationale)
 
 
+class TokenRpmWindow:
+    """Rolling estimated prompt-token window per provider."""
+
+    def __init__(self, window_seconds: float = 60.0) -> None:
+        """Initialize empty provider token windows.
+
+        Args:
+            window_seconds: Rolling window length in seconds.
+
+        Raises:
+            ValueError: If the window length is not positive.
+        """
+        if window_seconds <= 0.0:
+            raise ValueError(f"window_seconds must be positive, got {window_seconds}")
+        self._window_seconds = window_seconds
+        self._entries: dict[str, list[tuple[float, int]]] = {}
+
+    @property
+    def window_seconds(self) -> float:
+        """Return the configured rolling window length."""
+        return self._window_seconds
+
+    def record(self, provider: str, prompt_tokens: int, *, now: float | None = None) -> None:
+        """Record estimated prompt tokens for a completed provider request."""
+        if prompt_tokens < 0:
+            raise ValueError(f"prompt_tokens must be non-negative, got {prompt_tokens}")
+        timestamp = time.monotonic() if now is None else now
+        entries = self._entries.setdefault(provider, [])
+        entries.append((timestamp, prompt_tokens))
+        self._prune(provider, timestamp)
+
+    def provider_tokens(self, provider: str, *, now: float | None = None) -> int:
+        """Return prompt tokens observed for a provider inside the window."""
+        timestamp = time.monotonic() if now is None else now
+        self._prune(provider, timestamp)
+        return sum(tokens for _, tokens in self._entries.get(provider, []))
+
+    def would_exceed(
+        self,
+        provider: str,
+        prompt_tokens: int,
+        ceiling: int,
+        *,
+        now: float | None = None,
+    ) -> bool:
+        """Return whether another request would exceed the provider ceiling."""
+        return self.provider_tokens(provider, now=now) + prompt_tokens > ceiling
+
+    def _prune(self, provider: str, now: float) -> None:
+        cutoff = now - self._window_seconds
+        entries = self._entries.get(provider, [])
+        while entries and entries[0][0] < cutoff:
+            entries.pop(0)
+        if not entries:
+            self._entries.pop(provider, None)
+
+
+class TokenRpmCeilingStrategy(RoutingStrategy):
+    """Shed providers that would exceed a rolling prompt-token RPM ceiling.
+
+    The strategy keeps the highest-quality domain-eligible model while its
+    provider's last 60 seconds of estimated prompt tokens plus the current
+    request fit under ``NEXUS_TOKEN_RPM_CEILING``. When the quality leader would
+    cross the ceiling, traffic sheds to the next eligible provider so GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 workloads can avoid provider token
+    throttles.
+    """
+
+    strategy_name = RoutingStrategyName.TOKEN_RPM_CEILING
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        token_rpm_window: TokenRpmWindow,
+        token_rpm_ceiling: int = 100_000,
+    ) -> None:
+        """Initialize token-rpm-ceiling routing."""
+        super().__init__(model_catalog)
+        if token_rpm_ceiling < 1:
+            raise ValueError(f"token_rpm_ceiling must be >= 1, got {token_rpm_ceiling}")
+        self._token_rpm_window = token_rpm_window
+        self._token_rpm_ceiling = token_rpm_ceiling
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best provider whose projected token RPM fits the ceiling."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        prompt_tokens = signals.prompt_tokens_estimate
+        projected_tokens = {
+            candidate.model: self._token_rpm_window.provider_tokens(candidate.provider)
+            + prompt_tokens
+            for candidate in eligible_candidates
+        }
+        under_ceiling = [
+            candidate
+            for candidate in eligible_candidates
+            if not self._token_rpm_window.would_exceed(
+                candidate.provider,
+                prompt_tokens,
+                self._token_rpm_ceiling,
+            )
+        ]
+
+        if under_ceiling:
+            selected_candidate = max(
+                under_ceiling,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "token-rpm-ceiling selected "
+                f"{selected_candidate.provider}/{selected_candidate.model} with projected "
+                f"{projected_tokens[selected_candidate.model]}/{self._token_rpm_ceiling} "
+                "prompt tokens in the rolling 60s window"
+            )
+        else:
+            selected_candidate = min(
+                eligible_candidates,
+                key=lambda candidate: (
+                    projected_tokens[candidate.model],
+                    -candidate.quality_score,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "token-rpm-ceiling found every eligible provider over projected ceiling "
+                f"{self._token_rpm_ceiling}; fell back to least-loaded "
+                f"{selected_candidate.provider}/{selected_candidate.model} at "
+                f"{projected_tokens[selected_candidate.model]} projected prompt tokens"
+            )
+
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                projected_tokens[candidate.model] > self._token_rpm_ceiling,
+                -candidate.quality_score,
+                projected_tokens[candidate.model],
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -7176,6 +7337,8 @@ def build_strategies(
     latency_slope_stats: LatencySlopeStats | None = None,
     provider_hourly_cost_ceiling_usd: float = 5.0,
     provider_hourly_spend_window: ProviderHourlySpendWindow | None = None,
+    token_rpm_ceiling: int = 100_000,
+    token_rpm_window: TokenRpmWindow | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -7300,6 +7463,10 @@ def build_strategies(
         provider_hourly_spend_window: Optional shared rolling hourly estimated
             spend tracker for provider-hourly-cost-ceiling routing. When
             omitted a fresh one-hour window is created.
+        token_rpm_ceiling: Rolling 60-second prompt-token ceiling per provider
+            for token-rpm-ceiling routing.
+        token_rpm_window: Optional shared rolling provider prompt-token tracker.
+            When omitted a fresh 60-second window is created.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -7358,6 +7525,7 @@ def build_strategies(
     resolved_provider_hourly_spend_window = (
         provider_hourly_spend_window or ProviderHourlySpendWindow()
     )
+    resolved_token_rpm_window = token_rpm_window or TokenRpmWindow()
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -7627,6 +7795,11 @@ def build_strategies(
         ),
         RoutingStrategyName.QUALITY_WEIGHTED_STICKY: QualityWeightedStickyStrategy(
             model_catalog,
+        ),
+        RoutingStrategyName.TOKEN_RPM_CEILING: TokenRpmCeilingStrategy(
+            model_catalog=model_catalog,
+            token_rpm_window=resolved_token_rpm_window,
+            token_rpm_ceiling=token_rpm_ceiling,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

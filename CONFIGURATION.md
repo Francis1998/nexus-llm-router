@@ -20,6 +20,7 @@ NEXUS_TOKEN_BUCKET_REFILL_PER_SEC=1.0
 NEXUS_TIER_FRONTIER_RPM=30
 NEXUS_TIER_MID_RPM=60
 NEXUS_TIER_ECONOMY_RPM=120
+NEXUS_TOKEN_RPM_CEILING=100000
 ```
 
 ## Provider Credentials
@@ -713,6 +714,24 @@ NEXUS_PROVIDER_HOURLY_COST_CEILING_USD=5.0
 
 See
 [docs/guides/PROVIDER_HOURLY_COST_CEILING_GUIDE.md](docs/guides/PROVIDER_HOURLY_COST_CEILING_GUIDE.md).
+
+## Token-RPM-Ceiling Routing
+
+The `token-rpm-ceiling` strategy tracks estimated prompt tokens per provider in
+a rolling 60-second window. Before routing a request, it adds
+`prompt_tokens_estimate` to each provider's current total and sheds providers
+whose projected total would exceed the ceiling. The next highest-quality
+domain-eligible provider receives the request; if every provider is projected
+over, the least-loaded provider is selected. This protects GPT-5.5 / Claude
+Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic from token-per-minute throttles.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=token-rpm-ceiling
+NEXUS_TOKEN_RPM_CEILING=100000
+```
+
+See
+[docs/guides/TOKEN_RPM_CEILING_GUIDE.md](docs/guides/TOKEN_RPM_CEILING_GUIDE.md).
 
 ## Quality-Weighted-Sticky Routing
 
