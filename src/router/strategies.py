@@ -7262,6 +7262,160 @@ class TokenRpmCeilingStrategy(RoutingStrategy):
         )
 
 
+class ProviderCircuitProbeStrategy(RoutingStrategy):
+    """Route around an open quality leader and budget its recovery probes.
+
+    Unlike :class:`CircuitBreakerHalfOpenProbeStrategy`, which prefers any
+    closed provider before considering recovery traffic, this strategy follows
+    the highest-quality provider's circuit state directly. A closed leader wins,
+    an open leader immediately sheds to the best healthy alternate, and a
+    half-open leader receives at most ``NEXUS_PROVIDER_CIRCUIT_PROBE_BUDGET``
+    probe decisions before traffic falls back. This keeps GPT-5.5 / Claude
+    Sonnet 4.6 / Gemini 3.x / Kimi K2 recovery controlled without abandoning
+    the preferred quality arm.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_CIRCUIT_PROBE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        probe_budget: int = 1,
+    ) -> None:
+        """Initialize preferred-provider circuit probe routing."""
+        super().__init__(model_catalog)
+        if probe_budget < 1:
+            raise ValueError(f"probe_budget must be >= 1, got {probe_budget}")
+        self._provider_health = provider_health
+        self._probe_budget = probe_budget
+        self._probe_counts: dict[str, int] = {}
+
+    def _is_half_open(self, provider: str) -> bool:
+        """Return whether a provider is in its recovery probe window."""
+        half_open = getattr(self._provider_health, "is_half_open", None)
+        return bool(half_open(provider)) if callable(half_open) else False
+
+    def _quality_key(
+        self,
+        candidate: ModelCandidate,
+        request: RouterRequest,
+        signals: TaskSignals,
+    ) -> tuple[float, float, str]:
+        return (
+            candidate.quality_score,
+            -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+            candidate.model,
+        )
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the quality leader, a bounded probe, or a healthy alternate."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        leader = max(
+            eligible_candidates,
+            key=lambda candidate: self._quality_key(candidate, request, signals),
+        )
+        leader_half_open = self._is_half_open(leader.provider)
+        leader_available = self._provider_health.is_available(leader.provider)
+        healthy_alternates = [
+            candidate
+            for candidate in eligible_candidates
+            if candidate.provider != leader.provider
+            and self._provider_health.is_available(candidate.provider)
+            and not self._is_half_open(candidate.provider)
+        ]
+
+        if leader_available and not leader_half_open:
+            self._probe_counts.pop(leader.provider, None)
+            selected_candidate = leader
+            rationale = (
+                "provider-circuit-probe kept closed quality leader "
+                f"{leader.provider}/{leader.model} at quality {leader.quality_score:.2f}"
+            )
+        elif leader_half_open:
+            probes_used = self._probe_counts.get(leader.provider, 0)
+            if probes_used < self._probe_budget:
+                self._probe_counts[leader.provider] = probes_used + 1
+                selected_candidate = leader
+                rationale = (
+                    "provider-circuit-probe allowed half-open quality-leader probe "
+                    f"{probes_used + 1}/{self._probe_budget} to "
+                    f"{leader.provider}/{leader.model}"
+                )
+            elif healthy_alternates:
+                selected_candidate = max(
+                    healthy_alternates,
+                    key=lambda candidate: self._quality_key(candidate, request, signals),
+                )
+                rationale = (
+                    "provider-circuit-probe exhausted half-open probe budget "
+                    f"{probes_used}/{self._probe_budget} for {leader.provider}; "
+                    f"fell back to healthy {selected_candidate.provider}/"
+                    f"{selected_candidate.model}"
+                )
+            else:
+                selected_candidate = max(
+                    [candidate for candidate in eligible_candidates if candidate != leader]
+                    or [leader],
+                    key=lambda candidate: self._quality_key(candidate, request, signals),
+                )
+                rationale = (
+                    "provider-circuit-probe exhausted half-open leader budget with no "
+                    f"healthy alternate; chose deterministic non-leader "
+                    f"{selected_candidate.provider}/{selected_candidate.model}"
+                )
+        elif healthy_alternates:
+            selected_candidate = max(
+                healthy_alternates,
+                key=lambda candidate: self._quality_key(candidate, request, signals),
+            )
+            rationale = (
+                "provider-circuit-probe quality leader "
+                f"{leader.provider}/{leader.model} circuit open; actively selected "
+                f"healthy alternate {selected_candidate.provider}/"
+                f"{selected_candidate.model}"
+            )
+        else:
+            selected_candidate = max(
+                [candidate for candidate in eligible_candidates if candidate != leader] or [leader],
+                key=lambda candidate: self._quality_key(candidate, request, signals),
+            )
+            rationale = (
+                "provider-circuit-probe quality leader circuit open with no healthy "
+                f"alternate; chose deterministic fallback {selected_candidate.provider}/"
+                f"{selected_candidate.model}"
+            )
+
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                not (
+                    self._provider_health.is_available(candidate.provider)
+                    and not self._is_half_open(candidate.provider)
+                ),
+                self._is_half_open(candidate.provider),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -7339,6 +7493,7 @@ def build_strategies(
     provider_hourly_spend_window: ProviderHourlySpendWindow | None = None,
     token_rpm_ceiling: int = 100_000,
     token_rpm_window: TokenRpmWindow | None = None,
+    provider_circuit_probe_budget: int = 1,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 

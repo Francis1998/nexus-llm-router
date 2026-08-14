@@ -1701,3 +1701,20 @@ See
 ## Carbon-aware preference
 
 `NEXUS_CARBON_AWARE_MAX_INTENSITY` (default `400.0`).
+
+## Provider-Circuit-Probe Routing
+
+The `provider-circuit-probe` strategy follows the highest-quality eligible
+provider's circuit state. It keeps that leader while closed, actively selects
+the best healthy alternate while the leader is open, and allows only
+`NEXUS_PROVIDER_CIRCUIT_PROBE_BUDGET` probe decisions while the leader is
+half-open. Once that budget is exhausted, GPT-5.5 / Claude Sonnet 4.6 /
+Gemini 3.x / Kimi K2 traffic remains on a healthy alternate.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-circuit-probe
+NEXUS_PROVIDER_CIRCUIT_PROBE_BUDGET=1
+```
+
+See
+[docs/guides/PROVIDER_CIRCUIT_PROBE_GUIDE.md](docs/guides/PROVIDER_CIRCUIT_PROBE_GUIDE.md).
