@@ -1738,3 +1738,22 @@ NEXUS_CARBON_LATENCY_LATENCY_WEIGHT=0.5
 
 See
 [docs/guides/CARBON_LATENCY_BLEND_GUIDE.md](docs/guides/CARBON_LATENCY_BLEND_GUIDE.md).
+
+## Adaptive-Concurrency-Cap Routing
+
+The `adaptive-concurrency-cap` strategy scales each provider's effective
+in-flight cap by rolling success rate and inverse p95 latency:
+`effective_cap = max(min_cap, int(base_cap * success_rate * min(1, ref_ms /
+p95)))`. Providers at or above their adaptive cap are skipped; the healthiest
+remaining provider wins primary selection. Defaults target GPT-5.5 / Claude
+Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=adaptive-concurrency-cap
+NEXUS_ADAPTIVE_CONCURRENCY_BASE_CAP=8
+NEXUS_ADAPTIVE_CONCURRENCY_MIN_CAP=1
+NEXUS_ADAPTIVE_CONCURRENCY_LATENCY_MS=2000.0
+```
+
+See
+[docs/guides/ADAPTIVE_CONCURRENCY_CAP_GUIDE.md](docs/guides/ADAPTIVE_CONCURRENCY_CAP_GUIDE.md).

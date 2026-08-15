@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-522%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-529%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -177,6 +177,7 @@ Select a strategy with `X-Router-Strategy`:
 - `provider-hourly-cost-ceiling`: skips providers whose rolling hourly estimated spend exceeds `NEXUS_PROVIDER_HOURLY_COST_CEILING_USD` (default `5.0`), preferring highest quality under ceiling — distinct from `provider-family-cost-ceiling` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `quality-weighted-sticky`: sticky-session hashing with hash-ring bucket weights proportional to `quality_score` (higher quality gets larger sticky share) — distinct from uniform `sticky-session` and `sticky-tenant-hash` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `token-rpm-ceiling`, `provider-circuit-probe`, `carbon-latency-blend`: tracks estimated prompt tokens per provider over a rolling 60-second window and sheds requests that would exceed `NEXUS_TOKEN_RPM_CEILING` (default `100000`) to the next eligible provider for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `adaptive-concurrency-cap`: scales per-provider in-flight caps by rolling success rate and inverse p95 latency (`NEXUS_ADAPTIVE_CONCURRENCY_BASE_CAP`, `NEXUS_ADAPTIVE_CONCURRENCY_MIN_CAP`, `NEXUS_ADAPTIVE_CONCURRENCY_LATENCY_MS`) so unhealthy backends shed load while quality-first routing continues for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
@@ -213,6 +214,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Least-busy guide](docs/guides/LEAST_BUSY_GUIDE.md) | Live in-flight load-aware routing |
 | [Prompt-prefix-cache guide](docs/guides/PROMPT_PREFIX_CACHE_STRATEGY_GUIDE.md) | Sticky system-prompt prefix affinity for provider KV-cache hits |
 | [Concurrency-cap guide](docs/guides/CONCURRENCY_CAP_GUIDE.md) | Per-provider in-flight saturation cap routing |
+| [Adaptive-concurrency-cap guide](docs/guides/ADAPTIVE_CONCURRENCY_CAP_GUIDE.md) | Health-derived dynamic in-flight cap routing |
 | [Soft-rate-limit guide](docs/guides/SOFT_RATE_LIMIT_GUIDE.md) | Soft 429/rate-limit pressure avoidance |
 | [Cost/latency Pareto guide](docs/guides/COST_LATENCY_PARETO_GUIDE.md) | Multi-objective non-dominated cost + latency routing |
 | [Token-bucket-burst guide](docs/guides/TOKEN_BUCKET_BURST_GUIDE.md) | Bursty per-provider token-bucket quota routing |

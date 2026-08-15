@@ -176,6 +176,9 @@ class NexusRouter:
             carbon_latency_latency_weight=settings.carbon_latency_latency_weight,
             carbon_latency_carbon_weight=settings.carbon_latency_carbon_weight,
             token_rpm_window=self._token_rpm_window,
+            adaptive_concurrency_base_cap=settings.adaptive_concurrency_base_cap,
+            adaptive_concurrency_min_cap=settings.adaptive_concurrency_min_cap,
+            adaptive_concurrency_latency_ms=settings.adaptive_concurrency_latency_ms,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

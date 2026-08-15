@@ -92,6 +92,7 @@ class RoutingStrategyName(StrEnum):
     TOKEN_RPM_CEILING = "token-rpm-ceiling"  # noqa: S105  # strategy name
     PROVIDER_CIRCUIT_PROBE = "provider-circuit-probe"
     CARBON_LATENCY_BLEND = "carbon-latency-blend"
+    ADAPTIVE_CONCURRENCY_CAP = "adaptive-concurrency-cap"
     AB_TEST = "ab"
 
 
