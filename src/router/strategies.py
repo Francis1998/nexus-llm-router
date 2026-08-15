@@ -7684,6 +7684,163 @@ class AdaptiveConcurrencyCapStrategy(RoutingStrategy):
         )
 
 
+class ProviderTokenFairShareStrategy(RoutingStrategy):
+    """Fair-share token budget across providers by remaining window quota.
+
+    Tracks estimated prompt tokens per provider in a rolling 60-second window
+    and selects providers with the most remaining fair-share headroom. Unlike
+    :class:`ProviderQuotaFairShareStrategy`, which balances request counts,
+    this strategy balances token volume and uses request-id weighted
+    round-robin among providers tied on remaining quota for GPT-5.5 / Claude
+    Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_TOKEN_FAIR_SHARE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        token_rpm_window: TokenRpmWindow,
+        token_fair_share_ceiling: int = 100_000,
+    ) -> None:
+        """Initialize provider-token-fair-share routing."""
+        super().__init__(model_catalog)
+        if token_fair_share_ceiling < 1:
+            raise ValueError(
+                f"token_fair_share_ceiling must be >= 1, got {token_fair_share_ceiling}"
+            )
+        self._token_rpm_window = token_rpm_window
+        self._token_fair_share_ceiling = token_fair_share_ceiling
+
+    def _remaining_quota(self, provider: str, prompt_tokens: int) -> int:
+        used = self._token_rpm_window.provider_tokens(provider)
+        return max(0, self._token_fair_share_ceiling - used - prompt_tokens)
+
+    def _weighted_provider(
+        self,
+        request: RouterRequest,
+        providers: Iterable[str],
+        remaining: Mapping[str, int],
+    ) -> str:
+        weighted = [
+            (provider, remaining[provider]) for provider in providers if remaining[provider] > 0
+        ]
+        if not weighted:
+            return min(providers, key=lambda provider: (remaining[provider], provider))
+        total_weight = sum(weight for _, weight in weighted)
+        bucket = int(sha256(request.request_id.encode("utf-8")).hexdigest()[:8], 16) % total_weight
+        cumulative = 0
+        for provider, weight in sorted(weighted, key=lambda item: item[0]):
+            cumulative += weight
+            if bucket < cumulative:
+                return provider
+        return weighted[-1][0]
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer providers with the most remaining token fair-share quota."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        prompt_tokens = signals.prompt_tokens_estimate
+        eligible_providers = sorted({candidate.provider for candidate in eligible_candidates})
+        remaining = {
+            provider: self._remaining_quota(provider, prompt_tokens)
+            for provider in eligible_providers
+        }
+        used = {
+            provider: self._token_rpm_window.provider_tokens(provider)
+            for provider in eligible_providers
+        }
+        positive_remaining = [
+            provider for provider in eligible_providers if remaining[provider] > 0
+        ]
+
+        if positive_remaining:
+            max_remaining = max(remaining[provider] for provider in positive_remaining)
+            tied_providers = [
+                provider for provider in positive_remaining if remaining[provider] == max_remaining
+            ]
+            cold_start = all(used[provider] == 0 for provider in eligible_providers)
+            if cold_start or len(tied_providers) == 1:
+                selected_provider = max(
+                    tied_providers,
+                    key=lambda provider: max(
+                        candidate.quality_score
+                        for candidate in eligible_candidates
+                        if candidate.provider == provider
+                    ),
+                )
+                selection_note = (
+                    f"highest remaining quota {max_remaining}/{self._token_fair_share_ceiling}"
+                )
+            else:
+                selected_provider = self._weighted_provider(request, tied_providers, remaining)
+                selection_note = (
+                    "round-robin weighted tie on remaining quota "
+                    f"{max_remaining}/{self._token_fair_share_ceiling}"
+                )
+            provider_candidates = [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.provider == selected_provider
+            ]
+            selected_candidate = max(
+                provider_candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "provider-token-fair-share selected "
+                f"{selected_candidate.provider}/{selected_candidate.model} with "
+                f"{selection_note}; used {used[selected_provider]}/"
+                f"{self._token_fair_share_ceiling} prompt tokens in rolling window"
+            )
+        else:
+            selected_candidate = min(
+                eligible_candidates,
+                key=lambda candidate: (
+                    used[candidate.provider],
+                    -candidate.quality_score,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "provider-token-fair-share found every eligible provider over fair-share ceiling "
+                f"{self._token_fair_share_ceiling}; fell back to least-loaded "
+                f"{selected_candidate.provider}/{selected_candidate.model} at "
+                f"{used[selected_candidate.provider]} used prompt tokens"
+            )
+
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                remaining[candidate.provider] <= 0,
+                -remaining[candidate.provider],
+                used[candidate.provider],
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -7767,6 +7924,7 @@ def build_strategies(
     adaptive_concurrency_base_cap: int = 8,
     adaptive_concurrency_min_cap: int = 1,
     adaptive_concurrency_latency_ms: float = 2000.0,
+    provider_token_fair_share_ceiling: int = 100_000,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -8248,6 +8406,11 @@ def build_strategies(
             base_cap=adaptive_concurrency_base_cap,
             min_cap=adaptive_concurrency_min_cap,
             latency_reference_ms=adaptive_concurrency_latency_ms,
+        ),
+        RoutingStrategyName.PROVIDER_TOKEN_FAIR_SHARE: ProviderTokenFairShareStrategy(
+            model_catalog=model_catalog,
+            token_rpm_window=resolved_token_rpm_window,
+            token_fair_share_ceiling=provider_token_fair_share_ceiling,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
