@@ -1775,3 +1775,21 @@ NEXUS_PROVIDER_TOKEN_FAIR_SHARE_CEILING=100000
 
 See
 [docs/guides/PROVIDER_TOKEN_FAIR_SHARE_GUIDE.md](docs/guides/PROVIDER_TOKEN_FAIR_SHARE_GUIDE.md).
+
+## Region-Failover-Hysteresis Routing
+
+The `region-failover-hysteresis` strategy combines ordered region preference,
+session stickiness, and hysteresis before returning to a preferred region
+after failover. It reuses `NEXUS_STICKY_REGION_FAILOVER_PREFERENCES` and waits
+for `NEXUS_REGION_FAILOVER_HYSTERESIS_SUCCESSES` (default `3`) consecutive
+preferred-region successes recorded in shared engine state. Targets GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=region-failover-hysteresis
+NEXUS_REGION_FAILOVER_HYSTERESIS_SUCCESSES=3
+NEXUS_STICKY_REGION_FAILOVER_PREFERENCES=eu,us,cn,global
+```
+
+See
+[docs/guides/REGION_FAILOVER_HYSTERESIS_GUIDE.md](docs/guides/REGION_FAILOVER_HYSTERESIS_GUIDE.md).

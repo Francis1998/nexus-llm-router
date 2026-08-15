@@ -94,6 +94,7 @@ class RoutingStrategyName(StrEnum):
     CARBON_LATENCY_BLEND = "carbon-latency-blend"
     ADAPTIVE_CONCURRENCY_CAP = "adaptive-concurrency-cap"
     PROVIDER_TOKEN_FAIR_SHARE = "provider-token-fair-share"  # noqa: S105  # strategy name
+    REGION_FAILOVER_HYSTERESIS = "region-failover-hysteresis"
     AB_TEST = "ab"
 
 
