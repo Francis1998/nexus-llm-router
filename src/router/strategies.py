@@ -7841,6 +7841,201 @@ class ProviderTokenFairShareStrategy(RoutingStrategy):
         )
 
 
+class RegionFailoverHysteresisStats:
+    """Tracks region recovery streaks and session failover state."""
+
+    def __init__(self) -> None:
+        self._recovery_streak: dict[str, int] = {}
+        self._active_failover: dict[str, str] = {}
+
+    def record_success(self, region: str) -> None:
+        normalized = region.strip().lower()
+        self._recovery_streak[normalized] = self._recovery_streak.get(normalized, 0) + 1
+
+    def record_failure(self, region: str) -> None:
+        self._recovery_streak[region.strip().lower()] = 0
+
+    def recovery_streak(self, region: str) -> int:
+        return self._recovery_streak.get(region.strip().lower(), 0)
+
+    def active_failover_region(self, session_id: str) -> str | None:
+        return self._active_failover.get(session_id)
+
+    def set_failover(self, session_id: str, region: str) -> None:
+        self._active_failover[session_id] = region.strip().lower()
+
+    def clear_failover(self, session_id: str) -> None:
+        self._active_failover.pop(session_id, None)
+
+
+class RegionFailoverHysteresisStrategy(RoutingStrategy):
+    """Region preference with hysteresis before flapping back to preferred region.
+
+    Like :class:`StickyRegionFailoverStrategy`, this strategy walks an ordered
+    region preference list and pins ``session_id`` inside the active region
+    pool. After failovers, it will not return to the preferred region until
+    that region accumulates ``NEXUS_REGION_FAILOVER_HYSTERESIS_SUCCESSES``
+    consecutive successes, preventing GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2 traffic from flapping during intermittent recovery blips.
+    """
+
+    strategy_name = RoutingStrategyName.REGION_FAILOVER_HYSTERESIS
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        hysteresis_stats: RegionFailoverHysteresisStats,
+        region_preferences: list[str] | None = None,
+        hysteresis_successes: int = 3,
+    ) -> None:
+        """Initialize region-failover-hysteresis routing."""
+        super().__init__(model_catalog)
+        if hysteresis_successes < 1:
+            raise ValueError(f"hysteresis_successes must be >= 1, got {hysteresis_successes}")
+        self._provider_health = provider_health
+        self._hysteresis_stats = hysteresis_stats
+        self._hysteresis_successes = hysteresis_successes
+        self._default_region_preferences = [
+            region.strip().lower()
+            for region in (region_preferences or ["eu", "us", "cn", "global"])
+        ]
+
+    def _region_preferences(self, request: RouterRequest) -> list[str]:
+        requested_region = (request.region or "").strip().lower()
+        ordered: list[str] = []
+        if requested_region:
+            ordered.append(requested_region)
+        for region in self._default_region_preferences:
+            if region not in ordered:
+                ordered.append(region)
+        return ordered or ["global"]
+
+    def _matches_region(self, candidate: ModelCandidate, region: str) -> bool:
+        return region in {
+            supported_region.lower() for supported_region in candidate.supported_regions
+        }
+
+    def _healthy_region_candidates(
+        self,
+        eligible_candidates: list[ModelCandidate],
+        region: str,
+    ) -> list[ModelCandidate]:
+        region_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._matches_region(candidate, region)
+        ]
+        healthy = [
+            candidate
+            for candidate in region_candidates
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        return healthy or region_candidates
+
+    def _sticky_pick(
+        self,
+        request: RouterRequest,
+        candidates: list[ModelCandidate],
+        region_label: str,
+        *,
+        note: str,
+    ) -> RoutingDecision:
+        ordered_candidates = sorted(candidates, key=lambda candidate: candidate.model)
+        digest = sha256(request.session_id.encode("utf-8")).hexdigest()
+        bucket = int(digest[:8], 16) % len(ordered_candidates)
+        selected_candidate = ordered_candidates[bucket]
+        rationale = (
+            "region-failover-hysteresis pinned session "
+            f"'{request.session_id}' to {selected_candidate.model} in region "
+            f"'{region_label}' ({note}, bucket {bucket}/{len(ordered_candidates)})"
+        )
+        return self._decision(selected_candidate.model, rationale)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a sticky model with hysteresis-gated preferred-region return."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        region_preferences = self._region_preferences(request)
+        preferred_region = region_preferences[0]
+        active_failover = self._hysteresis_stats.active_failover_region(request.session_id)
+
+        if active_failover is not None:
+            preferred_healthy = self._healthy_region_candidates(
+                eligible_candidates,
+                preferred_region,
+            )
+            preferred_available = any(
+                self._provider_health.is_available(candidate.provider)
+                for candidate in preferred_healthy
+            )
+            if (
+                preferred_available
+                and self._hysteresis_stats.recovery_streak(preferred_region)
+                >= self._hysteresis_successes
+            ):
+                self._hysteresis_stats.clear_failover(request.session_id)
+                return self._sticky_pick(
+                    request,
+                    preferred_healthy,
+                    preferred_region,
+                    note=(
+                        f"preferred region recovered with "
+                        f"{self._hysteresis_stats.recovery_streak(preferred_region)}/"
+                        f"{self._hysteresis_successes} consecutive successes"
+                    ),
+                )
+
+            failover_candidates = self._healthy_region_candidates(
+                eligible_candidates,
+                active_failover,
+            )
+            if any(
+                self._provider_health.is_available(candidate.provider)
+                for candidate in failover_candidates
+            ):
+                return self._sticky_pick(
+                    request,
+                    failover_candidates,
+                    active_failover,
+                    note=(
+                        "holding failover until preferred region reaches hysteresis "
+                        f"{self._hysteresis_stats.recovery_streak(preferred_region)}/"
+                        f"{self._hysteresis_successes} successes"
+                    ),
+                )
+
+        for region in region_preferences:
+            healthy_candidates = self._healthy_region_candidates(eligible_candidates, region)
+            if not any(
+                self._provider_health.is_available(candidate.provider)
+                for candidate in healthy_candidates
+            ):
+                continue
+            if region != preferred_region:
+                self._hysteresis_stats.set_failover(request.session_id, region)
+                note = f"failover from preferred '{preferred_region}'"
+            else:
+                self._hysteresis_stats.clear_failover(request.session_id)
+                note = "preferred region healthy"
+            return self._sticky_pick(
+                request,
+                healthy_candidates,
+                region,
+                note=note,
+            )
+
+        return self._sticky_pick(
+            request,
+            eligible_candidates,
+            "fallback",
+            note="no healthy regional pool; using fallback",
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -7925,6 +8120,8 @@ def build_strategies(
     adaptive_concurrency_min_cap: int = 1,
     adaptive_concurrency_latency_ms: float = 2000.0,
     provider_token_fair_share_ceiling: int = 100_000,
+    region_failover_hysteresis_successes: int = 3,
+    region_failover_hysteresis_stats: RegionFailoverHysteresisStats | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -8112,6 +8309,9 @@ def build_strategies(
         provider_hourly_spend_window or ProviderHourlySpendWindow()
     )
     resolved_token_rpm_window = token_rpm_window or TokenRpmWindow()
+    resolved_region_failover_hysteresis_stats = (
+        region_failover_hysteresis_stats or RegionFailoverHysteresisStats()
+    )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -8411,6 +8611,13 @@ def build_strategies(
             model_catalog=model_catalog,
             token_rpm_window=resolved_token_rpm_window,
             token_fair_share_ceiling=provider_token_fair_share_ceiling,
+        ),
+        RoutingStrategyName.REGION_FAILOVER_HYSTERESIS: RegionFailoverHysteresisStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            hysteresis_stats=resolved_region_failover_hysteresis_stats,
+            region_preferences=resolved_sticky_region_preferences,
+            hysteresis_successes=region_failover_hysteresis_successes,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

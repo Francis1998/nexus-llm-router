@@ -33,6 +33,7 @@ from router.strategies import (
     ProviderRetryAfterCooldown,
     ProviderWeightStats,
     RateLimitStats,
+    RegionFailoverHysteresisStats,
     RoutingStrategy,
     SuccessStats,
     TierRequestStats,
@@ -95,6 +96,7 @@ class NexusRouter:
         self._latency_slope_stats = LatencySlopeStats(settings.latency_slope_window)
         self._provider_hourly_spend_window = ProviderHourlySpendWindow()
         self._token_rpm_window = TokenRpmWindow()
+        self._region_failover_hysteresis_stats = RegionFailoverHysteresisStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -180,6 +182,8 @@ class NexusRouter:
             adaptive_concurrency_min_cap=settings.adaptive_concurrency_min_cap,
             adaptive_concurrency_latency_ms=settings.adaptive_concurrency_latency_ms,
             provider_token_fair_share_ceiling=settings.provider_token_fair_share_ceiling,
+            region_failover_hysteresis_successes=settings.region_failover_hysteresis_successes,
+            region_failover_hysteresis_stats=self._region_failover_hysteresis_stats,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -286,6 +290,8 @@ class NexusRouter:
                 self._circuit_breakers.record_failure(candidate.provider)
                 self._success_stats.observe(candidate.provider, success=False)
                 self._provider_weight_stats.observe(candidate.provider, success=False)
+                region_label = (request.region or "global").strip().lower()
+                self._region_failover_hysteresis_stats.record_failure(region_label)
                 rate_limited = self._is_rate_limit_error(exception)
                 self._rate_limit_stats.observe(
                     candidate.provider,
@@ -339,6 +345,8 @@ class NexusRouter:
         self._family_spend_window.record(provider, provider_response.cost_usd)
         self._provider_hourly_spend_window.record(provider, provider_response.cost_usd)
         self._token_rpm_window.record(provider, prompt_tokens_estimate)
+        region_label = (request.region or "global").strip().lower()
+        self._region_failover_hysteresis_stats.record_success(region_label)
         total_tokens = provider_response.input_tokens + provider_response.output_tokens
         if total_tokens > 0:
             self._cost_anomaly_stats.observe((provider_response.cost_usd / total_tokens) * 1000.0)
