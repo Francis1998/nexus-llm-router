@@ -124,6 +124,7 @@ class RouterSettings(BaseSettings):
     adaptive_concurrency_base_cap: Annotated[int, Field(ge=1)] = 8
     adaptive_concurrency_min_cap: Annotated[int, Field(ge=1)] = 1
     adaptive_concurrency_latency_ms: Annotated[float, Field(gt=0.0)] = 2000.0
+    provider_token_fair_share_ceiling: Annotated[int, Field(ge=1)] = 100_000
     carbon_latency_carbon_weight: Annotated[float, Field(ge=0.0)] = 0.5
 
 

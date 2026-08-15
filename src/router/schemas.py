@@ -93,6 +93,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_CIRCUIT_PROBE = "provider-circuit-probe"
     CARBON_LATENCY_BLEND = "carbon-latency-blend"
     ADAPTIVE_CONCURRENCY_CAP = "adaptive-concurrency-cap"
+    PROVIDER_TOKEN_FAIR_SHARE = "provider-token-fair-share"  # noqa: S105  # strategy name
     AB_TEST = "ab"
 
 

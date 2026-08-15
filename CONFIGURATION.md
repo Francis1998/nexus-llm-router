@@ -1757,3 +1757,21 @@ NEXUS_ADAPTIVE_CONCURRENCY_LATENCY_MS=2000.0
 
 See
 [docs/guides/ADAPTIVE_CONCURRENCY_CAP_GUIDE.md](docs/guides/ADAPTIVE_CONCURRENCY_CAP_GUIDE.md).
+
+## Provider-Token-Fair-Share Routing
+
+The `provider-token-fair-share` strategy tracks estimated prompt tokens per
+provider in a rolling 60-second window and selects providers with the most
+remaining fair-share headroom under
+`NEXUS_PROVIDER_TOKEN_FAIR_SHARE_CEILING` (default `100000`). Ties break with
+request-id weighted round-robin. When every provider is over quota, traffic
+falls back to the least-used provider. Targets GPT-5.5 / Claude Sonnet 4.6 /
+Gemini 3.x / Kimi K2 traffic.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-token-fair-share
+NEXUS_PROVIDER_TOKEN_FAIR_SHARE_CEILING=100000
+```
+
+See
+[docs/guides/PROVIDER_TOKEN_FAIR_SHARE_GUIDE.md](docs/guides/PROVIDER_TOKEN_FAIR_SHARE_GUIDE.md).

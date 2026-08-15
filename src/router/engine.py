@@ -179,6 +179,7 @@ class NexusRouter:
             adaptive_concurrency_base_cap=settings.adaptive_concurrency_base_cap,
             adaptive_concurrency_min_cap=settings.adaptive_concurrency_min_cap,
             adaptive_concurrency_latency_ms=settings.adaptive_concurrency_latency_ms,
+            provider_token_fair_share_ceiling=settings.provider_token_fair_share_ceiling,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
