@@ -7553,6 +7553,137 @@ class CarbonLatencyBlendStrategy(RoutingStrategy):
         )
 
 
+class AdaptiveConcurrencyCapStrategy(RoutingStrategy):
+    """Cap in-flight requests per provider with health-derived dynamic limits.
+
+    Unlike :class:`ConcurrencyCapStrategy`, which applies a static
+    ``NEXUS_CONCURRENCY_CAP`` to every provider equally, this strategy scales
+    each provider's effective cap by rolling success rate and inverse p95
+    latency. Unhealthy or slow providers receive tighter caps so GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic drains toward healthier
+    backends under load.
+    """
+
+    strategy_name = RoutingStrategyName.ADAPTIVE_CONCURRENCY_CAP
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        inflight_stats: InflightStats,
+        success_stats: SuccessStats,
+        latency_stats: LatencyStats,
+        base_cap: int = 8,
+        min_cap: int = 1,
+        latency_reference_ms: float = 2000.0,
+    ) -> None:
+        """Initialize adaptive-concurrency-cap routing."""
+        super().__init__(model_catalog)
+        if base_cap < 1:
+            raise ValueError(f"base_cap must be >= 1, got {base_cap}")
+        if min_cap < 1:
+            raise ValueError(f"min_cap must be >= 1, got {min_cap}")
+        if min_cap > base_cap:
+            raise ValueError(f"min_cap ({min_cap}) must be <= base_cap ({base_cap})")
+        if latency_reference_ms <= 0.0:
+            raise ValueError(f"latency_reference_ms must be positive, got {latency_reference_ms}")
+        self._inflight_stats = inflight_stats
+        self._success_stats = success_stats
+        self._latency_stats = latency_stats
+        self._base_cap = base_cap
+        self._min_cap = min_cap
+        self._latency_reference_ms = latency_reference_ms
+
+    def _effective_cap(self, provider: str) -> int:
+        success_rate = self._success_stats.success_rate(provider)
+        p95 = self._latency_stats.p95(provider)
+        latency_factor = 1.0 if p95 <= 0.0 else min(1.0, self._latency_reference_ms / p95)
+        health_factor = success_rate * latency_factor
+        scaled = int(self._base_cap * health_factor)
+        return max(self._min_cap, min(self._base_cap, scaled))
+
+    def _health_score(self, provider: str) -> float:
+        success_rate = self._success_stats.success_rate(provider)
+        p95 = self._latency_stats.p95(provider)
+        latency_factor = 1.0 if p95 <= 0.0 else min(1.0, self._latency_reference_ms / p95)
+        return success_rate * latency_factor
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the healthiest eligible provider below its adaptive cap."""
+        eligible_candidates = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        under_cap_candidates = [
+            candidate
+            for candidate in eligible_candidates
+            if self._inflight_stats.load_score(candidate.provider)
+            < self._effective_cap(candidate.provider)
+        ]
+
+        if under_cap_candidates:
+            selected_candidate = max(
+                under_cap_candidates,
+                key=lambda candidate: (
+                    self._health_score(candidate.provider),
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            load_score = self._inflight_stats.load_score(selected_candidate.provider)
+            effective_cap = self._effective_cap(selected_candidate.provider)
+            rationale = (
+                "adaptive-concurrency-cap selected below adaptive cap "
+                f"{effective_cap}/{self._base_cap}; "
+                f"{selected_candidate.provider} load {load_score}/{effective_cap} "
+                f"health {self._health_score(selected_candidate.provider):.2f}"
+            )
+        else:
+            selected_candidate = min(
+                eligible_candidates,
+                key=lambda candidate: (
+                    self._inflight_stats.load_score(candidate.provider)
+                    / max(self._effective_cap(candidate.provider), 1),
+                    -self._health_score(candidate.provider),
+                    -candidate.quality_score,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            load_score = self._inflight_stats.load_score(selected_candidate.provider)
+            effective_cap = self._effective_cap(selected_candidate.provider)
+            rationale = (
+                "adaptive-concurrency-cap found every eligible provider at or above "
+                f"adaptive cap; routed to least-saturated fallback "
+                f"{selected_candidate.provider} load {load_score}/{effective_cap} "
+                f"health {self._health_score(selected_candidate.provider):.2f}"
+            )
+
+        fallback_candidates = sorted(
+            [
+                candidate
+                for candidate in eligible_candidates
+                if candidate.model != selected_candidate.model
+            ],
+            key=lambda candidate: (
+                self._inflight_stats.load_score(candidate.provider)
+                >= self._effective_cap(candidate.provider),
+                -self._health_score(candidate.provider),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected_candidate.model,
+            provider=selected_candidate.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -7633,6 +7764,9 @@ def build_strategies(
     provider_circuit_probe_budget: int = 1,
     carbon_latency_carbon_weight: float = 0.5,
     carbon_latency_latency_weight: float = 0.5,
+    adaptive_concurrency_base_cap: int = 8,
+    adaptive_concurrency_min_cap: int = 1,
+    adaptive_concurrency_latency_ms: float = 2000.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -8105,6 +8239,15 @@ def build_strategies(
             latency_stats=latency_stats,
             carbon_weight=carbon_latency_carbon_weight,
             latency_weight=carbon_latency_latency_weight,
+        ),
+        RoutingStrategyName.ADAPTIVE_CONCURRENCY_CAP: AdaptiveConcurrencyCapStrategy(
+            model_catalog=model_catalog,
+            inflight_stats=inflight_stats,
+            success_stats=resolved_success_stats,
+            latency_stats=latency_stats,
+            base_cap=adaptive_concurrency_base_cap,
+            min_cap=adaptive_concurrency_min_cap,
+            latency_reference_ms=adaptive_concurrency_latency_ms,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
