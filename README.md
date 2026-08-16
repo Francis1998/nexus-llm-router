@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-543%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-550%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -180,6 +180,7 @@ Select a strategy with `X-Router-Strategy`:
 - `token-rpm-ceiling`, `provider-circuit-probe`, `carbon-latency-blend`: tracks estimated prompt tokens per provider over a rolling 60-second window and sheds requests that would exceed `NEXUS_TOKEN_RPM_CEILING` (default `100000`) to the next eligible provider for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `adaptive-concurrency-cap`: scales per-provider in-flight caps by rolling success rate and inverse p95 latency (`NEXUS_ADAPTIVE_CONCURRENCY_BASE_CAP`, `NEXUS_ADAPTIVE_CONCURRENCY_MIN_CAP`, `NEXUS_ADAPTIVE_CONCURRENCY_LATENCY_MS`) so unhealthy backends shed load while quality-first routing continues for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-token-fair-share`: fair-share prompt-token budget per provider in a rolling 60-second window (`NEXUS_PROVIDER_TOKEN_FAIR_SHARE_CEILING`, default `100000`) with round-robin weighted by remaining quota for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `tenant-budget-cascade`: tracks per-tenant rolling spend, keeps quality-first choices while projected spend fits `NEXUS_TENANT_BUDGET_CASCADE_SOFT`, sheds to cheaper providers up to `NEXUS_TENANT_BUDGET_CASCADE_HARD`, then fails closed with a clear rationale for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
@@ -206,6 +207,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Queue-depth-fairness guide](docs/guides/QUEUE_DEPTH_FAIRNESS_GUIDE.md) | Soft queue-depth fairness across providers |
 | [Provider-quota-fair-share guide](docs/guides/PROVIDER_QUOTA_FAIR_SHARE_GUIDE.md) | Rolling equal-share provider quota routing |
 | [Provider-token-fair-share guide](docs/guides/PROVIDER_TOKEN_FAIR_SHARE_GUIDE.md) | Rolling token fair-share routing weighted by remaining quota |
+| [Tenant-budget-cascade guide](docs/guides/TENANT_BUDGET_CASCADE_GUIDE.md) | Per-tenant rolling spend cascade with a hard fail-closed ceiling |
 | [Circuit-breaker-half-open-probe guide](docs/guides/CIRCUIT_BREAKER_HALF_OPEN_PROBE_GUIDE.md) | Half-open recovery probe budget routing |
 | [SLO-aware guide](docs/guides/SLO_AWARE_GUIDE.md) | Availability-SLO quality routing |
 | [Adaptive-timeout guide](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md) | Timeout-adaptive quality routing |

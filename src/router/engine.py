@@ -36,6 +36,8 @@ from router.strategies import (
     RegionFailoverHysteresisStats,
     RoutingStrategy,
     SuccessStats,
+    TenantBudgetCascadeStats,
+    TenantBudgetCascadeStrategy,
     TierRequestStats,
     TokenBucketStats,
     TokenRpmWindow,
@@ -97,6 +99,7 @@ class NexusRouter:
         self._provider_hourly_spend_window = ProviderHourlySpendWindow()
         self._token_rpm_window = TokenRpmWindow()
         self._region_failover_hysteresis_stats = RegionFailoverHysteresisStats()
+        self._tenant_budget_cascade_stats = TenantBudgetCascadeStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -184,6 +187,9 @@ class NexusRouter:
             provider_token_fair_share_ceiling=settings.provider_token_fair_share_ceiling,
             region_failover_hysteresis_successes=settings.region_failover_hysteresis_successes,
             region_failover_hysteresis_stats=self._region_failover_hysteresis_stats,
+            tenant_budget_cascade_soft=settings.tenant_budget_cascade_soft,
+            tenant_budget_cascade_hard=settings.tenant_budget_cascade_hard,
+            tenant_budget_cascade_stats=self._tenant_budget_cascade_stats,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -342,6 +348,10 @@ class NexusRouter:
         self._latency_stats.observe(provider, latency_ms)
         self._latency_slope_stats.observe(provider, latency_ms)
         self._budget_guardrail.record_spend(request.user_id, provider_response.cost_usd)
+        self._tenant_budget_cascade_stats.record_spend(
+            TenantBudgetCascadeStrategy._tenant_key(request),
+            provider_response.cost_usd,
+        )
         self._family_spend_window.record(provider, provider_response.cost_usd)
         self._provider_hourly_spend_window.record(provider, provider_response.cost_usd)
         self._token_rpm_window.record(provider, prompt_tokens_estimate)

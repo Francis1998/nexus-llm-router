@@ -127,6 +127,8 @@ class RouterSettings(BaseSettings):
     provider_token_fair_share_ceiling: Annotated[int, Field(ge=1)] = 100_000
     region_failover_hysteresis_successes: Annotated[int, Field(ge=1)] = 3
     carbon_latency_carbon_weight: Annotated[float, Field(ge=0.0)] = 0.5
+    tenant_budget_cascade_soft: Annotated[float, Field(ge=0.0)] = 10.0
+    tenant_budget_cascade_hard: Annotated[float, Field(gt=0.0)] = 12.5
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

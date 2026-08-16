@@ -8036,6 +8036,164 @@ class RegionFailoverHysteresisStrategy(RoutingStrategy):
         )
 
 
+class TenantBudgetExceededError(RuntimeError):
+    """Raised when tenant-budget-cascade reaches its hard spend ceiling."""
+
+
+class TenantBudgetCascadeStats:
+    """In-memory rolling spend windows keyed by tenant identity."""
+
+    def __init__(self, window_seconds: float = 3600.0) -> None:
+        """Initialize empty tenant spend windows."""
+        if window_seconds <= 0.0:
+            raise ValueError(f"window_seconds must be positive, got {window_seconds}")
+        self._window_seconds = window_seconds
+        self._observations: dict[str, list[tuple[float, float]]] = {}
+
+    def record_spend(self, tenant_key: str, amount: float) -> None:
+        """Record non-negative observed spend for one tenant."""
+        if amount < 0.0:
+            raise ValueError(f"amount must be non-negative, got {amount}")
+        now = time.monotonic()
+        observations = self._trim(tenant_key, now)
+        observations.append((now, amount))
+
+    def spend(self, tenant_key: str) -> float:
+        """Return current rolling spend for one tenant."""
+        return sum(amount for _, amount in self._trim(tenant_key, time.monotonic()))
+
+    def _trim(self, tenant_key: str, now: float) -> list[tuple[float, float]]:
+        cutoff = now - self._window_seconds
+        observations = [
+            observation
+            for observation in self._observations.get(tenant_key, [])
+            if observation[0] >= cutoff
+        ]
+        self._observations[tenant_key] = observations
+        return observations
+
+
+class TenantBudgetCascadeStrategy(RoutingStrategy):
+    """Cascade tenants toward cheaper providers as rolling spend approaches a cap.
+
+    Requests start quality-first while their projected spend fits the soft
+    threshold. Once that headroom is exhausted, routing sheds to the cheapest
+    candidate that remains below the hard ceiling. The strategy fails closed
+    before a request would cross the hard ceiling, protecting GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 tenant budgets.
+    """
+
+    strategy_name = RoutingStrategyName.TENANT_BUDGET_CASCADE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        tenant_budget_stats: TenantBudgetCascadeStats,
+        soft_budget: float = 10.0,
+        hard_budget: float = 12.5,
+    ) -> None:
+        """Initialize tenant-budget-cascade routing."""
+        super().__init__(model_catalog)
+        if soft_budget < 0.0:
+            raise ValueError(f"soft_budget must be non-negative, got {soft_budget}")
+        if hard_budget <= soft_budget:
+            raise ValueError(
+                f"hard_budget ({hard_budget}) must be greater than soft_budget ({soft_budget})"
+            )
+        self._tenant_budget_stats = tenant_budget_stats
+        self._soft_budget = soft_budget
+        self._hard_budget = hard_budget
+
+    @staticmethod
+    def _tenant_key(request: RouterRequest) -> str:
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = request.metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a budget-safe cascade rung or fail closed at the hard ceiling."""
+        tenant_key = self._tenant_key(request)
+        spend = self._tenant_budget_stats.spend(tenant_key)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            for candidate in eligible
+        }
+        hard_safe = [
+            candidate
+            for candidate in eligible
+            if spend + costs[candidate.model] <= self._hard_budget
+        ]
+        if not hard_safe:
+            cheapest_cost = min(costs.values())
+            raise TenantBudgetExceededError(
+                "tenant-budget-cascade hard ceiling reached for tenant "
+                f"'{tenant_key}': rolling spend {spend:.6f} + cheapest projected "
+                f"{cheapest_cost:.6f} exceeds {self._hard_budget:.6f}; fail closed"
+            )
+
+        soft_safe = [
+            candidate
+            for candidate in hard_safe
+            if spend + costs[candidate.model] <= self._soft_budget
+        ]
+        if soft_safe:
+            selected = max(
+                soft_safe,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"tenant-budget-cascade tenant '{tenant_key}' rolling spend "
+                f"{spend:.6f} under soft {self._soft_budget:.6f}; selected highest-quality "
+                f"soft-safe {selected.model} at projected {costs[selected.model]:.6f}"
+            )
+        else:
+            selected = min(
+                hard_safe,
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"tenant-budget-cascade tenant '{tenant_key}' near hard ceiling "
+                f"{self._hard_budget:.6f} after soft {self._soft_budget:.6f}; shed to "
+                f"cheapest hard-safe provider {selected.provider} model {selected.model} "
+                f"at projected {costs[selected.model]:.6f}"
+            )
+
+        fallbacks = sorted(
+            (candidate for candidate in hard_safe if candidate.model != selected.model),
+            key=lambda candidate: (
+                costs[candidate.model],
+                -candidate.quality_score,
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallbacks[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -8122,6 +8280,9 @@ def build_strategies(
     provider_token_fair_share_ceiling: int = 100_000,
     region_failover_hysteresis_successes: int = 3,
     region_failover_hysteresis_stats: RegionFailoverHysteresisStats | None = None,
+    tenant_budget_cascade_soft: float = 10.0,
+    tenant_budget_cascade_hard: float = 12.5,
+    tenant_budget_cascade_stats: TenantBudgetCascadeStats | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -8312,6 +8473,7 @@ def build_strategies(
     resolved_region_failover_hysteresis_stats = (
         region_failover_hysteresis_stats or RegionFailoverHysteresisStats()
     )
+    resolved_tenant_budget_cascade_stats = tenant_budget_cascade_stats or TenantBudgetCascadeStats()
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -8618,6 +8780,12 @@ def build_strategies(
             hysteresis_stats=resolved_region_failover_hysteresis_stats,
             region_preferences=resolved_sticky_region_preferences,
             hysteresis_successes=region_failover_hysteresis_successes,
+        ),
+        RoutingStrategyName.TENANT_BUDGET_CASCADE: TenantBudgetCascadeStrategy(
+            model_catalog=model_catalog,
+            tenant_budget_stats=resolved_tenant_budget_cascade_stats,
+            soft_budget=tenant_budget_cascade_soft,
+            hard_budget=tenant_budget_cascade_hard,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
