@@ -1816,3 +1816,22 @@ The hard threshold must be greater than the soft threshold.
 
 See
 [docs/guides/TENANT_BUDGET_CASCADE_GUIDE.md](docs/guides/TENANT_BUDGET_CASCADE_GUIDE.md).
+
+## Provider-Error-Budget-Reset Routing
+
+The `provider-error-budget-reset` strategy tracks attempts and errors in an
+independent timed window per provider. It temporarily sheds providers whose
+error rate exceeds `NEXUS_PROVIDER_ERROR_BUDGET_RESET_FRACTION` (default
+`0.15`) and restores them after `NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS`
+(default `60`). This explicit timer distinguishes it from
+`provider-error-budget-shed`, which reads cumulative shared `SuccessStats`.
+The strategy targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-error-budget-reset
+NEXUS_PROVIDER_ERROR_BUDGET_RESET_FRACTION=0.15
+NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS=60.0
+```
+
+See
+[docs/guides/PROVIDER_ERROR_BUDGET_RESET_GUIDE.md](docs/guides/PROVIDER_ERROR_BUDGET_RESET_GUIDE.md).

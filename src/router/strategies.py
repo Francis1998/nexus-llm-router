@@ -8194,6 +8194,168 @@ class TenantBudgetCascadeStrategy(RoutingStrategy):
         )
 
 
+class ProviderErrorBudgetResetStats:
+    """Per-provider error windows that clear after a fixed reset interval."""
+
+    def __init__(self, reset_seconds: float = 60.0) -> None:
+        """Initialize empty provider error windows."""
+        if reset_seconds <= 0.0:
+            raise ValueError(f"reset_seconds must be positive, got {reset_seconds}")
+        self._reset_seconds = reset_seconds
+        self._windows: dict[str, tuple[float, int, int]] = {}
+
+    @property
+    def reset_seconds(self) -> float:
+        """Return the configured reset interval."""
+        return self._reset_seconds
+
+    def observe(self, provider: str, *, success: bool, now: float | None = None) -> None:
+        """Record a provider result, resetting an expired window first."""
+        observed_at = time.monotonic() if now is None else now
+        window = self._active_window(provider, observed_at)
+        if window is None:
+            started_at, attempts, errors = observed_at, 0, 0
+        else:
+            started_at, attempts, errors = window
+        self._windows[provider] = (
+            started_at,
+            attempts + 1,
+            errors + (0 if success else 1),
+        )
+
+    def error_rate(self, provider: str, *, now: float | None = None) -> float:
+        """Return the active error rate, or zero after the timer resets."""
+        observed_at = time.monotonic() if now is None else now
+        window = self._active_window(provider, observed_at)
+        if window is None:
+            return 0.0
+        _, attempts, errors = window
+        return errors / attempts
+
+    def seconds_until_reset(self, provider: str, *, now: float | None = None) -> float:
+        """Return seconds until the provider's active window resets."""
+        observed_at = time.monotonic() if now is None else now
+        window = self._active_window(provider, observed_at)
+        if window is None:
+            return 0.0
+        started_at, _, _ = window
+        return max(0.0, self._reset_seconds - (observed_at - started_at))
+
+    def _active_window(
+        self,
+        provider: str,
+        now: float,
+    ) -> tuple[float, int, int] | None:
+        window = self._windows.get(provider)
+        if window is None:
+            return None
+        if now - window[0] >= self._reset_seconds:
+            self._windows.pop(provider, None)
+            return None
+        return window
+
+
+class ProviderErrorBudgetResetStrategy(RoutingStrategy):
+    """Temporarily shed providers whose timed-window error budget is exhausted.
+
+    Unlike ``provider-error-budget-shed``, whose shared cumulative success stats
+    do not reset on a strategy timer, this strategy explicitly clears each
+    provider's error window after ``NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS``.
+    Recovered GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 providers are
+    then restored automatically.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_ERROR_BUDGET_RESET
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        error_budget_stats: ProviderErrorBudgetResetStats,
+        error_budget_fraction: float = 0.15,
+    ) -> None:
+        """Initialize provider-error-budget-reset routing."""
+        super().__init__(model_catalog)
+        if not 0.0 <= error_budget_fraction <= 1.0:
+            raise ValueError(
+                f"error_budget_fraction must be within [0.0, 1.0], got {error_budget_fraction}"
+            )
+        self._provider_health = provider_health
+        self._error_budget_stats = error_budget_stats
+        self._error_budget_fraction = error_budget_fraction
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose a healthy provider whose active error window is within budget."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ] or eligible
+        rates = {
+            candidate.provider: self._error_budget_stats.error_rate(candidate.provider)
+            for candidate in healthy
+        }
+        within_budget = [
+            candidate
+            for candidate in healthy
+            if rates[candidate.provider] <= self._error_budget_fraction
+        ]
+
+        if within_budget:
+            selected = max(
+                within_budget,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "provider-error-budget-reset selected highest-quality provider within "
+                f"{self._error_budget_fraction:.2%} timed error budget; "
+                f"{selected.provider} error {rates[selected.provider]:.2%}, reset every "
+                f"{self._error_budget_stats.reset_seconds:.1f}s"
+            )
+        else:
+            selected = min(
+                healthy,
+                key=lambda candidate: (
+                    self._error_budget_stats.seconds_until_reset(candidate.provider),
+                    rates[candidate.provider],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "provider-error-budget-reset found every healthy provider temporarily "
+                f"shed above {self._error_budget_fraction:.2%}; emergency fallback "
+                f"{selected.provider} resets in "
+                f"{self._error_budget_stats.seconds_until_reset(selected.provider):.1f}s"
+            )
+
+        fallbacks = sorted(
+            (candidate for candidate in healthy if candidate.model != selected.model),
+            key=lambda candidate: (
+                rates[candidate.provider] > self._error_budget_fraction,
+                rates[candidate.provider],
+                -candidate.quality_score,
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallbacks[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -8283,6 +8445,9 @@ def build_strategies(
     tenant_budget_cascade_soft: float = 10.0,
     tenant_budget_cascade_hard: float = 12.5,
     tenant_budget_cascade_stats: TenantBudgetCascadeStats | None = None,
+    provider_error_budget_reset_stats: ProviderErrorBudgetResetStats | None = None,
+    provider_error_budget_reset_seconds: float = 60.0,
+    provider_error_budget_reset_fraction: float = 0.15,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -8474,6 +8639,10 @@ def build_strategies(
         region_failover_hysteresis_stats or RegionFailoverHysteresisStats()
     )
     resolved_tenant_budget_cascade_stats = tenant_budget_cascade_stats or TenantBudgetCascadeStats()
+    resolved_provider_error_budget_reset_stats = (
+        provider_error_budget_reset_stats
+        or ProviderErrorBudgetResetStats(provider_error_budget_reset_seconds)
+    )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -8786,6 +8955,12 @@ def build_strategies(
             tenant_budget_stats=resolved_tenant_budget_cascade_stats,
             soft_budget=tenant_budget_cascade_soft,
             hard_budget=tenant_budget_cascade_hard,
+        ),
+        RoutingStrategyName.PROVIDER_ERROR_BUDGET_RESET: ProviderErrorBudgetResetStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            error_budget_stats=resolved_provider_error_budget_reset_stats,
+            error_budget_fraction=provider_error_budget_reset_fraction,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
