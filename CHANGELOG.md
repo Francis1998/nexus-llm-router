@@ -7,7 +7,6 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - `sticky-region-warmup` routing strategy: routes the first `NEXUS_STICKY_REGION_WARMUP_REQUESTS` (default `3`) requests for each session to a warmup region, then pins the session to its requested or hash-selected region. Reuses region preferences and provider health to prevent cold-start flaps across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/STICKY_REGION_WARMUP_GUIDE.md`.
-
 - `provider-error-budget-reset` routing strategy: tracks a timed error-rate window per provider, temporarily sheds providers above `NEXUS_PROVIDER_ERROR_BUDGET_RESET_FRACTION` (default `0.15`), and automatically restores them after `NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS` (default `60`). Distinct from cumulative `provider-error-budget-shed` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/PROVIDER_ERROR_BUDGET_RESET_GUIDE.md`.
 
 - `tenant-budget-cascade` routing strategy: tracks successful completion spend in a rolling per-tenant window, keeps quality-first models while projected spend fits `NEXUS_TENANT_BUDGET_CASCADE_SOFT` (default `10.0`), sheds to cheaper providers up to `NEXUS_TENANT_BUDGET_CASCADE_HARD` (default `12.5`), and fails closed before crossing the hard ceiling for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/TENANT_BUDGET_CASCADE_GUIDE.md`.
