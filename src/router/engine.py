@@ -29,6 +29,7 @@ from router.strategies import (
     InflightStats,
     LatencySlopeStats,
     LatencyStats,
+    ProviderErrorBudgetResetStats,
     ProviderHourlySpendWindow,
     ProviderRetryAfterCooldown,
     ProviderWeightStats,
@@ -100,6 +101,9 @@ class NexusRouter:
         self._token_rpm_window = TokenRpmWindow()
         self._region_failover_hysteresis_stats = RegionFailoverHysteresisStats()
         self._tenant_budget_cascade_stats = TenantBudgetCascadeStats()
+        self._provider_error_budget_reset_stats = ProviderErrorBudgetResetStats(
+            settings.provider_error_budget_reset_seconds
+        )
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -190,6 +194,9 @@ class NexusRouter:
             tenant_budget_cascade_soft=settings.tenant_budget_cascade_soft,
             tenant_budget_cascade_hard=settings.tenant_budget_cascade_hard,
             tenant_budget_cascade_stats=self._tenant_budget_cascade_stats,
+            provider_error_budget_reset_fraction=settings.provider_error_budget_reset_fraction,
+            provider_error_budget_reset_seconds=settings.provider_error_budget_reset_seconds,
+            provider_error_budget_reset_stats=self._provider_error_budget_reset_stats,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
@@ -295,6 +302,10 @@ class NexusRouter:
                 last_error = exception
                 self._circuit_breakers.record_failure(candidate.provider)
                 self._success_stats.observe(candidate.provider, success=False)
+                self._provider_error_budget_reset_stats.observe(
+                    candidate.provider,
+                    success=False,
+                )
                 self._provider_weight_stats.observe(candidate.provider, success=False)
                 region_label = (request.region or "global").strip().lower()
                 self._region_failover_hysteresis_stats.record_failure(region_label)
@@ -339,6 +350,7 @@ class NexusRouter:
         """Build the router response and persist observability side effects."""
         self._circuit_breakers.record_success(provider)
         self._success_stats.observe(provider, success=True)
+        self._provider_error_budget_reset_stats.observe(provider, success=True)
         self._provider_weight_stats.observe(provider, success=True)
         self._rate_limit_stats.observe(provider, rate_limited=False)
         self._retry_after_cooldown.clear(provider)

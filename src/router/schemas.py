@@ -96,6 +96,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_TOKEN_FAIR_SHARE = "provider-token-fair-share"  # noqa: S105  # strategy name
     REGION_FAILOVER_HYSTERESIS = "region-failover-hysteresis"
     TENANT_BUDGET_CASCADE = "tenant-budget-cascade"
+    PROVIDER_ERROR_BUDGET_RESET = "provider-error-budget-reset"
     AB_TEST = "ab"
 
 
