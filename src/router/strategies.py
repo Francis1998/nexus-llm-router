@@ -8640,7 +8640,8 @@ def build_strategies(
     )
     resolved_tenant_budget_cascade_stats = tenant_budget_cascade_stats or TenantBudgetCascadeStats()
     resolved_provider_error_budget_reset_stats = (
-        provider_error_budget_reset_stats or ProviderErrorBudgetResetStats()
+        provider_error_budget_reset_stats
+        or ProviderErrorBudgetResetStats(provider_error_budget_reset_seconds)
     )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
