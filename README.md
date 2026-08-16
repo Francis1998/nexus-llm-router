@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-557%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-564%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -182,6 +182,7 @@ Select a strategy with `X-Router-Strategy`:
 - `provider-token-fair-share`: fair-share prompt-token budget per provider in a rolling 60-second window (`NEXUS_PROVIDER_TOKEN_FAIR_SHARE_CEILING`, default `100000`) with round-robin weighted by remaining quota for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `tenant-budget-cascade`: tracks per-tenant rolling spend, keeps quality-first choices while projected spend fits `NEXUS_TENANT_BUDGET_CASCADE_SOFT`, sheds to cheaper providers up to `NEXUS_TENANT_BUDGET_CASCADE_HARD`, then fails closed with a clear rationale for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-error-budget-reset`: temporarily sheds providers above `NEXUS_PROVIDER_ERROR_BUDGET_RESET_FRACTION` and automatically restores them after `NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS`, distinct from cumulative `provider-error-budget-shed`, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `sticky-region-warmup`: sends each new session's first `NEXUS_STICKY_REGION_WARMUP_REQUESTS` requests to a warmup region, then pins the session to its requested or hash-selected region to prevent cold-start flaps for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation

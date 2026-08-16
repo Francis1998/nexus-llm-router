@@ -8356,6 +8356,170 @@ class ProviderErrorBudgetResetStrategy(RoutingStrategy):
         )
 
 
+class StickyRegionWarmupStats:
+    """In-memory request counts and pinned regions for sticky sessions."""
+
+    def __init__(self) -> None:
+        """Initialize empty session warmup state."""
+        self._request_counts: dict[str, int] = {}
+        self._pinned_regions: dict[str, str] = {}
+
+    def advance(self, session_id: str) -> int:
+        """Increment and return a session's request count."""
+        request_count = self._request_counts.get(session_id, 0) + 1
+        self._request_counts[session_id] = request_count
+        return request_count
+
+    def request_count(self, session_id: str) -> int:
+        """Return the number of observed routing decisions for a session."""
+        return self._request_counts.get(session_id, 0)
+
+    def pinned_region(self, session_id: str) -> str | None:
+        """Return a session's post-warmup pinned region, if assigned."""
+        return self._pinned_regions.get(session_id)
+
+    def pin(self, session_id: str, region: str) -> None:
+        """Pin a session to a normalized non-empty region."""
+        normalized = region.strip().lower()
+        if not normalized:
+            raise ValueError("region must not be empty")
+        self._pinned_regions[session_id] = normalized
+
+
+class StickyRegionWarmupStrategy(RoutingStrategy):
+    """Warm new sessions in one region before pinning them elsewhere.
+
+    The first ``NEXUS_STICKY_REGION_WARMUP_REQUESTS`` decisions use a shared
+    warmup region so provider caches and capacity can stabilize. Later requests
+    pin the session to its requested or hash-selected region, preventing
+    cold-start region flaps for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2 traffic.
+    """
+
+    strategy_name = RoutingStrategyName.STICKY_REGION_WARMUP
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        warmup_stats: StickyRegionWarmupStats,
+        region_preferences: list[str] | None = None,
+        warmup_request_count: int = 3,
+    ) -> None:
+        """Initialize sticky-region-warmup routing."""
+        super().__init__(model_catalog)
+        if warmup_request_count < 1:
+            raise ValueError(f"warmup_request_count must be >= 1, got {warmup_request_count}")
+        self._provider_health = provider_health
+        self._warmup_stats = warmup_stats
+        self._region_preferences = [
+            region.strip().lower()
+            for region in (region_preferences or ["eu", "us", "cn", "global"])
+            if region.strip()
+        ]
+        if not self._region_preferences:
+            raise ValueError("region_preferences must contain at least one region")
+        self._warmup_request_count = warmup_request_count
+
+    @staticmethod
+    def _supports_region(candidate: ModelCandidate, region: str) -> bool:
+        return region in {
+            supported_region.strip().lower() for supported_region in candidate.supported_regions
+        }
+
+    def _warmup_region(self, request: RouterRequest) -> str:
+        configured = request.metadata.get("warmup_region")
+        if configured is not None and str(configured).strip():
+            return str(configured).strip().lower()
+        return self._region_preferences[0]
+
+    def _post_warmup_region(self, request: RouterRequest, warmup_region: str) -> str:
+        pinned = self._warmup_stats.pinned_region(request.session_id)
+        if pinned is not None:
+            return pinned
+        requested = (request.region or "").strip().lower()
+        if requested:
+            return requested
+        alternatives = [
+            region for region in self._region_preferences if region != warmup_region
+        ] or [warmup_region]
+        digest = sha256(request.session_id.encode("utf-8")).hexdigest()
+        return alternatives[int(digest[:8], 16) % len(alternatives)]
+
+    def _pick(
+        self,
+        request: RouterRequest,
+        eligible: list[ModelCandidate],
+        region: str,
+        rationale: str,
+    ) -> RoutingDecision:
+        region_candidates = [
+            candidate for candidate in eligible if self._supports_region(candidate, region)
+        ]
+        healthy_region = [
+            candidate
+            for candidate in region_candidates
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        pool = healthy_region
+        active_region = region
+        if not pool:
+            pool = [
+                candidate
+                for candidate in eligible
+                if self._provider_health.is_available(candidate.provider)
+            ] or eligible
+            active_region = "fallback"
+            rationale += f"; region '{region}' unavailable, using healthy fallback pool"
+
+        ordered = sorted(pool, key=lambda candidate: candidate.model)
+        digest = sha256(f"{request.session_id}:{active_region}".encode()).hexdigest()
+        bucket = int(digest[:8], 16) % len(ordered)
+        selected = ordered[bucket]
+        fallbacks = [candidate.model for candidate in ordered if candidate.model != selected.model][
+            :3
+        ]
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=f"{rationale}; sticky bucket {bucket}/{len(ordered)} -> {selected.model}",
+            fallback_chain=fallbacks,
+        )
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Route warmup requests, then pin the session to a stable region."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        request_count = self._warmup_stats.advance(request.session_id)
+        warmup_region = self._warmup_region(request)
+
+        if request_count <= self._warmup_request_count:
+            return self._pick(
+                request,
+                eligible,
+                warmup_region,
+                "sticky-region-warmup "
+                f"warmup request {request_count}/{self._warmup_request_count} "
+                f"for session '{request.session_id}' in region '{warmup_region}'",
+            )
+
+        target_region = self._post_warmup_region(request, warmup_region)
+        if self._warmup_stats.pinned_region(request.session_id) is None:
+            self._warmup_stats.pin(request.session_id, target_region)
+        return self._pick(
+            request,
+            eligible,
+            target_region,
+            "sticky-region-warmup completed "
+            f"{self._warmup_request_count} warmup requests; pinned session "
+            f"'{request.session_id}' to region '{target_region}'",
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -8446,6 +8610,8 @@ def build_strategies(
     tenant_budget_cascade_hard: float = 12.5,
     tenant_budget_cascade_stats: TenantBudgetCascadeStats | None = None,
     provider_error_budget_reset_stats: ProviderErrorBudgetResetStats | None = None,
+    sticky_region_warmup_stats: StickyRegionWarmupStats | None = None,
+    sticky_region_warmup_requests: int = 3,
     provider_error_budget_reset_seconds: float = 60.0,
     provider_error_budget_reset_fraction: float = 0.15,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
@@ -8643,6 +8809,7 @@ def build_strategies(
         provider_error_budget_reset_stats
         or ProviderErrorBudgetResetStats(provider_error_budget_reset_seconds)
     )
+    resolved_sticky_region_warmup_stats = sticky_region_warmup_stats or StickyRegionWarmupStats()
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -8961,6 +9128,13 @@ def build_strategies(
             provider_health=provider_health,
             error_budget_stats=resolved_provider_error_budget_reset_stats,
             error_budget_fraction=provider_error_budget_reset_fraction,
+        ),
+        RoutingStrategyName.STICKY_REGION_WARMUP: StickyRegionWarmupStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            warmup_stats=resolved_sticky_region_warmup_stats,
+            region_preferences=resolved_sticky_region_preferences,
+            warmup_request_count=sticky_region_warmup_requests,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

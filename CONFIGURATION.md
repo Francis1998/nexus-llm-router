@@ -1835,3 +1835,22 @@ NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS=60.0
 
 See
 [docs/guides/PROVIDER_ERROR_BUDGET_RESET_GUIDE.md](docs/guides/PROVIDER_ERROR_BUDGET_RESET_GUIDE.md).
+
+## Sticky-Region-Warmup Routing
+
+The `sticky-region-warmup` strategy routes the first
+`NEXUS_STICKY_REGION_WARMUP_REQUESTS` requests (default `3`) for each session to
+a warmup region, then pins the session to its requested or hash-selected region.
+It reuses `NEXUS_STICKY_REGION_FAILOVER_PREFERENCES`; the first preference is the
+default warmup region and request metadata may override it with
+`metadata.warmup_region`. Durable post-warmup affinity prevents cold-start flaps
+across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 regional pools.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=sticky-region-warmup
+NEXUS_STICKY_REGION_WARMUP_REQUESTS=3
+NEXUS_STICKY_REGION_FAILOVER_PREFERENCES=eu,us,cn,global
+```
+
+See
+[docs/guides/STICKY_REGION_WARMUP_GUIDE.md](docs/guides/STICKY_REGION_WARMUP_GUIDE.md).
