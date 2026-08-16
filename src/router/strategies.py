@@ -8118,7 +8118,11 @@ class TenantBudgetCascadeStrategy(RoutingStrategy):
         """Choose a budget-safe cascade rung or fail closed at the hard ceiling."""
         tenant_key = self._tenant_key(request)
         spend = self._tenant_budget_stats.spend(tenant_key)
-        eligible = self._domain_eligible(signals)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
         costs = {
             candidate.model: candidate.estimate_cost(
                 signals.prompt_tokens_estimate, request.max_tokens
