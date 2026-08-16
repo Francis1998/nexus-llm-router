@@ -36,6 +36,7 @@ from router.strategies import (
     RateLimitStats,
     RegionFailoverHysteresisStats,
     RoutingStrategy,
+    StickyRegionWarmupStats,
     SuccessStats,
     TenantBudgetCascadeStats,
     TenantBudgetCascadeStrategy,
@@ -104,6 +105,7 @@ class NexusRouter:
         self._provider_error_budget_reset_stats = ProviderErrorBudgetResetStats(
             settings.provider_error_budget_reset_seconds
         )
+        self._sticky_region_warmup_stats = StickyRegionWarmupStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -197,6 +199,8 @@ class NexusRouter:
             provider_error_budget_reset_fraction=settings.provider_error_budget_reset_fraction,
             provider_error_budget_reset_seconds=settings.provider_error_budget_reset_seconds,
             provider_error_budget_reset_stats=self._provider_error_budget_reset_stats,
+            sticky_region_warmup_requests=settings.sticky_region_warmup_requests,
+            sticky_region_warmup_stats=self._sticky_region_warmup_stats,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

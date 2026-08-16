@@ -97,6 +97,7 @@ class RoutingStrategyName(StrEnum):
     REGION_FAILOVER_HYSTERESIS = "region-failover-hysteresis"
     TENANT_BUDGET_CASCADE = "tenant-budget-cascade"
     PROVIDER_ERROR_BUDGET_RESET = "provider-error-budget-reset"
+    STICKY_REGION_WARMUP = "sticky-region-warmup"
     AB_TEST = "ab"
 
 

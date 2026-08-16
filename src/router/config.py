@@ -130,6 +130,7 @@ class RouterSettings(BaseSettings):
     tenant_budget_cascade_soft: Annotated[float, Field(ge=0.0)] = 10.0
     provider_error_budget_reset_fraction: Annotated[float, Field(ge=0.0, le=1.0)] = 0.15
     provider_error_budget_reset_seconds: Annotated[float, Field(gt=0.0)] = 60.0
+    sticky_region_warmup_requests: Annotated[int, Field(ge=1)] = 3
     tenant_budget_cascade_hard: Annotated[float, Field(gt=0.0)] = 12.5
 
 
