@@ -21,6 +21,8 @@ NEXUS_TIER_FRONTIER_RPM=30
 NEXUS_TIER_MID_RPM=60
 NEXUS_TIER_ECONOMY_RPM=120
 NEXUS_TOKEN_RPM_CEILING=100000
+NEXUS_TENANT_BUDGET_CASCADE_SOFT=10.0
+NEXUS_TENANT_BUDGET_CASCADE_HARD=12.5
 ```
 
 ## Provider Credentials
@@ -1793,3 +1795,24 @@ NEXUS_STICKY_REGION_FAILOVER_PREFERENCES=eu,us,cn,global
 
 See
 [docs/guides/REGION_FAILOVER_HYSTERESIS_GUIDE.md](docs/guides/REGION_FAILOVER_HYSTERESIS_GUIDE.md).
+
+## Tenant-Budget-Cascade Routing
+
+The `tenant-budget-cascade` strategy tracks successful completion spend in an
+in-memory one-hour window per tenant. Requests stay quality-first while their
+projected cost fits `NEXUS_TENANT_BUDGET_CASCADE_SOFT` (default `10.0`). Once
+soft headroom is exhausted they shed to the cheapest hard-safe provider. If no
+eligible request fits `NEXUS_TENANT_BUDGET_CASCADE_HARD` (default `12.5`), the
+strategy fails closed with a tenant-specific rationale. This protects GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 tenant budgets.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=tenant-budget-cascade
+NEXUS_TENANT_BUDGET_CASCADE_SOFT=10.0
+NEXUS_TENANT_BUDGET_CASCADE_HARD=12.5
+```
+
+The hard threshold must be greater than the soft threshold.
+
+See
+[docs/guides/TENANT_BUDGET_CASCADE_GUIDE.md](docs/guides/TENANT_BUDGET_CASCADE_GUIDE.md).

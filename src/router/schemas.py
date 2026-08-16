@@ -95,6 +95,7 @@ class RoutingStrategyName(StrEnum):
     ADAPTIVE_CONCURRENCY_CAP = "adaptive-concurrency-cap"
     PROVIDER_TOKEN_FAIR_SHARE = "provider-token-fair-share"  # noqa: S105  # strategy name
     REGION_FAILOVER_HYSTERESIS = "region-failover-hysteresis"
+    TENANT_BUDGET_CASCADE = "tenant-budget-cascade"
     AB_TEST = "ab"
 
 
