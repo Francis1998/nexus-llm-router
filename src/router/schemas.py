@@ -99,6 +99,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_ERROR_BUDGET_RESET = "provider-error-budget-reset"
     STICKY_REGION_WARMUP = "sticky-region-warmup"
     TENANT_QUOTA_BURST = "tenant-quota-burst"
+    PROVIDER_TAIL_LATENCY_HEDGE = "provider-tail-latency-hedge"
     AB_TEST = "ab"
 
 

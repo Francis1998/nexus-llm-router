@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-571%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-578%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -184,6 +184,7 @@ Select a strategy with `X-Router-Strategy`:
 - `provider-error-budget-reset`: temporarily sheds providers above `NEXUS_PROVIDER_ERROR_BUDGET_RESET_FRACTION` and automatically restores them after `NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS`, distinct from cumulative `provider-error-budget-shed`, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `sticky-region-warmup`: sends each new session's first `NEXUS_STICKY_REGION_WARMUP_REQUESTS` requests to a warmup region, then pins the session to its requested or hash-selected region to prevent cold-start flaps for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `tenant-quota-burst`: keeps tenant traffic quality-first below `NEXUS_TENANT_QUOTA_BURST_SOFT`, admits a bounded rolling burst on cheaper fallbacks up to `NEXUS_TENANT_QUOTA_BURST_HARD`, then sheds before dispatch for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `provider-tail-latency-hedge`: keeps the quality leader until its rolling provider p95 exceeds `NEXUS_PROVIDER_TAIL_LATENCY_HEDGE_MS`, then hedges to the fastest observed healthy provider alternative — distinct from p50 region hedging for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation

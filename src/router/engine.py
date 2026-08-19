@@ -209,6 +209,7 @@ class NexusRouter:
             tenant_quota_burst_soft=settings.tenant_quota_burst_soft,
             tenant_quota_burst_hard=settings.tenant_quota_burst_hard,
             tenant_quota_burst_window_seconds=settings.tenant_quota_burst_window_seconds,
+            provider_tail_latency_hedge_ms=settings.provider_tail_latency_hedge_ms,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

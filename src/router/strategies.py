@@ -8685,6 +8685,97 @@ class TenantQuotaBurstStrategy(RoutingStrategy):
         )
 
 
+class ProviderTailLatencyHedgeStrategy(RoutingStrategy):
+    """Hedge a quality-first request only when its provider p95 is too slow.
+
+    Unlike the existing region hedge, which reacts to primary-region p50, this
+    strategy watches provider tail latency across every domain-compatible model.
+    It keeps the quality leader until that provider's p95 crosses a fixed
+    threshold, then selects the fastest observed healthy provider alternative.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_TAIL_LATENCY_HEDGE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        latency_stats: LatencyStats,
+        provider_health: ProviderHealth,
+        tail_latency_threshold_ms: float = 1500.0,
+    ) -> None:
+        """Initialize provider-tail-latency-hedge routing."""
+        super().__init__(model_catalog)
+        if tail_latency_threshold_ms < 0.0:
+            raise ValueError(
+                f"tail_latency_threshold_ms must be non-negative, got {tail_latency_threshold_ms}"
+            )
+        self._latency_stats = latency_stats
+        self._provider_health = provider_health
+        self._tail_latency_threshold_ms = tail_latency_threshold_ms
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Keep the quality leader unless observed provider p95 triggers a hedge."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ] or eligible
+        primary = max(
+            healthy,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        primary_p95 = self._latency_stats.p95(primary.provider)
+        observed_alternatives = [
+            candidate
+            for candidate in healthy
+            if candidate.provider != primary.provider
+            and self._latency_stats.p95(candidate.provider) > 0.0
+        ]
+
+        if primary_p95 > self._tail_latency_threshold_ms and observed_alternatives:
+            selected = min(
+                observed_alternatives,
+                key=lambda candidate: (
+                    self._latency_stats.p95(candidate.provider),
+                    -candidate.quality_score,
+                    candidate.estimate_cost(
+                        signals.prompt_tokens_estimate,
+                        request.max_tokens,
+                    ),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "provider-tail-latency-hedge quality leader "
+                f"{primary.model} tail p95 {primary_p95:.1f}ms exceeded "
+                f"{self._tail_latency_threshold_ms:.1f}ms; hedged across providers "
+                f"to {selected.model} at p95 "
+                f"{self._latency_stats.p95(selected.provider):.1f}ms"
+            )
+            return self._decision(selected.model, rationale)
+
+        reason = (
+            "no observed healthy provider alternative"
+            if not observed_alternatives
+            else "tail p95 remained within threshold"
+        )
+        rationale = (
+            "provider-tail-latency-hedge stayed on quality leader "
+            f"{primary.model}: provider p95 {primary_p95:.1f}ms, threshold "
+            f"{self._tail_latency_threshold_ms:.1f}ms ({reason})"
+        )
+        return self._decision(primary.model, rationale)
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -8783,6 +8874,7 @@ def build_strategies(
     tenant_quota_burst_soft: int = 60,
     tenant_quota_burst_hard: int = 75,
     tenant_quota_burst_window_seconds: float = 60.0,
+    provider_tail_latency_hedge_ms: float = 1500.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -9313,6 +9405,12 @@ def build_strategies(
             quota_stats=resolved_tenant_quota_burst_stats,
             soft_quota=tenant_quota_burst_soft,
             hard_quota=tenant_quota_burst_hard,
+        ),
+        RoutingStrategyName.PROVIDER_TAIL_LATENCY_HEDGE: ProviderTailLatencyHedgeStrategy(
+            model_catalog=model_catalog,
+            latency_stats=latency_stats,
+            provider_health=provider_health,
+            tail_latency_threshold_ms=provider_tail_latency_hedge_ms,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
