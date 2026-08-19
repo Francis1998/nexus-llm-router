@@ -1879,3 +1879,24 @@ Kimi K2 traffic.
 
 See
 [docs/guides/TENANT_QUOTA_BURST_GUIDE.md](docs/guides/TENANT_QUOTA_BURST_GUIDE.md).
+
+## Provider-Tail-Latency-Hedge Routing
+
+The `provider-tail-latency-hedge` strategy normally selects the highest-quality
+healthy model. It hedges across providers only when that model's rolling p95
+latency exceeds `NEXUS_PROVIDER_TAIL_LATENCY_HEDGE_MS` (default `1500`). The
+fastest observed healthy provider alternative then becomes the primary route.
+Providers without latency samples cannot attract a hedge based on missing data.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-tail-latency-hedge
+NEXUS_PROVIDER_TAIL_LATENCY_HEDGE_MS=1500.0
+```
+
+This differs from `multi-region-latency-hedge`, which uses primary-region p50,
+and `adaptive-timeout-hedge`, which derives a relative p95 threshold from the
+fastest provider. It supports GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2 traffic.
+
+See
+[docs/guides/PROVIDER_TAIL_LATENCY_HEDGE_GUIDE.md](docs/guides/PROVIDER_TAIL_LATENCY_HEDGE_GUIDE.md).
