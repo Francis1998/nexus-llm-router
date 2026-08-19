@@ -100,6 +100,7 @@ class RoutingStrategyName(StrEnum):
     STICKY_REGION_WARMUP = "sticky-region-warmup"
     TENANT_QUOTA_BURST = "tenant-quota-burst"
     PROVIDER_TAIL_LATENCY_HEDGE = "provider-tail-latency-hedge"
+    STICKY_SESSION_MIGRATE = "sticky-session-migrate"
     AB_TEST = "ab"
 
 
