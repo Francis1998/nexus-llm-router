@@ -1854,3 +1854,28 @@ NEXUS_STICKY_REGION_FAILOVER_PREFERENCES=eu,us,cn,global
 
 See
 [docs/guides/STICKY_REGION_WARMUP_GUIDE.md](docs/guides/STICKY_REGION_WARMUP_GUIDE.md).
+
+## Tenant-Quota-Burst Routing
+
+The `tenant-quota-burst` strategy applies an independent rolling request window
+to each tenant. The first `NEXUS_TENANT_QUOTA_BURST_SOFT` requests (default
+`60`) stay quality-first. Requests in the burst band are admitted but shed to
+the cheapest domain-compatible fallback until
+`NEXUS_TENANT_QUOTA_BURST_HARD` (default `75`) is reached. Further requests fail
+closed before provider dispatch. `NEXUS_TENANT_QUOTA_BURST_WINDOW_SECONDS`
+(default `60`) controls when request slots expire.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=tenant-quota-burst
+NEXUS_TENANT_QUOTA_BURST_SOFT=60
+NEXUS_TENANT_QUOTA_BURST_HARD=75
+NEXUS_TENANT_QUOTA_BURST_WINDOW_SECONDS=60.0
+```
+
+The hard quota must be greater than the soft quota. State is in-memory and
+process-local; use a shared rate-limit service when replicas need a global
+quota. This strategy supports GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2 traffic.
+
+See
+[docs/guides/TENANT_QUOTA_BURST_GUIDE.md](docs/guides/TENANT_QUOTA_BURST_GUIDE.md).

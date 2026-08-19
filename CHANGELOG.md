@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `tenant-quota-burst` routing strategy: tracks per-tenant requests in a configurable rolling window, preserves quality-first routing through `NEXUS_TENANT_QUOTA_BURST_SOFT` (default `60`), admits short bursts on cheaper fallbacks up to `NEXUS_TENANT_QUOTA_BURST_HARD` (default `75`), and sheds before dispatch beyond the hard ceiling for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/TENANT_QUOTA_BURST_GUIDE.md`.
+
 - `sticky-region-warmup` routing strategy: routes the first `NEXUS_STICKY_REGION_WARMUP_REQUESTS` (default `3`) requests for each session to a warmup region, then pins the session to its requested or hash-selected region. Reuses region preferences and provider health to prevent cold-start flaps across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/STICKY_REGION_WARMUP_GUIDE.md`.
 
 - `provider-error-budget-reset` routing strategy: tracks a timed error-rate window per provider, temporarily sheds providers above `NEXUS_PROVIDER_ERROR_BUDGET_RESET_FRACTION` (default `0.15`), and automatically restores them after `NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS` (default `60`). Distinct from cumulative `provider-error-budget-shed` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/PROVIDER_ERROR_BUDGET_RESET_GUIDE.md`.

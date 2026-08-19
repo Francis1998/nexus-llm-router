@@ -132,6 +132,9 @@ class RouterSettings(BaseSettings):
     provider_error_budget_reset_seconds: Annotated[float, Field(gt=0.0)] = 60.0
     sticky_region_warmup_requests: Annotated[int, Field(ge=1)] = 3
     tenant_budget_cascade_hard: Annotated[float, Field(gt=0.0)] = 12.5
+    tenant_quota_burst_soft: Annotated[int, Field(ge=1)] = 60
+    tenant_quota_burst_hard: Annotated[int, Field(ge=1)] = 75
+    tenant_quota_burst_window_seconds: Annotated[float, Field(gt=0.0)] = 60.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

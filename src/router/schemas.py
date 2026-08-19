@@ -98,6 +98,7 @@ class RoutingStrategyName(StrEnum):
     TENANT_BUDGET_CASCADE = "tenant-budget-cascade"
     PROVIDER_ERROR_BUDGET_RESET = "provider-error-budget-reset"
     STICKY_REGION_WARMUP = "sticky-region-warmup"
+    TENANT_QUOTA_BURST = "tenant-quota-burst"
     AB_TEST = "ab"
 
 
