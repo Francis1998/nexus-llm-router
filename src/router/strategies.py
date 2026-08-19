@@ -8776,6 +8776,181 @@ class ProviderTailLatencyHedgeStrategy(RoutingStrategy):
         return self._decision(primary.model, rationale)
 
 
+class StickySessionMigrateStats:
+    """Pinned models and controlled migration counts for sticky sessions."""
+
+    def __init__(self) -> None:
+        """Initialize empty session migration state."""
+        self._pinned_models: dict[str, str] = {}
+        self._migration_counts: dict[str, int] = {}
+
+    def pinned_model(self, session_id: str) -> str | None:
+        """Return the model currently pinned to a session."""
+        return self._pinned_models.get(session_id)
+
+    def pin(self, session_id: str, model: str) -> None:
+        """Set a session's model without recording a migration."""
+        self._pinned_models[session_id] = model
+
+    def migrate(self, session_id: str, model: str) -> None:
+        """Move a session to a new model and count the migration."""
+        previous = self._pinned_models.get(session_id)
+        self._pinned_models[session_id] = model
+        if previous is not None and previous != model:
+            self._migration_counts[session_id] = self._migration_counts.get(session_id, 0) + 1
+
+    def migration_count(self, session_id: str) -> int:
+        """Return the number of controlled migrations for a session."""
+        return self._migration_counts.get(session_id, 0)
+
+
+class StickySessionMigrateStrategy(RoutingStrategy):
+    """Keep session affinity until the pinned provider degrades.
+
+    Sessions start on the same deterministic hash ring as sticky-session.
+    Their stored pin remains stable while its provider is available and meets a
+    minimum success-rate threshold. A degraded pin migrates once to the
+    healthiest eligible provider and remains there, preventing automatic
+    failback from disrupting conversational continuity.
+    """
+
+    strategy_name = RoutingStrategyName.STICKY_SESSION_MIGRATE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        success_stats: SuccessStats,
+        migrate_stats: StickySessionMigrateStats,
+        success_threshold: float = 0.9,
+    ) -> None:
+        """Initialize sticky-session-migrate routing."""
+        super().__init__(model_catalog)
+        if not 0.0 <= success_threshold <= 1.0:
+            raise ValueError(
+                f"success_threshold must be within [0.0, 1.0], got {success_threshold}"
+            )
+        self._provider_health = provider_health
+        self._success_stats = success_stats
+        self._migrate_stats = migrate_stats
+        self._success_threshold = success_threshold
+
+    def _decision_with_health_fallbacks(
+        self,
+        selected: ModelCandidate,
+        eligible: list[ModelCandidate],
+        rationale: str,
+        request: RouterRequest,
+        signals: TaskSignals,
+    ) -> RoutingDecision:
+        fallbacks = sorted(
+            (candidate for candidate in eligible if candidate.model != selected.model),
+            key=lambda candidate: (
+                not self._provider_health.is_available(candidate.provider),
+                -self._success_stats.success_rate(candidate.provider),
+                -candidate.quality_score,
+                candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallbacks[:3]],
+        )
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Retain a healthy session pin or migrate it to a healthier provider."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        eligible_by_model = {candidate.model: candidate for candidate in eligible}
+        pinned_model = self._migrate_stats.pinned_model(request.session_id)
+        initialized = pinned_model not in eligible_by_model
+        if initialized:
+            ordered = sorted(eligible, key=lambda candidate: candidate.model)
+            digest = sha256(request.session_id.encode("utf-8")).hexdigest()
+            pinned_model = ordered[int(digest[:8], 16) % len(ordered)].model
+            self._migrate_stats.pin(request.session_id, pinned_model)
+
+        assert pinned_model is not None
+        current = eligible_by_model[pinned_model]
+        current_available = self._provider_health.is_available(current.provider)
+        current_success_rate = self._success_stats.success_rate(current.provider)
+        degraded = not current_available or current_success_rate < self._success_threshold
+        if not degraded:
+            action = "initialized" if initialized else "retained"
+            rationale = (
+                f"sticky-session-migrate {action} session '{request.session_id}' on "
+                f"{current.model}; provider available with success "
+                f"{current_success_rate:.2%} >= {self._success_threshold:.2%}"
+            )
+            return self._decision_with_health_fallbacks(
+                current,
+                eligible,
+                rationale,
+                request,
+                signals,
+            )
+
+        migration_targets = [
+            candidate
+            for candidate in eligible
+            if candidate.provider != current.provider
+            and self._provider_health.is_available(candidate.provider)
+            and self._success_stats.success_rate(candidate.provider) >= self._success_threshold
+        ]
+        if not migration_targets:
+            reason = "unavailable" if not current_available else f"at {current_success_rate:.2%}"
+            rationale = (
+                f"sticky-session-migrate pinned provider {current.provider} degraded "
+                f"({reason}) but no healthy target met {self._success_threshold:.2%}; "
+                "preserved session pin"
+            )
+            return self._decision_with_health_fallbacks(
+                current,
+                eligible,
+                rationale,
+                request,
+                signals,
+            )
+
+        selected = max(
+            migration_targets,
+            key=lambda candidate: (
+                self._success_stats.success_rate(candidate.provider),
+                candidate.quality_score,
+                -candidate.estimate_cost(
+                    signals.prompt_tokens_estimate,
+                    request.max_tokens,
+                ),
+                candidate.model,
+            ),
+        )
+        self._migrate_stats.migrate(request.session_id, selected.model)
+        degradation = (
+            "provider unavailable"
+            if not current_available
+            else f"success {current_success_rate:.2%} below {self._success_threshold:.2%}"
+        )
+        rationale = (
+            f"sticky-session-migrate moved session '{request.session_id}' from "
+            f"{current.model} to healthier {selected.model}: {degradation}; migration "
+            f"{self._migrate_stats.migration_count(request.session_id)}"
+        )
+        return self._decision_with_health_fallbacks(
+            selected,
+            eligible,
+            rationale,
+            request,
+            signals,
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -8875,6 +9050,8 @@ def build_strategies(
     tenant_quota_burst_hard: int = 75,
     tenant_quota_burst_window_seconds: float = 60.0,
     provider_tail_latency_hedge_ms: float = 1500.0,
+    sticky_session_migrate_stats: StickySessionMigrateStats | None = None,
+    sticky_session_migrate_success_threshold: float = 0.9,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -9073,6 +9250,9 @@ def build_strategies(
     resolved_sticky_region_warmup_stats = sticky_region_warmup_stats or StickyRegionWarmupStats()
     resolved_tenant_quota_burst_stats = tenant_quota_burst_stats or TenantQuotaBurstStats(
         tenant_quota_burst_window_seconds
+    )
+    resolved_sticky_session_migrate_stats = (
+        sticky_session_migrate_stats or StickySessionMigrateStats()
     )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
@@ -9411,6 +9591,13 @@ def build_strategies(
             latency_stats=latency_stats,
             provider_health=provider_health,
             tail_latency_threshold_ms=provider_tail_latency_hedge_ms,
+        ),
+        RoutingStrategyName.STICKY_SESSION_MIGRATE: StickySessionMigrateStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            success_stats=resolved_success_stats,
+            migrate_stats=resolved_sticky_session_migrate_stats,
+            success_threshold=sticky_session_migrate_success_threshold,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

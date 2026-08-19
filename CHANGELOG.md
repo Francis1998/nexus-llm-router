@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `sticky-session-migrate` routing strategy: pins each session to a model until provider circuit health or shared success telemetry falls below `NEXUS_STICKY_SESSION_MIGRATE_SUCCESS_THRESHOLD` (default `0.9`), then performs a controlled migration to the healthiest eligible provider and preserves the new pin after recovery for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/STICKY_SESSION_MIGRATE_GUIDE.md`.
+
 - `provider-tail-latency-hedge` routing strategy: keeps quality-first routing until the selected provider's rolling p95 exceeds `NEXUS_PROVIDER_TAIL_LATENCY_HEDGE_MS` (default `1500`), then hedges to the fastest observed healthy provider alternative. It is distinct from p50 region hedging and relative adaptive p95 hedging for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/PROVIDER_TAIL_LATENCY_HEDGE_GUIDE.md`.
 
 - `tenant-quota-burst` routing strategy: tracks per-tenant requests in a configurable rolling window, preserves quality-first routing through `NEXUS_TENANT_QUOTA_BURST_SOFT` (default `60`), admits short bursts on cheaper fallbacks up to `NEXUS_TENANT_QUOTA_BURST_HARD` (default `75`), and sheds before dispatch beyond the hard ceiling for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/TENANT_QUOTA_BURST_GUIDE.md`.

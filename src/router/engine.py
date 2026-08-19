@@ -37,6 +37,7 @@ from router.strategies import (
     RegionFailoverHysteresisStats,
     RoutingStrategy,
     StickyRegionWarmupStats,
+    StickySessionMigrateStats,
     SuccessStats,
     TenantBudgetCascadeStats,
     TenantBudgetCascadeStrategy,
@@ -110,6 +111,7 @@ class NexusRouter:
         self._tenant_quota_burst_stats = TenantQuotaBurstStats(
             settings.tenant_quota_burst_window_seconds
         )
+        self._sticky_session_migrate_stats = StickySessionMigrateStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -210,6 +212,10 @@ class NexusRouter:
             tenant_quota_burst_hard=settings.tenant_quota_burst_hard,
             tenant_quota_burst_window_seconds=settings.tenant_quota_burst_window_seconds,
             provider_tail_latency_hedge_ms=settings.provider_tail_latency_hedge_ms,
+            sticky_session_migrate_stats=self._sticky_session_migrate_stats,
+            sticky_session_migrate_success_threshold=(
+                settings.sticky_session_migrate_success_threshold
+            ),
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

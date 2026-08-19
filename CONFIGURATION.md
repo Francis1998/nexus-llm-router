@@ -1900,3 +1900,26 @@ Kimi K2 traffic.
 
 See
 [docs/guides/PROVIDER_TAIL_LATENCY_HEDGE_GUIDE.md](docs/guides/PROVIDER_TAIL_LATENCY_HEDGE_GUIDE.md).
+
+## Sticky-Session-Migrate Routing
+
+The `sticky-session-migrate` strategy stores a model pin for each `session_id`
+and preserves it while the provider is available and its observed success rate
+meets `NEXUS_STICKY_SESSION_MIGRATE_SUCCESS_THRESHOLD` (default `0.9`). When the
+pinned provider becomes unavailable or falls below the threshold, the session
+migrates to the highest-success healthy provider that meets the threshold. The
+new pin remains stable after the original provider recovers, avoiding automatic
+failback during an active conversation.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=sticky-session-migrate
+NEXUS_STICKY_SESSION_MIGRATE_SUCCESS_THRESHOLD=0.9
+```
+
+The threshold must be between `0.0` and `1.0`. Providers without observations
+start at a `1.0` success rate. Session pins are process-local and reset when the
+router restarts. This strategy supports GPT-5.5 / Claude Sonnet 4.6 /
+Gemini 3.x / Kimi K2 traffic.
+
+See
+[docs/guides/STICKY_SESSION_MIGRATE_GUIDE.md](docs/guides/STICKY_SESSION_MIGRATE_GUIDE.md).
