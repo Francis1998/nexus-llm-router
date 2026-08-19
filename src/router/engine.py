@@ -40,6 +40,7 @@ from router.strategies import (
     SuccessStats,
     TenantBudgetCascadeStats,
     TenantBudgetCascadeStrategy,
+    TenantQuotaBurstStats,
     TierRequestStats,
     TokenBucketStats,
     TokenRpmWindow,
@@ -106,6 +107,9 @@ class NexusRouter:
             settings.provider_error_budget_reset_seconds
         )
         self._sticky_region_warmup_stats = StickyRegionWarmupStats()
+        self._tenant_quota_burst_stats = TenantQuotaBurstStats(
+            settings.tenant_quota_burst_window_seconds
+        )
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -201,6 +205,10 @@ class NexusRouter:
             provider_error_budget_reset_stats=self._provider_error_budget_reset_stats,
             sticky_region_warmup_requests=settings.sticky_region_warmup_requests,
             sticky_region_warmup_stats=self._sticky_region_warmup_stats,
+            tenant_quota_burst_stats=self._tenant_quota_burst_stats,
+            tenant_quota_burst_soft=settings.tenant_quota_burst_soft,
+            tenant_quota_burst_hard=settings.tenant_quota_burst_hard,
+            tenant_quota_burst_window_seconds=settings.tenant_quota_burst_window_seconds,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

@@ -8520,6 +8520,171 @@ class StickyRegionWarmupStrategy(RoutingStrategy):
         )
 
 
+class TenantQuotaBurstExceededError(RuntimeError):
+    """Raised when a tenant has consumed its hard rolling request quota."""
+
+
+class TenantQuotaBurstStats:
+    """Rolling request timestamps used to enforce independent tenant quotas."""
+
+    def __init__(self, window_seconds: float = 60.0) -> None:
+        """Initialize empty tenant quota windows."""
+        if window_seconds <= 0.0:
+            raise ValueError(f"window_seconds must be positive, got {window_seconds}")
+        self._window_seconds = window_seconds
+        self._requests: dict[str, list[float]] = {}
+
+    @property
+    def window_seconds(self) -> float:
+        """Return the rolling quota window length."""
+        return self._window_seconds
+
+    def record(self, tenant_key: str, *, now: float | None = None) -> None:
+        """Record one admitted tenant request."""
+        observed_at = time.monotonic() if now is None else now
+        requests = self._requests.setdefault(tenant_key, [])
+        requests.append(observed_at)
+        self._trim(tenant_key, observed_at)
+
+    def usage(self, tenant_key: str, *, now: float | None = None) -> int:
+        """Return admitted requests inside the active tenant window."""
+        observed_at = time.monotonic() if now is None else now
+        return len(self._trim(tenant_key, observed_at))
+
+    def _trim(self, tenant_key: str, now: float) -> list[float]:
+        cutoff = now - self._window_seconds
+        requests = [
+            observed_at
+            for observed_at in self._requests.get(tenant_key, [])
+            if observed_at >= cutoff
+        ]
+        if requests:
+            self._requests[tenant_key] = requests
+        else:
+            self._requests.pop(tenant_key, None)
+        return requests
+
+
+class TenantQuotaBurstStrategy(RoutingStrategy):
+    """Allow bounded tenant bursts, then shed load at a hard ceiling.
+
+    Each tenant receives a steady request allowance and a short rolling burst
+    band. Requests below the soft quota stay quality-first. Burst requests above
+    the soft quota use the cheapest domain-compatible fallback, and requests
+    beyond the hard quota fail closed before dispatch.
+    """
+
+    strategy_name = RoutingStrategyName.TENANT_QUOTA_BURST
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        quota_stats: TenantQuotaBurstStats,
+        soft_quota: int = 60,
+        hard_quota: int = 75,
+    ) -> None:
+        """Initialize tenant-quota-burst routing."""
+        super().__init__(model_catalog)
+        if soft_quota < 1:
+            raise ValueError(f"soft_quota must be >= 1, got {soft_quota}")
+        if hard_quota <= soft_quota:
+            raise ValueError(
+                f"hard_quota ({hard_quota}) must be greater than soft_quota ({soft_quota})"
+            )
+        self._quota_stats = quota_stats
+        self._soft_quota = soft_quota
+        self._hard_quota = hard_quota
+
+    @staticmethod
+    def _tenant_key(request: RouterRequest) -> str:
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = request.metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Admit a steady or burst request, or reject beyond the hard quota."""
+        tenant_key = self._tenant_key(request)
+        current_usage = self._quota_stats.usage(tenant_key)
+        if current_usage >= self._hard_quota:
+            raise TenantQuotaBurstExceededError(
+                "tenant-quota-burst hard ceiling reached for tenant "
+                f"'{tenant_key}': {current_usage}/{self._hard_quota} requests in "
+                f"{self._quota_stats.window_seconds:.1f}s; shed before dispatch"
+            )
+
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in eligible
+        }
+        self._quota_stats.record(tenant_key)
+        admitted_usage = current_usage + 1
+
+        if current_usage < self._soft_quota:
+            selected = max(
+                eligible,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallbacks = sorted(
+                (candidate for candidate in eligible if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"tenant-quota-burst tenant '{tenant_key}' steady usage "
+                f"{admitted_usage}/{self._soft_quota}; selected quality-first "
+                f"{selected.model}"
+            )
+        else:
+            selected = min(
+                eligible,
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            fallbacks = sorted(
+                (candidate for candidate in eligible if candidate.model != selected.model),
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"tenant-quota-burst tenant '{tenant_key}' admitted burst request "
+                f"{admitted_usage}/{self._hard_quota} above soft quota "
+                f"{self._soft_quota}; shed to cheapest fallback {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallbacks[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -8614,6 +8779,10 @@ def build_strategies(
     sticky_region_warmup_requests: int = 3,
     provider_error_budget_reset_seconds: float = 60.0,
     provider_error_budget_reset_fraction: float = 0.15,
+    tenant_quota_burst_stats: TenantQuotaBurstStats | None = None,
+    tenant_quota_burst_soft: int = 60,
+    tenant_quota_burst_hard: int = 75,
+    tenant_quota_burst_window_seconds: float = 60.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -8810,6 +8979,9 @@ def build_strategies(
         or ProviderErrorBudgetResetStats(provider_error_budget_reset_seconds)
     )
     resolved_sticky_region_warmup_stats = sticky_region_warmup_stats or StickyRegionWarmupStats()
+    resolved_tenant_quota_burst_stats = tenant_quota_burst_stats or TenantQuotaBurstStats(
+        tenant_quota_burst_window_seconds
+    )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -9135,6 +9307,12 @@ def build_strategies(
             warmup_stats=resolved_sticky_region_warmup_stats,
             region_preferences=resolved_sticky_region_preferences,
             warmup_request_count=sticky_region_warmup_requests,
+        ),
+        RoutingStrategyName.TENANT_QUOTA_BURST: TenantQuotaBurstStrategy(
+            model_catalog=model_catalog,
+            quota_stats=resolved_tenant_quota_burst_stats,
+            soft_quota=tenant_quota_burst_soft,
+            hard_quota=tenant_quota_burst_hard,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
