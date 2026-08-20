@@ -9102,6 +9102,164 @@ class ProviderColdStartBiasStrategy(RoutingStrategy):
         )
 
 
+class TenantFairQueueStats:
+    """Bounded recent tenant request order used for fair-share deficits."""
+
+    def __init__(self, lookback: int = 100) -> None:
+        """Initialize an empty tenant request window."""
+        if lookback < 1:
+            raise ValueError(f"lookback must be >= 1, got {lookback}")
+        self._lookback = lookback
+        self._tenant_requests: list[str] = []
+
+    @property
+    def lookback(self) -> int:
+        """Return the maximum retained request count."""
+        return self._lookback
+
+    def observe(self, tenant_key: str) -> None:
+        """Record an admitted tenant request and evict stale entries."""
+        self._tenant_requests.append(tenant_key)
+        if len(self._tenant_requests) > self._lookback:
+            del self._tenant_requests[: len(self._tenant_requests) - self._lookback]
+
+    def request_count(self, tenant_key: str) -> int:
+        """Return one tenant's requests in the recent window."""
+        return self._tenant_requests.count(tenant_key)
+
+    def active_tenants(self) -> set[str]:
+        """Return tenants represented in the current window."""
+        return set(self._tenant_requests)
+
+    @property
+    def total_requests(self) -> int:
+        """Return the number of retained tenant requests."""
+        return len(self._tenant_requests)
+
+
+class TenantFairQueueStrategy(RoutingStrategy):
+    """Protect quieter tenants using recent request-count fair-share deficits.
+
+    The strategy computes an equal request share over active tenants. A tenant at
+    or below that share receives the highest-quality healthy route; a tenant
+    above share uses the cheapest healthy relief lane. This request-count
+    fairness is independent of provider queue depth and provider quota sharing,
+    preserving fair access for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2 tenants without conflating tenant demand with backend utilization.
+    """
+
+    strategy_name = RoutingStrategyName.TENANT_FAIR_QUEUE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        fair_queue_stats: TenantFairQueueStats,
+    ) -> None:
+        """Initialize tenant-fair-queue routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._fair_queue_stats = fair_queue_stats
+
+    @staticmethod
+    def _tenant_key(request: RouterRequest) -> str:
+        """Resolve tenant identity from metadata, user, then session."""
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = request.metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Select a quality or relief lane from the tenant's fair-share deficit."""
+        tenant_key = self._tenant_key(request)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        candidates = healthy or eligible
+
+        active_tenants = self._fair_queue_stats.active_tenants() | {tenant_key}
+        fair_share = self._fair_queue_stats.total_requests / len(active_tenants)
+        tenant_count = self._fair_queue_stats.request_count(tenant_key)
+        deficit = fair_share - tenant_count
+        has_fair_priority = tenant_count <= fair_share
+
+        if has_fair_priority:
+            selected = max(
+                candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(
+                        signals.prompt_tokens_estimate,
+                        request.max_tokens,
+                    ),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"tenant-fair-queue deficit priority for tenant '{tenant_key}': "
+                f"{tenant_count} recent requests versus fair share {fair_share:.2f} "
+                f"(deficit {deficit:.2f}); selected highest-quality healthy {selected.model}"
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in candidates if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    candidate.estimate_cost(
+                        signals.prompt_tokens_estimate,
+                        request.max_tokens,
+                    ),
+                    candidate.model,
+                ),
+            )
+        else:
+            selected = min(
+                candidates,
+                key=lambda candidate: (
+                    candidate.estimate_cost(
+                        signals.prompt_tokens_estimate,
+                        request.max_tokens,
+                    ),
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"tenant-fair-queue relief lane for tenant '{tenant_key}': "
+                f"{tenant_count} recent requests exceeds fair share {fair_share:.2f} "
+                f"(deficit {deficit:.2f}); selected cheapest healthy {selected.model}"
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in candidates if candidate.model != selected.model),
+                key=lambda candidate: (
+                    candidate.estimate_cost(
+                        signals.prompt_tokens_estimate,
+                        request.max_tokens,
+                    ),
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+
+        self._fair_queue_stats.observe(tenant_key)
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -9206,6 +9364,8 @@ def build_strategies(
     provider_cold_start_stats: ProviderColdStartStats | None = None,
     provider_cold_start_lookback: int = 100,
     provider_cold_start_target: int = 5,
+    tenant_fair_queue_stats: TenantFairQueueStats | None = None,
+    tenant_fair_queue_lookback: int = 100,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -9338,6 +9498,9 @@ def build_strategies(
             window for provider-cold-start-bias routing.
         provider_cold_start_lookback: Maximum recent provider selections retained.
         provider_cold_start_target: Observation target before a provider is warm.
+        tenant_fair_queue_stats: Optional shared recent tenant request window.
+        tenant_fair_queue_lookback: Maximum tenant requests retained for
+            tenant-fair-queue deficit accounting.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -9414,6 +9577,9 @@ def build_strategies(
     )
     resolved_provider_cold_start_stats = provider_cold_start_stats or ProviderColdStartStats(
         provider_cold_start_lookback
+    )
+    resolved_tenant_fair_queue_stats = tenant_fair_queue_stats or TenantFairQueueStats(
+        tenant_fair_queue_lookback
     )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
@@ -9765,6 +9931,11 @@ def build_strategies(
             provider_health=provider_health,
             observation_stats=resolved_provider_cold_start_stats,
             observation_target=provider_cold_start_target,
+        ),
+        RoutingStrategyName.TENANT_FAIR_QUEUE: TenantFairQueueStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            fair_queue_stats=resolved_tenant_fair_queue_stats,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

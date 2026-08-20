@@ -139,6 +139,7 @@ class RouterSettings(BaseSettings):
     sticky_session_migrate_success_threshold: Annotated[float, Field(ge=0.0, le=1.0)] = 0.9
     provider_cold_start_lookback: Annotated[int, Field(ge=1)] = 100
     provider_cold_start_target: Annotated[int, Field(ge=1)] = 5
+    tenant_fair_queue_lookback: Annotated[int, Field(ge=1)] = 100
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

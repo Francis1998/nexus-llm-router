@@ -102,6 +102,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_TAIL_LATENCY_HEDGE = "provider-tail-latency-hedge"
     STICKY_SESSION_MIGRATE = "sticky-session-migrate"
     PROVIDER_COLD_START_BIAS = "provider-cold-start-bias"
+    TENANT_FAIR_QUEUE = "tenant-fair-queue"
     AB_TEST = "ab"
 
 

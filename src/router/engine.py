@@ -42,6 +42,7 @@ from router.strategies import (
     SuccessStats,
     TenantBudgetCascadeStats,
     TenantBudgetCascadeStrategy,
+    TenantFairQueueStats,
     TenantQuotaBurstStats,
     TierRequestStats,
     TokenBucketStats,
@@ -116,6 +117,7 @@ class NexusRouter:
         self._provider_cold_start_stats = ProviderColdStartStats(
             settings.provider_cold_start_lookback
         )
+        self._tenant_fair_queue_stats = TenantFairQueueStats(settings.tenant_fair_queue_lookback)
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -223,6 +225,8 @@ class NexusRouter:
             provider_cold_start_stats=self._provider_cold_start_stats,
             provider_cold_start_lookback=settings.provider_cold_start_lookback,
             provider_cold_start_target=settings.provider_cold_start_target,
+            tenant_fair_queue_stats=self._tenant_fair_queue_stats,
+            tenant_fair_queue_lookback=settings.tenant_fair_queue_lookback,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
