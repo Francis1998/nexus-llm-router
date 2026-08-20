@@ -101,6 +101,7 @@ class RoutingStrategyName(StrEnum):
     TENANT_QUOTA_BURST = "tenant-quota-burst"
     PROVIDER_TAIL_LATENCY_HEDGE = "provider-tail-latency-hedge"
     STICKY_SESSION_MIGRATE = "sticky-session-migrate"
+    PROVIDER_COLD_START_BIAS = "provider-cold-start-bias"
     AB_TEST = "ab"
 
 

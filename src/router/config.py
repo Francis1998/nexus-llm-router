@@ -137,6 +137,8 @@ class RouterSettings(BaseSettings):
     tenant_quota_burst_window_seconds: Annotated[float, Field(gt=0.0)] = 60.0
     provider_tail_latency_hedge_ms: Annotated[float, Field(ge=0.0)] = 1500.0
     sticky_session_migrate_success_threshold: Annotated[float, Field(ge=0.0, le=1.0)] = 0.9
+    provider_cold_start_lookback: Annotated[int, Field(ge=1)] = 100
+    provider_cold_start_target: Annotated[int, Field(ge=1)] = 5
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

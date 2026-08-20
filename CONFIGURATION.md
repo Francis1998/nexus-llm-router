@@ -956,6 +956,7 @@ Set `X-Router-Strategy` to one of:
 - `latency-slope-shed`
 - `provider-hourly-cost-ceiling`
 - `quality-weighted-sticky`
+- `provider-cold-start-bias`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
@@ -1923,3 +1924,25 @@ Gemini 3.x / Kimi K2 traffic.
 
 See
 [docs/guides/STICKY_SESSION_MIGRATE_GUIDE.md](docs/guides/STICKY_SESSION_MIGRATE_GUIDE.md).
+
+## Provider-Cold-Start-Bias Routing
+
+The `provider-cold-start-bias` strategy tracks recent provider selections in a
+bounded process-local window. While a healthy provider has fewer than
+`NEXUS_PROVIDER_COLD_START_TARGET` observations (default `5`), the strategy
+prefers the least-observed healthy provider and uses quality and cost as
+tie-breakers. Once every healthy provider reaches the target, it returns to
+quality-first routing until older observations expire.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-cold-start-bias
+NEXUS_PROVIDER_COLD_START_LOOKBACK=100
+NEXUS_PROVIDER_COLD_START_TARGET=5
+```
+
+`NEXUS_PROVIDER_COLD_START_LOOKBACK` must be at least `1` and controls how many
+provider selections are retained. `NEXUS_PROVIDER_COLD_START_TARGET` must also
+be at least `1`. Provider circuit health is checked before exploration, so a
+cold unhealthy provider cannot displace a healthy alternate serving GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+[docs/guides/PROVIDER_COLD_START_BIAS_GUIDE.md](docs/guides/PROVIDER_COLD_START_BIAS_GUIDE.md).

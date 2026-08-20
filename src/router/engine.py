@@ -29,6 +29,7 @@ from router.strategies import (
     InflightStats,
     LatencySlopeStats,
     LatencyStats,
+    ProviderColdStartStats,
     ProviderErrorBudgetResetStats,
     ProviderHourlySpendWindow,
     ProviderRetryAfterCooldown,
@@ -112,6 +113,9 @@ class NexusRouter:
             settings.tenant_quota_burst_window_seconds
         )
         self._sticky_session_migrate_stats = StickySessionMigrateStats()
+        self._provider_cold_start_stats = ProviderColdStartStats(
+            settings.provider_cold_start_lookback
+        )
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -216,6 +220,9 @@ class NexusRouter:
             sticky_session_migrate_success_threshold=(
                 settings.sticky_session_migrate_success_threshold
             ),
+            provider_cold_start_stats=self._provider_cold_start_stats,
+            provider_cold_start_lookback=settings.provider_cold_start_lookback,
+            provider_cold_start_target=settings.provider_cold_start_target,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
