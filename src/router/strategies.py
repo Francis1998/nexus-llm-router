@@ -8951,6 +8951,157 @@ class StickySessionMigrateStrategy(RoutingStrategy):
         )
 
 
+class ProviderColdStartStats:
+    """Bounded recent provider selections used to detect exploration gaps."""
+
+    def __init__(self, lookback: int = 100) -> None:
+        """Initialize an empty observation window."""
+        if lookback < 1:
+            raise ValueError(f"lookback must be >= 1, got {lookback}")
+        self._lookback = lookback
+        self._observations: list[str] = []
+
+    @property
+    def lookback(self) -> int:
+        """Return the maximum number of retained observations."""
+        return self._lookback
+
+    def observe(self, provider: str) -> None:
+        """Record a provider selection and evict the oldest excess entry."""
+        self._observations.append(provider)
+        if len(self._observations) > self._lookback:
+            del self._observations[: len(self._observations) - self._lookback]
+
+    def observation_count(self, provider: str) -> int:
+        """Return recent observations for one provider."""
+        return self._observations.count(provider)
+
+    def total_observations(self, providers: set[str]) -> int:
+        """Return retained observations belonging to eligible providers."""
+        return sum(provider in providers for provider in self._observations)
+
+
+class ProviderColdStartBiasStrategy(RoutingStrategy):
+    """Explore healthy providers that have fewer recent routing observations.
+
+    Providers below ``NEXUS_PROVIDER_COLD_START_TARGET`` observations receive a
+    deterministic exploration bias toward the least-observed healthy provider.
+    Once every healthy provider reaches the target, routing returns to
+    quality-first selection. A bounded lookback lets exploration gaps reopen as
+    stale GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 observations age out.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_COLD_START_BIAS
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        observation_stats: ProviderColdStartStats,
+        observation_target: int = 5,
+    ) -> None:
+        """Initialize provider-cold-start-bias routing."""
+        super().__init__(model_catalog)
+        if observation_target < 1:
+            raise ValueError(f"observation_target must be >= 1, got {observation_target}")
+        self._provider_health = provider_health
+        self._observation_stats = observation_stats
+        self._observation_target = observation_target
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer the least-observed healthy provider until coverage is warm."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        candidates = healthy or eligible
+        providers = {candidate.provider for candidate in candidates}
+        counts = {
+            provider: self._observation_stats.observation_count(provider) for provider in providers
+        }
+        under_target = {
+            provider for provider, count in counts.items() if count < self._observation_target
+        }
+
+        if under_target:
+            minimum_count = min(counts[provider] for provider in under_target)
+            preferred = [
+                candidate
+                for candidate in candidates
+                if candidate.provider in under_target
+                and counts[candidate.provider] == minimum_count
+            ]
+            selected = max(
+                preferred,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(
+                        signals.prompt_tokens_estimate,
+                        request.max_tokens,
+                    ),
+                    candidate.model,
+                ),
+            )
+            total = self._observation_stats.total_observations(providers)
+            if total == 0:
+                rationale = (
+                    "provider-cold-start-bias cold start; all healthy providers have "
+                    f"0/{self._observation_target} observations, selected highest-quality "
+                    f"{selected.model}"
+                )
+            else:
+                rationale = (
+                    "provider-cold-start-bias filled exploration gap; selected least-observed "
+                    f"healthy provider {selected.provider} at "
+                    f"{counts[selected.provider]}/{self._observation_target} observations "
+                    f"within lookback {self._observation_stats.lookback}"
+                )
+        else:
+            selected = max(
+                candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(
+                        signals.prompt_tokens_estimate,
+                        request.max_tokens,
+                    ),
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                "provider-cold-start-bias coverage warm; every healthy provider reached "
+                f"{self._observation_target} recent observations, selected highest-quality "
+                f"{selected.model}"
+            )
+
+        fallback_candidates = sorted(
+            (candidate for candidate in candidates if candidate.model != selected.model),
+            key=lambda candidate: (
+                counts[candidate.provider],
+                -candidate.quality_score,
+                candidate.estimate_cost(
+                    signals.prompt_tokens_estimate,
+                    request.max_tokens,
+                ),
+                candidate.model,
+            ),
+        )
+        self._observation_stats.observe(selected.provider)
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -9052,6 +9203,9 @@ def build_strategies(
     provider_tail_latency_hedge_ms: float = 1500.0,
     sticky_session_migrate_stats: StickySessionMigrateStats | None = None,
     sticky_session_migrate_success_threshold: float = 0.9,
+    provider_cold_start_stats: ProviderColdStartStats | None = None,
+    provider_cold_start_lookback: int = 100,
+    provider_cold_start_target: int = 5,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -9180,6 +9334,10 @@ def build_strategies(
             for token-rpm-ceiling routing.
         token_rpm_window: Optional shared rolling provider prompt-token tracker.
             When omitted a fresh 60-second window is created.
+        provider_cold_start_stats: Optional shared recent provider observation
+            window for provider-cold-start-bias routing.
+        provider_cold_start_lookback: Maximum recent provider selections retained.
+        provider_cold_start_target: Observation target before a provider is warm.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -9253,6 +9411,9 @@ def build_strategies(
     )
     resolved_sticky_session_migrate_stats = (
         sticky_session_migrate_stats or StickySessionMigrateStats()
+    )
+    resolved_provider_cold_start_stats = provider_cold_start_stats or ProviderColdStartStats(
+        provider_cold_start_lookback
     )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
@@ -9598,6 +9759,12 @@ def build_strategies(
             success_stats=resolved_success_stats,
             migrate_stats=resolved_sticky_session_migrate_stats,
             success_threshold=sticky_session_migrate_success_threshold,
+        ),
+        RoutingStrategyName.PROVIDER_COLD_START_BIAS: ProviderColdStartBiasStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            observation_stats=resolved_provider_cold_start_stats,
+            observation_target=provider_cold_start_target,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `provider-cold-start-bias` routing strategy: biases selection toward the least-observed healthy provider until each reaches `NEXUS_PROVIDER_COLD_START_TARGET` observations (default `5`) inside `NEXUS_PROVIDER_COLD_START_LOOKBACK` (default `100`), then returns to quality-first routing. This closes LiteLLM/Portkey-style exploration gaps without sending GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic to unhealthy providers. See `docs/guides/PROVIDER_COLD_START_BIAS_GUIDE.md`.
+
 - `sticky-session-migrate` routing strategy: pins each session to a model until provider circuit health or shared success telemetry falls below `NEXUS_STICKY_SESSION_MIGRATE_SUCCESS_THRESHOLD` (default `0.9`), then performs a controlled migration to the healthiest eligible provider and preserves the new pin after recovery for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/STICKY_SESSION_MIGRATE_GUIDE.md`.
 
 - `provider-tail-latency-hedge` routing strategy: keeps quality-first routing until the selected provider's rolling p95 exceeds `NEXUS_PROVIDER_TAIL_LATENCY_HEDGE_MS` (default `1500`), then hedges to the fastest observed healthy provider alternative. It is distinct from p50 region hedging and relative adaptive p95 hedging for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/PROVIDER_TAIL_LATENCY_HEDGE_GUIDE.md`.
