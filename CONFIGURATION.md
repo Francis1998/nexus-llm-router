@@ -957,6 +957,7 @@ Set `X-Router-Strategy` to one of:
 - `provider-hourly-cost-ceiling`
 - `quality-weighted-sticky`
 - `provider-cold-start-bias`
+- `tenant-fair-queue`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
@@ -1946,3 +1947,23 @@ be at least `1`. Provider circuit health is checked before exploration, so a
 cold unhealthy provider cannot displace a healthy alternate serving GPT-5.5 /
 Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
 [docs/guides/PROVIDER_COLD_START_BIAS_GUIDE.md](docs/guides/PROVIDER_COLD_START_BIAS_GUIDE.md).
+
+## Tenant-Fair-Queue Routing
+
+The `tenant-fair-queue` strategy computes equal fair share from recent request
+counts across active tenants. A tenant at or below its share receives the
+highest-quality healthy route. A tenant above share uses the cheapest healthy
+relief lane until the bounded request window rebalances.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=tenant-fair-queue
+NEXUS_TENANT_FAIR_QUEUE_LOOKBACK=100
+```
+
+`NEXUS_TENANT_FAIR_QUEUE_LOOKBACK` is the number of process-local tenant
+decisions retained (integer >= 1; default `100`). Tenant identity resolves from
+`metadata.tenant_id`, metadata user/sticky keys, `user_id`, then `session_id`.
+This is request-count fairness across tenants, unlike provider
+`queue-depth-fairness` or `provider-quota-fair-share`, and supports GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+[docs/guides/TENANT_FAIR_QUEUE_GUIDE.md](docs/guides/TENANT_FAIR_QUEUE_GUIDE.md).
