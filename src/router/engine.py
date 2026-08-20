@@ -37,6 +37,7 @@ from router.strategies import (
     RateLimitStats,
     RegionFailoverHysteresisStats,
     RoutingStrategy,
+    StickyRegionDrainStats,
     StickyRegionWarmupStats,
     StickySessionMigrateStats,
     SuccessStats,
@@ -118,6 +119,7 @@ class NexusRouter:
             settings.provider_cold_start_lookback
         )
         self._tenant_fair_queue_stats = TenantFairQueueStats(settings.tenant_fair_queue_lookback)
+        self._sticky_region_drain_stats = StickyRegionDrainStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -227,6 +229,8 @@ class NexusRouter:
             provider_cold_start_target=settings.provider_cold_start_target,
             tenant_fair_queue_stats=self._tenant_fair_queue_stats,
             tenant_fair_queue_lookback=settings.tenant_fair_queue_lookback,
+            sticky_region_drain_stats=self._sticky_region_drain_stats,
+            sticky_region_drain_regions=settings.sticky_region_drain_regions,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

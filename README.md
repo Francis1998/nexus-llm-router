@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-604%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-613%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -188,6 +188,7 @@ Select a strategy with `X-Router-Strategy`:
 - `sticky-session-migrate`: preserves a session's model pin while its provider meets `NEXUS_STICKY_SESSION_MIGRATE_SUCCESS_THRESHOLD`, then performs one controlled migration to a healthier provider and keeps the new pin for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-cold-start-bias`: prefers the least-observed healthy provider until each reaches `NEXUS_PROVIDER_COLD_START_TARGET` selections inside `NEXUS_PROVIDER_COLD_START_LOOKBACK`, then returns to quality-first routing — LiteLLM/Portkey-style exploration-gap coverage for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `tenant-fair-queue`: computes per-tenant request-count deficits over `NEXUS_TENANT_FAIR_QUEUE_LOOKBACK`, preserving highest-quality healthy routes for at/below-share tenants and moving above-share tenants to a cost-efficient relief lane — distinct from provider queue-depth and provider-quota fairness for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `sticky-region-drain`: preserves healthy session region pins but evacuates pins listed in `NEXUS_STICKY_REGION_DRAIN_REGIONS` to the first healthy non-draining preferred region, keeping the alternate pin after the drain — Envoy/service-mesh-style operational drain for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation

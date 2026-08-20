@@ -9260,6 +9260,216 @@ class TenantFairQueueStrategy(RoutingStrategy):
         )
 
 
+class StickyRegionDrainStats:
+    """In-memory region pins and drain migration counts by session."""
+
+    def __init__(self) -> None:
+        """Initialize empty session drain state."""
+        self._pinned_regions: dict[str, str] = {}
+        self._migration_counts: dict[str, int] = {}
+
+    def pinned_region(self, session_id: str) -> str | None:
+        """Return the current sticky region for a session."""
+        return self._pinned_regions.get(session_id)
+
+    def pin(self, session_id: str, region: str) -> None:
+        """Assign a normalized region and count changes to an existing pin."""
+        normalized = region.strip().lower()
+        if not normalized:
+            raise ValueError("region must not be empty")
+        previous = self._pinned_regions.get(session_id)
+        if previous is not None and previous != normalized:
+            self._migration_counts[session_id] = self._migration_counts.get(session_id, 0) + 1
+        self._pinned_regions[session_id] = normalized
+
+    def migration_count(self, session_id: str) -> int:
+        """Return the number of region changes for a session."""
+        return self._migration_counts.get(session_id, 0)
+
+
+class StickyRegionDrainStrategy(RoutingStrategy):
+    """Keep sessions region-sticky while evacuating marked draining regions.
+
+    A healthy non-draining pin remains stable. When configuration or request
+    metadata marks that region as draining, the session moves once to the first
+    healthy non-draining preferred region and keeps its new pin. This operational
+    drain pattern avoids warmup, automatic failback, and success hysteresis for
+    GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 regional pools.
+    """
+
+    strategy_name = RoutingStrategyName.STICKY_REGION_DRAIN
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        drain_stats: StickyRegionDrainStats,
+        region_preferences: list[str] | None = None,
+        draining_regions: list[str] | None = None,
+    ) -> None:
+        """Initialize sticky-region-drain routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._drain_stats = drain_stats
+        self._region_preferences = [
+            region.strip().lower()
+            for region in (region_preferences or ["eu", "us", "cn", "global"])
+            if region.strip()
+        ]
+        self._draining_regions = {
+            region.strip().lower() for region in (draining_regions or []) if region.strip()
+        }
+
+    @staticmethod
+    def _supports_region(candidate: ModelCandidate, region: str) -> bool:
+        return region in {
+            supported_region.strip().lower() for supported_region in candidate.supported_regions
+        }
+
+    def _request_draining_regions(self, request: RouterRequest) -> set[str]:
+        raw_regions = request.metadata.get("draining_regions")
+        if raw_regions is None:
+            return set()
+        if isinstance(raw_regions, str):
+            values = raw_regions.split(",")
+        elif isinstance(raw_regions, (list, tuple, set)):
+            values = [str(region) for region in raw_regions]
+        else:
+            values = [str(raw_regions)]
+        return {region.strip().lower() for region in values if region.strip()}
+
+    def _ordered_regions(
+        self,
+        desired_region: str,
+        eligible: list[ModelCandidate],
+    ) -> list[str]:
+        ordered = [desired_region]
+        for region in self._region_preferences:
+            if region not in ordered:
+                ordered.append(region)
+        catalog_regions = sorted(
+            {
+                region.strip().lower()
+                for candidate in eligible
+                for region in candidate.supported_regions
+                if region.strip()
+            }
+        )
+        for region in catalog_regions:
+            if region not in ordered:
+                ordered.append(region)
+        return ordered
+
+    def _healthy_region_candidates(
+        self,
+        eligible: list[ModelCandidate],
+        region: str,
+    ) -> list[ModelCandidate]:
+        return [
+            candidate
+            for candidate in eligible
+            if self._supports_region(candidate, region)
+            and self._provider_health.is_available(candidate.provider)
+        ]
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Keep the current healthy pin or migrate it away from a drain."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        pinned_region = self._drain_stats.pinned_region(request.session_id)
+        requested_region = (request.region or "").strip().lower()
+        desired_region = pinned_region or requested_region or self._region_preferences[0]
+        draining_regions = self._draining_regions | self._request_draining_regions(request)
+        desired_pool = self._healthy_region_candidates(eligible, desired_region)
+
+        active_region = desired_region
+        selected_pool = desired_pool
+        reason = ""
+        if desired_region in draining_regions or not desired_pool:
+            if desired_region in draining_regions:
+                selected_pool = []
+            for alternate_region in self._ordered_regions(desired_region, eligible):
+                if alternate_region == desired_region or alternate_region in draining_regions:
+                    continue
+                alternate_pool = self._healthy_region_candidates(eligible, alternate_region)
+                if alternate_pool:
+                    active_region = alternate_region
+                    selected_pool = alternate_pool
+                    if desired_region in draining_regions:
+                        reason = (
+                            f"drained session '{request.session_id}' away from marked region "
+                            f"'{desired_region}' to healthy alternate '{active_region}'"
+                        )
+                    else:
+                        reason = (
+                            f"sticky region '{desired_region}' had no healthy providers; "
+                            f"failed over session '{request.session_id}' to '{active_region}'"
+                        )
+                    break
+
+        if not selected_pool:
+            healthy_eligible = [
+                candidate
+                for candidate in eligible
+                if self._provider_health.is_available(candidate.provider)
+            ]
+            desired_candidates = [
+                candidate
+                for candidate in eligible
+                if self._supports_region(candidate, desired_region)
+            ]
+            selected_pool = desired_pool or healthy_eligible or desired_candidates or eligible
+            active_region = desired_region if desired_candidates else "fallback"
+            if desired_region in draining_regions:
+                reason = (
+                    f"region '{desired_region}' is marked draining but no healthy "
+                    "non-draining alternate exists; emergency fallback retained"
+                )
+            else:
+                reason = (
+                    f"sticky region '{desired_region}' and alternates had no healthy "
+                    "regional pool; emergency fallback retained"
+                )
+
+        self._drain_stats.pin(request.session_id, active_region)
+        ordered_candidates = sorted(selected_pool, key=lambda candidate: candidate.model)
+        digest = sha256(f"{request.session_id}:{active_region}".encode()).hexdigest()
+        bucket = int(digest[:8], 16) % len(ordered_candidates)
+        selected = ordered_candidates[bucket]
+        if not reason:
+            reason = (
+                f"kept session '{request.session_id}' pinned to healthy non-draining "
+                f"region '{active_region}'"
+            )
+
+        healthy_fallbacks = sorted(
+            (
+                candidate
+                for candidate in eligible
+                if candidate.model != selected.model
+                and self._provider_health.is_available(candidate.provider)
+            ),
+            key=lambda candidate: (
+                not self._supports_region(candidate, active_region),
+                -candidate.quality_score,
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=(
+                f"sticky-region-drain {reason}; sticky bucket "
+                f"{bucket}/{len(ordered_candidates)} -> {selected.model}"
+            ),
+            fallback_chain=[candidate.model for candidate in healthy_fallbacks[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -9366,6 +9576,8 @@ def build_strategies(
     provider_cold_start_target: int = 5,
     tenant_fair_queue_stats: TenantFairQueueStats | None = None,
     tenant_fair_queue_lookback: int = 100,
+    sticky_region_drain_stats: StickyRegionDrainStats | None = None,
+    sticky_region_drain_regions: list[str] | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -9501,6 +9713,9 @@ def build_strategies(
         tenant_fair_queue_stats: Optional shared recent tenant request window.
         tenant_fair_queue_lookback: Maximum tenant requests retained for
             tenant-fair-queue deficit accounting.
+        sticky_region_drain_stats: Optional shared region pins and migration
+            counts for sticky-region-drain routing.
+        sticky_region_drain_regions: Regions operators have marked for drain.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -9581,6 +9796,7 @@ def build_strategies(
     resolved_tenant_fair_queue_stats = tenant_fair_queue_stats or TenantFairQueueStats(
         tenant_fair_queue_lookback
     )
+    resolved_sticky_region_drain_stats = sticky_region_drain_stats or StickyRegionDrainStats()
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -9936,6 +10152,13 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             fair_queue_stats=resolved_tenant_fair_queue_stats,
+        ),
+        RoutingStrategyName.STICKY_REGION_DRAIN: StickyRegionDrainStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            drain_stats=resolved_sticky_region_drain_stats,
+            region_preferences=resolved_sticky_region_preferences,
+            draining_regions=sticky_region_drain_regions,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

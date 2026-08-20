@@ -958,6 +958,7 @@ Set `X-Router-Strategy` to one of:
 - `quality-weighted-sticky`
 - `provider-cold-start-bias`
 - `tenant-fair-queue`
+- `sticky-region-drain`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
@@ -1967,3 +1968,25 @@ This is request-count fairness across tenants, unlike provider
 `queue-depth-fairness` or `provider-quota-fair-share`, and supports GPT-5.5 /
 Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
 [docs/guides/TENANT_FAIR_QUEUE_GUIDE.md](docs/guides/TENANT_FAIR_QUEUE_GUIDE.md).
+
+## Sticky-Region-Drain Routing
+
+The `sticky-region-drain` strategy keeps each session on a healthy regional pin
+until operators mark that region for drain. It then walks
+`NEXUS_STICKY_REGION_FAILOVER_PREFERENCES`, moves the session to the first
+healthy non-draining region, and persists the alternate pin without automatic
+failback.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=sticky-region-drain
+NEXUS_STICKY_REGION_DRAIN_REGIONS=["us"]
+NEXUS_STICKY_REGION_FAILOVER_PREFERENCES=["us","eu","cn","global"]
+```
+
+`NEXUS_STICKY_REGION_DRAIN_REGIONS` is a JSON list and defaults to `[]`.
+Requests may add live markers through `metadata.draining_regions`. When no
+healthy non-draining alternate exists, deterministic emergency fallback remains
+available. This Envoy/service-mesh-style drain is distinct from regional warmup,
+provider-driven session migration, and failback hysteresis for GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+[docs/guides/STICKY_REGION_DRAIN_GUIDE.md](docs/guides/STICKY_REGION_DRAIN_GUIDE.md).

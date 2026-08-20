@@ -103,6 +103,7 @@ class RoutingStrategyName(StrEnum):
     STICKY_SESSION_MIGRATE = "sticky-session-migrate"
     PROVIDER_COLD_START_BIAS = "provider-cold-start-bias"
     TENANT_FAIR_QUEUE = "tenant-fair-queue"
+    STICKY_REGION_DRAIN = "sticky-region-drain"
     AB_TEST = "ab"
 
 
