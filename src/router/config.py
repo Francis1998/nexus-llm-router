@@ -140,6 +140,7 @@ class RouterSettings(BaseSettings):
     provider_cold_start_lookback: Annotated[int, Field(ge=1)] = 100
     provider_cold_start_target: Annotated[int, Field(ge=1)] = 5
     tenant_fair_queue_lookback: Annotated[int, Field(ge=1)] = 100
+    sticky_region_drain_regions: list[str] = Field(default_factory=list)
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
