@@ -10390,8 +10390,8 @@ def build_strategies(
     resolved_sticky_model_pin_expire_stats = (
         sticky_model_pin_expire_stats or StickyModelPinExpireStats()
     )
-    resolved_tenant_priority_lane_stats = (
-        tenant_priority_lane_stats or TenantPriorityLaneStats(tenant_priority_lane_lookback)
+    resolved_tenant_priority_lane_stats = tenant_priority_lane_stats or TenantPriorityLaneStats(
+        tenant_priority_lane_lookback
     )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
