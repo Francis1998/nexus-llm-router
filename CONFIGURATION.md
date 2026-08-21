@@ -959,6 +959,7 @@ Set `X-Router-Strategy` to one of:
 - `provider-cold-start-bias`
 - `tenant-fair-queue`
 - `sticky-region-drain`
+- `provider-canary-shadow-split`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
@@ -1990,3 +1991,26 @@ available. This Envoy/service-mesh-style drain is distinct from regional warmup,
 provider-driven session migration, and failback hysteresis for GPT-5.5 /
 Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
 [docs/guides/STICKY_REGION_DRAIN_GUIDE.md](docs/guides/STICKY_REGION_DRAIN_GUIDE.md).
+
+## Provider-Canary-Shadow-Split Routing
+
+The `provider-canary-shadow-split` strategy keeps user-visible primary traffic
+on `NEXUS_PROVIDER_CANARY_PRIMARY_PROVIDER` when that provider is healthy. A
+deterministic tenant/request cohort may also identify the highest-quality
+healthy model on another provider for shadow comparison. If the preferred
+provider is unavailable, primary routing falls back to the highest-quality
+healthy candidate.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-canary-shadow-split
+NEXUS_PROVIDER_CANARY_PRIMARY_PROVIDER=openai
+NEXUS_PROVIDER_CANARY_SHADOW_PERCENT=5.0
+```
+
+The shadow percentage accepts `0.0` through `100.0`. Tenant identity comes from
+request metadata or `user_id`, with `request_id` as the fallback hash key.
+Process-local `CanaryShadowSplitStats` tracks primary, shadow-provider, and
+provider-pair counts. Nexus returns one primary decision; its rationale and
+first fallback expose the shadow candidate to downstream dual-run integrations
+for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+[docs/guides/PROVIDER_CANARY_SHADOW_SPLIT_GUIDE.md](docs/guides/PROVIDER_CANARY_SHADOW_SPLIT_GUIDE.md).

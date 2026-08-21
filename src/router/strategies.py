@@ -9470,6 +9470,177 @@ class StickyRegionDrainStrategy(RoutingStrategy):
         )
 
 
+class CanaryShadowSplitStats:
+    """Process-local primary and shadow selection counters by provider."""
+
+    def __init__(self) -> None:
+        """Initialize empty provider split counters."""
+        self._primary_counts: dict[str, int] = {}
+        self._shadow_counts: dict[str, int] = {}
+        self._split_counts: dict[tuple[str, str], int] = {}
+
+    def observe_primary(self, provider: str) -> None:
+        """Record a primary-provider routing decision."""
+        self._primary_counts[provider] = self._primary_counts.get(provider, 0) + 1
+
+    def observe_shadow(self, primary_provider: str, shadow_provider: str) -> None:
+        """Record a shadow comparison from one provider to another."""
+        self._shadow_counts[shadow_provider] = self._shadow_counts.get(shadow_provider, 0) + 1
+        pair = (primary_provider, shadow_provider)
+        self._split_counts[pair] = self._split_counts.get(pair, 0) + 1
+
+    def primary_count(self, provider: str) -> int:
+        """Return primary selections recorded for a provider."""
+        return self._primary_counts.get(provider, 0)
+
+    def shadow_count(self, provider: str) -> int:
+        """Return shadow selections recorded for a provider."""
+        return self._shadow_counts.get(provider, 0)
+
+    def split_count(self, primary_provider: str, shadow_provider: str) -> int:
+        """Return comparisons recorded for one primary/shadow provider pair."""
+        return self._split_counts.get((primary_provider, shadow_provider), 0)
+
+    @property
+    def total_shadows(self) -> int:
+        """Return the total number of shadow comparisons."""
+        return sum(self._shadow_counts.values())
+
+
+class CanaryShadowSplitStrategy(RoutingStrategy):
+    """Keep primary traffic on a preferred provider and shadow a stable slice.
+
+    The primary route favors a configured healthy provider. A deterministic
+    tenant-or-request hash optionally identifies a healthy candidate on another
+    provider for comparison, without changing the user-visible primary response.
+    Counters expose the resulting GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2 provider split to telemetry integrations.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_CANARY_SHADOW_SPLIT
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        shadow_stats: CanaryShadowSplitStats,
+        preferred_provider: str = "openai",
+        shadow_percent: float = 5.0,
+    ) -> None:
+        """Initialize preferred-provider canary shadow routing."""
+        super().__init__(model_catalog)
+        normalized_provider = preferred_provider.strip().lower()
+        if not normalized_provider:
+            raise ValueError("preferred_provider must not be empty")
+        if not 0.0 <= shadow_percent <= 100.0:
+            raise ValueError(f"shadow_percent must be within [0.0, 100.0], got {shadow_percent}")
+        self._provider_health = provider_health
+        self._shadow_stats = shadow_stats
+        self._preferred_provider = normalized_provider
+        self._shadow_percent = shadow_percent
+
+    @staticmethod
+    def _split_key(request: RouterRequest) -> str:
+        """Resolve a stable tenant cohort key, falling back to request id."""
+        for key in ("tenant_id", "sticky_key"):
+            value = request.metadata.get(key)
+            if value is not None and str(value).strip():
+                return f"tenant:{value}"
+        if request.user_id != "anonymous":
+            return f"tenant:{request.user_id}"
+        return f"request:{request.request_id}"
+
+    def _shadow_bucket(self, request: RouterRequest) -> float:
+        digest = sha256(self._split_key(request).encode("utf-8")).hexdigest()
+        return int(digest[:8], 16) / 0x100000000
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the preferred primary and annotate an optional shadow candidate."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        candidates = healthy or eligible
+        preferred = [
+            candidate
+            for candidate in candidates
+            if candidate.provider.lower() == self._preferred_provider
+        ]
+        primary_pool = preferred or candidates
+        primary = max(
+            primary_pool,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        secondary_pool = [
+            candidate for candidate in candidates if candidate.provider != primary.provider
+        ]
+        secondary = (
+            max(
+                secondary_pool,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                    candidate.model,
+                ),
+            )
+            if secondary_pool
+            else None
+        )
+        bucket_percent = self._shadow_bucket(request) * 100.0
+        shadow_selected = secondary is not None and bucket_percent < self._shadow_percent
+
+        self._shadow_stats.observe_primary(primary.provider)
+        rationale = (
+            "provider-canary-shadow-split selected preferred primary "
+            f"{primary.model} ({primary.provider})"
+            if preferred
+            else (
+                "provider-canary-shadow-split preferred provider "
+                f"'{self._preferred_provider}' unavailable; selected healthy primary "
+                f"{primary.model} ({primary.provider})"
+            )
+        )
+        if shadow_selected and secondary is not None:
+            self._shadow_stats.observe_shadow(primary.provider, secondary.provider)
+            rationale += (
+                f"; shadow candidate {secondary.model} ({secondary.provider}) queued for "
+                f"comparison (bucket={bucket_percent:.2f}% < {self._shadow_percent:.2f}%)"
+            )
+        elif secondary is not None:
+            rationale += (
+                f"; shadow candidate {secondary.model} ({secondary.provider}) held off "
+                f"(bucket={bucket_percent:.2f}% >= {self._shadow_percent:.2f}%)"
+            )
+        else:
+            rationale += "; no different-provider shadow candidate is available"
+
+        fallback_candidates = sorted(
+            (candidate for candidate in candidates if candidate.model != primary.model),
+            key=lambda candidate: (
+                candidate is not secondary,
+                -candidate.quality_score,
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=primary.model,
+            provider=primary.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -9578,6 +9749,9 @@ def build_strategies(
     tenant_fair_queue_lookback: int = 100,
     sticky_region_drain_stats: StickyRegionDrainStats | None = None,
     sticky_region_drain_regions: list[str] | None = None,
+    provider_canary_shadow_stats: CanaryShadowSplitStats | None = None,
+    provider_canary_primary_provider: str = "openai",
+    provider_canary_shadow_percent: float = 5.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -9716,6 +9890,11 @@ def build_strategies(
         sticky_region_drain_stats: Optional shared region pins and migration
             counts for sticky-region-drain routing.
         sticky_region_drain_regions: Regions operators have marked for drain.
+        provider_canary_shadow_stats: Optional shared primary/shadow counters for
+            provider-canary-shadow-split routing.
+        provider_canary_primary_provider: Preferred provider for primary traffic.
+        provider_canary_shadow_percent: Deterministic traffic percentage annotated
+            with a healthy different-provider shadow candidate.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -9797,6 +9976,7 @@ def build_strategies(
         tenant_fair_queue_lookback
     )
     resolved_sticky_region_drain_stats = sticky_region_drain_stats or StickyRegionDrainStats()
+    resolved_provider_canary_shadow_stats = provider_canary_shadow_stats or CanaryShadowSplitStats()
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -10159,6 +10339,13 @@ def build_strategies(
             drain_stats=resolved_sticky_region_drain_stats,
             region_preferences=resolved_sticky_region_preferences,
             draining_regions=sticky_region_drain_regions,
+        ),
+        RoutingStrategyName.PROVIDER_CANARY_SHADOW_SPLIT: CanaryShadowSplitStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            shadow_stats=resolved_provider_canary_shadow_stats,
+            preferred_provider=provider_canary_primary_provider,
+            shadow_percent=provider_canary_shadow_percent,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

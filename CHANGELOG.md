@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `provider-canary-shadow-split` routing strategy: keeps primary traffic on `NEXUS_PROVIDER_CANARY_PRIMARY_PROVIDER` while a deterministic tenant/request cohort selected by `NEXUS_PROVIDER_CANARY_SHADOW_PERCENT` identifies a healthy different-provider shadow candidate. Process-local stats count primary, shadow-provider, and provider-pair selections for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 comparisons. See `docs/guides/PROVIDER_CANARY_SHADOW_SPLIT_GUIDE.md`.
+
 - `tenant-fair-queue` routing strategy: computes equal-share deficits from per-tenant request counts over `NEXUS_TENANT_FAIR_QUEUE_LOOKBACK` (default `100`), preserving highest-quality healthy routing for quieter tenants and moving above-share tenants onto a cost-efficient relief lane. Distinct from provider queue-depth and provider-quota fairness for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/TENANT_FAIR_QUEUE_GUIDE.md`.
 
 - `sticky-region-drain` routing strategy: preserves healthy session region pins and evacuates sessions from `NEXUS_STICKY_REGION_DRAIN_REGIONS` to the first healthy non-draining preferred region, retaining the alternate pin after the drain. This Envoy/service-mesh-style operations pattern is distinct from warmup, provider-driven session migration, and failback hysteresis for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/STICKY_REGION_DRAIN_GUIDE.md`.
