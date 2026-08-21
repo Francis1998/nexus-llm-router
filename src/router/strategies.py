@@ -9814,6 +9814,224 @@ class StickyModelPinExpireStrategy(RoutingStrategy):
         )
 
 
+class TenantPriorityLane(StrEnum):
+    """Supported tenant admission lanes."""
+
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"
+
+
+class TenantPriorityLaneStats:
+    """Bounded recent lane selections used to enforce soft lane quotas."""
+
+    def __init__(self, lookback: int = 100) -> None:
+        """Initialize an empty lane-selection window."""
+        if lookback < 1:
+            raise ValueError(f"lookback must be >= 1, got {lookback}")
+        self._lookback = lookback
+        self._observations: list[TenantPriorityLane] = []
+
+    def observe(self, lane: TenantPriorityLane) -> None:
+        """Record a lane decision and evict the oldest excess entry."""
+        self._observations.append(lane)
+        if len(self._observations) > self._lookback:
+            del self._observations[: len(self._observations) - self._lookback]
+
+    def lane_count(self, lane: TenantPriorityLane) -> int:
+        """Return retained decisions for a lane."""
+        return self._observations.count(lane)
+
+    def at_quota(self, lane: TenantPriorityLane, quota: int) -> bool:
+        """Return whether a lane has consumed its recent soft quota."""
+        if quota < 1:
+            raise ValueError(f"quota must be >= 1, got {quota}")
+        return self.lane_count(lane) >= quota
+
+
+class TenantPriorityLanesStrategy(RoutingStrategy):
+    """Map tenants to high, normal, and low capacity-aware routing lanes.
+
+    During provider health pressure or after a lane reaches its recent soft
+    quota, high-priority tenants move to the fastest observed healthy provider,
+    normal tenants keep quality-first routing, and low tenants use a cheap relief
+    route. This preserves differentiated service for GPT-5.5 / Claude Sonnet
+    4.6 / Gemini 3.x / Kimi K2 without pretending decide-time routing can
+    preempt requests already in flight.
+    """
+
+    strategy_name = RoutingStrategyName.TENANT_PRIORITY_LANES
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        latency_stats: LatencyStats,
+        lane_stats: TenantPriorityLaneStats,
+        high_tenants: list[str] | None = None,
+        low_tenants: list[str] | None = None,
+        high_quota: int = 100,
+        normal_quota: int = 60,
+        low_quota: int = 30,
+    ) -> None:
+        """Initialize tenant priority lane routing."""
+        super().__init__(model_catalog)
+        quotas = {
+            TenantPriorityLane.HIGH: high_quota,
+            TenantPriorityLane.NORMAL: normal_quota,
+            TenantPriorityLane.LOW: low_quota,
+        }
+        for lane, quota in quotas.items():
+            if quota < 1:
+                raise ValueError(f"{lane.value}_quota must be >= 1, got {quota}")
+        self._high_tenants = {tenant.strip() for tenant in high_tenants or [] if tenant.strip()}
+        self._low_tenants = {tenant.strip() for tenant in low_tenants or [] if tenant.strip()}
+        overlap = self._high_tenants & self._low_tenants
+        if overlap:
+            raise ValueError(f"tenants cannot belong to both high and low lanes: {sorted(overlap)}")
+        self._provider_health = provider_health
+        self._latency_stats = latency_stats
+        self._lane_stats = lane_stats
+        self._quotas = quotas
+
+    @staticmethod
+    def _tenant_key(request: RouterRequest) -> str:
+        """Resolve tenant identity from metadata, user, then session."""
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = request.metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def _lane(self, request: RouterRequest, tenant_key: str) -> TenantPriorityLane:
+        """Resolve an explicit request lane or configured tenant mapping."""
+        metadata_lane = request.metadata.get("priority_lane")
+        if metadata_lane is not None:
+            try:
+                return TenantPriorityLane(str(metadata_lane).strip().lower())
+            except ValueError:
+                pass
+        if tenant_key in self._high_tenants:
+            return TenantPriorityLane.HIGH
+        if tenant_key in self._low_tenants:
+            return TenantPriorityLane.LOW
+        return TenantPriorityLane.NORMAL
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Route the tenant according to its lane and current capacity pressure."""
+        tenant_key = self._tenant_key(request)
+        lane = self._lane(request, tenant_key)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        candidates = healthy or eligible
+        eligible_providers = {candidate.provider for candidate in eligible}
+        healthy_providers = {candidate.provider for candidate in healthy}
+        health_constrained = healthy_providers != eligible_providers
+        quota_constrained = self._lane_stats.at_quota(lane, self._quotas[lane])
+        capacity_constrained = health_constrained or quota_constrained
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in candidates
+        }
+
+        if capacity_constrained and lane is TenantPriorityLane.HIGH:
+            observed = [
+                candidate for candidate in candidates if self._latency_stats.p95(candidate.provider)
+            ]
+            priority_pool = observed or candidates
+            selected = min(
+                priority_pool,
+                key=lambda candidate: (
+                    self._latency_stats.p95(candidate.provider)
+                    if observed
+                    else -candidate.quality_score,
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            policy = "fastest observed healthy priority route"
+        elif capacity_constrained and lane is TenantPriorityLane.LOW:
+            selected = min(
+                candidates,
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            policy = "cost-efficient relief route"
+        else:
+            selected = max(
+                candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            policy = "quality-first route"
+
+        constraint_reasons = []
+        if health_constrained:
+            constraint_reasons.append("provider health reduced capacity")
+        if quota_constrained:
+            constraint_reasons.append(
+                f"{lane.value} lane reached {self._quotas[lane]} recent decisions"
+            )
+        constraint_note = (
+            "; ".join(constraint_reasons) if constraint_reasons else "capacity available"
+        )
+        self._lane_stats.observe(lane)
+
+        fallback_candidates = sorted(
+            (candidate for candidate in candidates if candidate.model != selected.model),
+            key=lambda candidate: (
+                (
+                    self._latency_stats.p95(candidate.provider) == 0.0,
+                    self._latency_stats.p95(candidate.provider),
+                    -candidate.quality_score,
+                    candidate.model,
+                )
+                if lane is TenantPriorityLane.HIGH and capacity_constrained
+                else (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                )
+                if lane is TenantPriorityLane.LOW and capacity_constrained
+                else (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                )
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=(
+                f"tenant-priority-lanes mapped tenant '{tenant_key}' to {lane.value} lane; "
+                f"{constraint_note}; selected {policy} {selected.model}"
+            ),
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -9927,6 +10145,13 @@ def build_strategies(
     provider_canary_shadow_percent: float = 5.0,
     sticky_model_pin_expire_stats: StickyModelPinExpireStats | None = None,
     sticky_model_pin_ttl_seconds: float = 300.0,
+    tenant_priority_lane_stats: TenantPriorityLaneStats | None = None,
+    tenant_priority_high_tenants: list[str] | None = None,
+    tenant_priority_low_tenants: list[str] | None = None,
+    tenant_priority_lane_lookback: int = 100,
+    tenant_priority_high_quota: int = 100,
+    tenant_priority_normal_quota: int = 60,
+    tenant_priority_low_quota: int = 30,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -10073,6 +10298,13 @@ def build_strategies(
         sticky_model_pin_expire_stats: Optional shared session model-pin state.
         sticky_model_pin_ttl_seconds: Lifetime for each sticky model pin in
             seconds before health and quality are re-evaluated.
+        tenant_priority_lane_stats: Optional shared recent lane-selection window.
+        tenant_priority_high_tenants: Tenant ids mapped to the high lane.
+        tenant_priority_low_tenants: Tenant ids mapped to the low lane.
+        tenant_priority_lane_lookback: Maximum recent lane decisions retained.
+        tenant_priority_high_quota: High-lane soft quota inside the lookback.
+        tenant_priority_normal_quota: Normal-lane soft quota inside the lookback.
+        tenant_priority_low_quota: Low-lane soft quota inside the lookback.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -10157,6 +10389,9 @@ def build_strategies(
     resolved_provider_canary_shadow_stats = provider_canary_shadow_stats or CanaryShadowSplitStats()
     resolved_sticky_model_pin_expire_stats = (
         sticky_model_pin_expire_stats or StickyModelPinExpireStats()
+    )
+    resolved_tenant_priority_lane_stats = (
+        tenant_priority_lane_stats or TenantPriorityLaneStats(tenant_priority_lane_lookback)
     )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
@@ -10533,6 +10768,17 @@ def build_strategies(
             provider_health=provider_health,
             pin_stats=resolved_sticky_model_pin_expire_stats,
             ttl_seconds=sticky_model_pin_ttl_seconds,
+        ),
+        RoutingStrategyName.TENANT_PRIORITY_LANES: TenantPriorityLanesStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            latency_stats=latency_stats,
+            lane_stats=resolved_tenant_priority_lane_stats,
+            high_tenants=tenant_priority_high_tenants,
+            low_tenants=tenant_priority_low_tenants,
+            high_quota=tenant_priority_high_quota,
+            normal_quota=tenant_priority_normal_quota,
+            low_quota=tenant_priority_low_quota,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

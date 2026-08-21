@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-632%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-642%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -191,6 +191,7 @@ Select a strategy with `X-Router-Strategy`:
 - `sticky-region-drain`: preserves healthy session region pins but evacuates pins listed in `NEXUS_STICKY_REGION_DRAIN_REGIONS` to the first healthy non-draining preferred region, keeping the alternate pin after the drain — Envoy/service-mesh-style operational drain for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-canary-shadow-split`: keeps primary traffic on `NEXUS_PROVIDER_CANARY_PRIMARY_PROVIDER` while a deterministic tenant/request slice (`NEXUS_PROVIDER_CANARY_SHADOW_PERCENT`) identifies a healthy different-provider shadow candidate and records comparison counts for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `sticky-model-pin-expire`: keeps each session on a healthy model for `NEXUS_STICKY_MODEL_PIN_TTL_SECONDS`, then expires the process-local pin and re-evaluates current provider health and quality before creating a fresh pin for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `tenant-priority-lanes`: maps configured or per-request tenants into high, normal, and low lanes, preserving quality when capacity is available while using fastest-healthy or cost-efficient relief routes under provider-health or lane-quota pressure for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation

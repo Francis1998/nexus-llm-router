@@ -2036,3 +2036,29 @@ This is model-affinity lifetime management, distinct from
 success-threshold migration for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
 Kimi K2 traffic. See
 [docs/guides/STICKY_MODEL_PIN_EXPIRE_GUIDE.md](docs/guides/STICKY_MODEL_PIN_EXPIRE_GUIDE.md).
+
+## Tenant-Priority-Lanes Routing
+
+The `tenant-priority-lanes` strategy assigns tenant ids to high, normal, or low
+service lanes. During provider-health pressure or when a lane reaches its recent
+soft quota, high tenants use the fastest observed healthy provider, normal
+tenants remain quality-first, and low tenants use a cost-efficient relief route.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=tenant-priority-lanes
+NEXUS_TENANT_PRIORITY_HIGH_TENANTS=["interactive-premium"]
+NEXUS_TENANT_PRIORITY_LOW_TENANTS=["offline-batch"]
+NEXUS_TENANT_PRIORITY_LANE_LOOKBACK=100
+NEXUS_TENANT_PRIORITY_HIGH_QUOTA=100
+NEXUS_TENANT_PRIORITY_NORMAL_QUOTA=60
+NEXUS_TENANT_PRIORITY_LOW_QUOTA=30
+```
+
+All quotas and the lookback are integers of at least `1`. The tenant lists must
+not overlap. Requests may override their configured mapping with
+`metadata.priority_lane` set to `high`, `normal`, or `low`; invalid values fall
+back to the mapping. The bounded lane counters are process-local, and the lanes
+change routing preference rather than preempting in-flight work. This provides
+capacity-aware differentiation for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2 traffic. See
+[docs/guides/TENANT_PRIORITY_LANES_GUIDE.md](docs/guides/TENANT_PRIORITY_LANES_GUIDE.md).
