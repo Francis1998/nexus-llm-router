@@ -2014,3 +2014,25 @@ provider-pair counts. Nexus returns one primary decision; its rationale and
 first fallback expose the shadow candidate to downstream dual-run integrations
 for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
 [docs/guides/PROVIDER_CANARY_SHADOW_SPLIT_GUIDE.md](docs/guides/PROVIDER_CANARY_SHADOW_SPLIT_GUIDE.md).
+
+## Sticky-Model-Pin-Expire Routing
+
+The `sticky-model-pin-expire` strategy gives each `session_id` a process-local
+model pin. The router preserves an unexpired pin while its provider remains
+healthy. At the TTL deadline, the pin is removed and the next decision
+re-evaluates domain eligibility, circuit health, model quality, and estimated
+cost before creating a fresh pin.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=sticky-model-pin-expire
+NEXUS_STICKY_MODEL_PIN_TTL_SECONDS=300.0
+```
+
+`NEXUS_STICKY_MODEL_PIN_TTL_SECONDS` must be greater than `0.0`.
+`StickyModelPinExpireStats` records per-session expiration counts. An unhealthy
+pinned provider triggers an early reselection without counting a TTL expiration.
+This is model-affinity lifetime management, distinct from
+`sticky-region-drain` operational evacuation and `sticky-session-migrate`
+success-threshold migration for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2 traffic. See
+[docs/guides/STICKY_MODEL_PIN_EXPIRE_GUIDE.md](docs/guides/STICKY_MODEL_PIN_EXPIRE_GUIDE.md).

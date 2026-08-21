@@ -105,6 +105,7 @@ class RoutingStrategyName(StrEnum):
     TENANT_FAIR_QUEUE = "tenant-fair-queue"
     STICKY_REGION_DRAIN = "sticky-region-drain"
     PROVIDER_CANARY_SHADOW_SPLIT = "provider-canary-shadow-split"
+    STICKY_MODEL_PIN_EXPIRE = "sticky-model-pin-expire"
     AB_TEST = "ab"
 
 
