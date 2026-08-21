@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `tenant-priority-lanes` routing strategy: maps configured or per-request tenants to high, normal, and low lanes. Under provider health pressure or recent lane-quota pressure, high tenants prefer the fastest observed healthy provider, normal tenants preserve quality, and low tenants shift to a cost-efficient relief route for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/TENANT_PRIORITY_LANES_GUIDE.md`.
+
 - `sticky-model-pin-expire` routing strategy: preserves each session's healthy model pin for `NEXUS_STICKY_MODEL_PIN_TTL_SECONDS` (default `300`), expires it on a monotonic deadline, and re-evaluates provider health and quality before creating a fresh pin. Distinct from regional drain and success-threshold session migration for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/STICKY_MODEL_PIN_EXPIRE_GUIDE.md`.
 
 - `provider-canary-shadow-split` routing strategy: keeps primary traffic on `NEXUS_PROVIDER_CANARY_PRIMARY_PROVIDER` while a deterministic tenant/request cohort selected by `NEXUS_PROVIDER_CANARY_SHADOW_PERCENT` identifies a healthy different-provider shadow candidate. Process-local stats count primary, shadow-provider, and provider-pair selections for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 comparisons. See `docs/guides/PROVIDER_CANARY_SHADOW_SPLIT_GUIDE.md`.

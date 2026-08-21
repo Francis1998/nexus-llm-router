@@ -106,6 +106,7 @@ class RoutingStrategyName(StrEnum):
     STICKY_REGION_DRAIN = "sticky-region-drain"
     PROVIDER_CANARY_SHADOW_SPLIT = "provider-canary-shadow-split"
     STICKY_MODEL_PIN_EXPIRE = "sticky-model-pin-expire"
+    TENANT_PRIORITY_LANES = "tenant-priority-lanes"
     AB_TEST = "ab"
 
 

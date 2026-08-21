@@ -46,6 +46,7 @@ from router.strategies import (
     TenantBudgetCascadeStats,
     TenantBudgetCascadeStrategy,
     TenantFairQueueStats,
+    TenantPriorityLaneStats,
     TenantQuotaBurstStats,
     TierRequestStats,
     TokenBucketStats,
@@ -124,6 +125,9 @@ class NexusRouter:
         self._sticky_region_drain_stats = StickyRegionDrainStats()
         self._provider_canary_shadow_stats = CanaryShadowSplitStats()
         self._sticky_model_pin_expire_stats = StickyModelPinExpireStats()
+        self._tenant_priority_lane_stats = TenantPriorityLaneStats(
+            settings.tenant_priority_lane_lookback
+        )
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -240,6 +244,13 @@ class NexusRouter:
             provider_canary_shadow_percent=settings.provider_canary_shadow_percent,
             sticky_model_pin_expire_stats=self._sticky_model_pin_expire_stats,
             sticky_model_pin_ttl_seconds=settings.sticky_model_pin_ttl_seconds,
+            tenant_priority_lane_stats=self._tenant_priority_lane_stats,
+            tenant_priority_high_tenants=settings.tenant_priority_high_tenants,
+            tenant_priority_low_tenants=settings.tenant_priority_low_tenants,
+            tenant_priority_lane_lookback=settings.tenant_priority_lane_lookback,
+            tenant_priority_high_quota=settings.tenant_priority_high_quota,
+            tenant_priority_normal_quota=settings.tenant_priority_normal_quota,
+            tenant_priority_low_quota=settings.tenant_priority_low_quota,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
