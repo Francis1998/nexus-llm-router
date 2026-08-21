@@ -24,6 +24,7 @@ from router.schemas import (
 )
 from router.state import RequestState, RoutingStateMachine
 from router.strategies import (
+    CanaryShadowSplitStats,
     CostAnomalyStats,
     FamilySpendWindow,
     InflightStats,
@@ -120,6 +121,7 @@ class NexusRouter:
         )
         self._tenant_fair_queue_stats = TenantFairQueueStats(settings.tenant_fair_queue_lookback)
         self._sticky_region_drain_stats = StickyRegionDrainStats()
+        self._provider_canary_shadow_stats = CanaryShadowSplitStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -231,6 +233,9 @@ class NexusRouter:
             tenant_fair_queue_lookback=settings.tenant_fair_queue_lookback,
             sticky_region_drain_stats=self._sticky_region_drain_stats,
             sticky_region_drain_regions=settings.sticky_region_drain_regions,
+            provider_canary_shadow_stats=self._provider_canary_shadow_stats,
+            provider_canary_primary_provider=settings.provider_canary_primary_provider,
+            provider_canary_shadow_percent=settings.provider_canary_shadow_percent,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

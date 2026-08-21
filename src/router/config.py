@@ -141,6 +141,8 @@ class RouterSettings(BaseSettings):
     provider_cold_start_target: Annotated[int, Field(ge=1)] = 5
     tenant_fair_queue_lookback: Annotated[int, Field(ge=1)] = 100
     sticky_region_drain_regions: list[str] = Field(default_factory=list)
+    provider_canary_primary_provider: str = "openai"
+    provider_canary_shadow_percent: Annotated[float, Field(ge=0.0, le=100.0)] = 5.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

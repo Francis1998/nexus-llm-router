@@ -104,6 +104,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_COLD_START_BIAS = "provider-cold-start-bias"
     TENANT_FAIR_QUEUE = "tenant-fair-queue"
     STICKY_REGION_DRAIN = "sticky-region-drain"
+    PROVIDER_CANARY_SHADOW_SPLIT = "provider-canary-shadow-split"
     AB_TEST = "ab"
 
 
