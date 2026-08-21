@@ -143,6 +143,7 @@ class RouterSettings(BaseSettings):
     sticky_region_drain_regions: list[str] = Field(default_factory=list)
     provider_canary_primary_provider: str = "openai"
     provider_canary_shadow_percent: Annotated[float, Field(ge=0.0, le=100.0)] = 5.0
+    sticky_model_pin_ttl_seconds: Annotated[float, Field(gt=0.0)] = 300.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

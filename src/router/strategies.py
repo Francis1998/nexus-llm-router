@@ -9641,6 +9641,179 @@ class CanaryShadowSplitStrategy(RoutingStrategy):
         )
 
 
+@dataclass
+class _ExpiringModelPin:
+    """One model pin with a monotonic expiration deadline."""
+
+    model: str
+    expires_at: float
+
+
+class StickyModelPinExpireStats:
+    """Process-local session model pins with TTL expiration counters."""
+
+    def __init__(self) -> None:
+        """Initialize empty session pin state."""
+        self._pins: dict[str, _ExpiringModelPin] = {}
+        self._expiration_counts: dict[str, int] = {}
+
+    def pin(
+        self,
+        session_id: str,
+        model: str,
+        ttl_seconds: float,
+        *,
+        now: float | None = None,
+    ) -> None:
+        """Create or replace a session model pin with a TTL."""
+        if ttl_seconds <= 0.0:
+            raise ValueError(f"ttl_seconds must be positive, got {ttl_seconds}")
+        timestamp = time.monotonic() if now is None else now
+        self._pins[session_id] = _ExpiringModelPin(
+            model=model,
+            expires_at=timestamp + ttl_seconds,
+        )
+
+    def pinned_model(self, session_id: str, *, now: float | None = None) -> str | None:
+        """Return an unexpired pinned model, removing an expired pin."""
+        pin = self._pins.get(session_id)
+        if pin is None:
+            return None
+        timestamp = time.monotonic() if now is None else now
+        if timestamp >= pin.expires_at:
+            self._pins.pop(session_id, None)
+            self._expiration_counts[session_id] = self._expiration_counts.get(session_id, 0) + 1
+            return None
+        return pin.model
+
+    def remaining_seconds(self, session_id: str, *, now: float | None = None) -> float:
+        """Return the non-negative lifetime remaining on a model pin."""
+        pin = self._pins.get(session_id)
+        if pin is None:
+            return 0.0
+        timestamp = time.monotonic() if now is None else now
+        return max(0.0, pin.expires_at - timestamp)
+
+    def clear(self, session_id: str) -> None:
+        """Remove a session pin without counting a TTL expiration."""
+        self._pins.pop(session_id, None)
+
+    def expiration_count(self, session_id: str) -> int:
+        """Return the number of TTL expirations observed for a session."""
+        return self._expiration_counts.get(session_id, 0)
+
+
+class StickyModelPinExpireStrategy(RoutingStrategy):
+    """Pin each session to a model until its configurable TTL expires.
+
+    Unexpired pins preserve model and provider-cache affinity. At the deadline,
+    the strategy removes the pin and re-evaluates current provider health and
+    model quality before establishing a fresh TTL. Unlike sticky-region-drain,
+    this controls model affinity lifetime rather than operational region
+    evacuation for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    """
+
+    strategy_name = RoutingStrategyName.STICKY_MODEL_PIN_EXPIRE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        pin_stats: StickyModelPinExpireStats,
+        ttl_seconds: float = 300.0,
+    ) -> None:
+        """Initialize expiring sticky-model routing."""
+        super().__init__(model_catalog)
+        if ttl_seconds <= 0.0:
+            raise ValueError(f"ttl_seconds must be positive, got {ttl_seconds}")
+        self._provider_health = provider_health
+        self._pin_stats = pin_stats
+        self._ttl_seconds = ttl_seconds
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Keep an unexpired healthy pin or choose and pin a fresh model."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        expiration_count = self._pin_stats.expiration_count(request.session_id)
+        pinned_model = self._pin_stats.pinned_model(request.session_id)
+        expired = self._pin_stats.expiration_count(request.session_id) > expiration_count
+        eligible_models = {candidate.model for candidate in eligible}
+
+        if pinned_model is not None and pinned_model in eligible_models:
+            pinned = self._model_catalog[pinned_model]
+            if self._provider_health.is_available(pinned.provider):
+                return RoutingDecision(
+                    chosen_model=pinned.model,
+                    provider=pinned.provider,
+                    routing_strategy=self.strategy_name,
+                    rationale=(
+                        f"sticky-model-pin-expire kept session '{request.session_id}' on "
+                        f"unexpired pin {pinned.model}; "
+                        f"{self._pin_stats.remaining_seconds(request.session_id):.2f}s remain"
+                    ),
+                    fallback_chain=[
+                        candidate.model
+                        for candidate in sorted(
+                            (
+                                candidate
+                                for candidate in eligible
+                                if candidate.model != pinned.model
+                                and self._provider_health.is_available(candidate.provider)
+                            ),
+                            key=lambda candidate: (-candidate.quality_score, candidate.model),
+                        )[:3]
+                    ],
+                )
+            self._pin_stats.clear(request.session_id)
+            reselection_reason = f"pinned provider {pinned.provider} became unavailable before TTL"
+        elif expired:
+            reselection_reason = "model pin TTL expired"
+        elif pinned_model is not None:
+            self._pin_stats.clear(request.session_id)
+            reselection_reason = "pinned model is no longer domain-eligible"
+        else:
+            reselection_reason = "no existing model pin"
+
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        candidates = healthy or eligible
+        selected = max(
+            candidates,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                candidate.model,
+            ),
+        )
+        self._pin_stats.pin(
+            request.session_id,
+            selected.model,
+            self._ttl_seconds,
+        )
+        fallback_candidates = sorted(
+            (candidate for candidate in candidates if candidate.model != selected.model),
+            key=lambda candidate: (-candidate.quality_score, candidate.model),
+        )
+        availability_note = "healthy" if healthy else "emergency"
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=(
+                f"sticky-model-pin-expire {reselection_reason}; selected {availability_note} "
+                f"quality leader {selected.model} and created a {self._ttl_seconds:.2f}s pin "
+                f"for session '{request.session_id}'"
+            ),
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -9752,6 +9925,8 @@ def build_strategies(
     provider_canary_shadow_stats: CanaryShadowSplitStats | None = None,
     provider_canary_primary_provider: str = "openai",
     provider_canary_shadow_percent: float = 5.0,
+    sticky_model_pin_expire_stats: StickyModelPinExpireStats | None = None,
+    sticky_model_pin_ttl_seconds: float = 300.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -9895,6 +10070,9 @@ def build_strategies(
         provider_canary_primary_provider: Preferred provider for primary traffic.
         provider_canary_shadow_percent: Deterministic traffic percentage annotated
             with a healthy different-provider shadow candidate.
+        sticky_model_pin_expire_stats: Optional shared session model-pin state.
+        sticky_model_pin_ttl_seconds: Lifetime for each sticky model pin in
+            seconds before health and quality are re-evaluated.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -9977,6 +10155,9 @@ def build_strategies(
     )
     resolved_sticky_region_drain_stats = sticky_region_drain_stats or StickyRegionDrainStats()
     resolved_provider_canary_shadow_stats = provider_canary_shadow_stats or CanaryShadowSplitStats()
+    resolved_sticky_model_pin_expire_stats = (
+        sticky_model_pin_expire_stats or StickyModelPinExpireStats()
+    )
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
         RoutingStrategyName.CLASSIFIER: ClassifierStrategy(model_catalog),
@@ -10346,6 +10527,12 @@ def build_strategies(
             shadow_stats=resolved_provider_canary_shadow_stats,
             preferred_provider=provider_canary_primary_provider,
             shadow_percent=provider_canary_shadow_percent,
+        ),
+        RoutingStrategyName.STICKY_MODEL_PIN_EXPIRE: StickyModelPinExpireStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            pin_stats=resolved_sticky_model_pin_expire_stats,
+            ttl_seconds=sticky_model_pin_ttl_seconds,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
