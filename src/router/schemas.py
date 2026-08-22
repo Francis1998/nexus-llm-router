@@ -107,6 +107,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_CANARY_SHADOW_SPLIT = "provider-canary-shadow-split"
     STICKY_MODEL_PIN_EXPIRE = "sticky-model-pin-expire"
     TENANT_PRIORITY_LANES = "tenant-priority-lanes"
+    REQUEST_CLASS_QOS = "request-class-qos"
     AB_TEST = "ab"
 
 
