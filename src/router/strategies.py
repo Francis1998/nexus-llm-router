@@ -10321,6 +10321,118 @@ class DeadlineAwarePickStrategy(RoutingStrategy):
         )
 
 
+class ProviderSuccessFloorStrategy(RoutingStrategy):
+    """Skip providers whose recent success rate falls below a floor.
+
+    Filters domain-eligible healthy candidates through rolling
+    ``SuccessStats`` and keeps providers at or above
+    ``NEXUS_PROVIDER_SUCCESS_FLOOR`` (default ``0.85``). When every candidate
+    is below the floor, the strategy emergency-retains the highest-success
+    healthy option so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+    traffic still routes.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_SUCCESS_FLOOR
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        success_stats: SuccessStats,
+        success_floor: float = 0.85,
+    ) -> None:
+        """Initialize provider success-floor routing."""
+        super().__init__(model_catalog)
+        if not 0.0 <= success_floor <= 1.0:
+            raise ValueError(f"success_floor must be within [0.0, 1.0], got {success_floor}")
+        self._provider_health = provider_health
+        self._success_stats = success_stats
+        self._success_floor = success_floor
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best quality model whose provider meets the success floor."""
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        rates = {
+            candidate.model: self._success_stats.success_rate(candidate.provider)
+            for candidate in active
+        }
+        above_floor = [
+            candidate for candidate in active if rates[candidate.model] >= self._success_floor
+        ]
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+
+        if above_floor:
+            selected = max(
+                above_floor,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    rates[candidate.model],
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            policy = "highest-quality provider meeting success floor"
+            floor_note = (
+                f"provider success {rates[selected.model]:.2%} meets floor "
+                f"{self._success_floor:.2%}"
+            )
+            emergency = False
+        else:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    rates[candidate.model],
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            policy = "emergency highest-success retain"
+            floor_note = (
+                f"every eligible provider below floor {self._success_floor:.2%}; "
+                f"retained {selected.provider} at {rates[selected.model]:.2%}"
+            )
+            emergency = True
+
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+        fallback_candidates = sorted(
+            (candidate for candidate in active if candidate.model != selected.model),
+            key=lambda candidate: (
+                rates[candidate.model] < self._success_floor,
+                -rates[candidate.model],
+                -candidate.quality_score,
+                costs[candidate.model],
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=(
+                f"provider-success-floor {floor_note}; selected {availability_note} "
+                f"{policy} {selected.model}" + ("; emergency retain" if emergency else "")
+            ),
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -10442,6 +10554,7 @@ def build_strategies(
     tenant_priority_normal_quota: int = 60,
     tenant_priority_low_quota: int = 30,
     deadline_aware_threshold_ms: float = 500.0,
+    provider_success_floor: float = 0.85,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -10597,6 +10710,8 @@ def build_strategies(
         tenant_priority_low_quota: Low-lane soft quota inside the lookback.
         deadline_aware_threshold_ms: Remaining-budget threshold in milliseconds
             that switches deadline-aware pick to the fastest healthy model.
+        provider_success_floor: Minimum rolling provider success rate for
+            provider-success-floor routing within ``[0.0, 1.0]``.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -11082,6 +11197,12 @@ def build_strategies(
             provider_health=provider_health,
             latency_stats=latency_stats,
             deadline_threshold_ms=deadline_aware_threshold_ms,
+        ),
+        RoutingStrategyName.PROVIDER_SUCCESS_FLOOR: ProviderSuccessFloorStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            success_stats=resolved_success_stats,
+            success_floor=provider_success_floor,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

@@ -2098,3 +2098,21 @@ provider circuit is open the strategy retains an emergency eligible route for
 GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
 [docs/guides/DEADLINE_AWARE_PICK_GUIDE.md](docs/guides/DEADLINE_AWARE_PICK_GUIDE.md).
 
+## Provider-Success-Floor Routing
+
+The `provider-success-floor` strategy filters healthy domain-eligible providers
+through rolling success telemetry and keeps only providers whose success rate is
+at or above the configured floor. When every candidate is below the floor it
+emergency-retains the highest-success provider.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-success-floor
+NEXUS_PROVIDER_SUCCESS_FLOOR=0.85
+```
+
+`NEXUS_PROVIDER_SUCCESS_FLOOR` must be within `[0.0, 1.0]`. Providers with no
+observations are treated as fully healthy. Distinct from cumulative
+`provider-error-budget-shed` and timed `provider-error-budget-reset` for
+GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+[docs/guides/PROVIDER_SUCCESS_FLOOR_GUIDE.md](docs/guides/PROVIDER_SUCCESS_FLOOR_GUIDE.md).
+

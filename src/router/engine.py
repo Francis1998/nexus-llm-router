@@ -252,6 +252,7 @@ class NexusRouter:
             tenant_priority_normal_quota=settings.tenant_priority_normal_quota,
             tenant_priority_low_quota=settings.tenant_priority_low_quota,
             deadline_aware_threshold_ms=settings.deadline_aware_threshold_ms,
+            provider_success_floor=settings.provider_success_floor,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

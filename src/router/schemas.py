@@ -109,6 +109,7 @@ class RoutingStrategyName(StrEnum):
     TENANT_PRIORITY_LANES = "tenant-priority-lanes"
     REQUEST_CLASS_QOS = "request-class-qos"
     DEADLINE_AWARE_PICK = "deadline-aware-pick"
+    PROVIDER_SUCCESS_FLOOR = "provider-success-floor"
     AB_TEST = "ab"
 
 
