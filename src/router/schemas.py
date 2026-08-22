@@ -108,6 +108,7 @@ class RoutingStrategyName(StrEnum):
     STICKY_MODEL_PIN_EXPIRE = "sticky-model-pin-expire"
     TENANT_PRIORITY_LANES = "tenant-priority-lanes"
     REQUEST_CLASS_QOS = "request-class-qos"
+    DEADLINE_AWARE_PICK = "deadline-aware-pick"
     AB_TEST = "ab"
 
 

@@ -10185,6 +10185,142 @@ class RequestClassQosStrategy(RoutingStrategy):
         )
 
 
+class DeadlineAwarePickStrategy(RoutingStrategy):
+    """Pick the fastest healthy model when the request deadline is tight.
+
+    Reads remaining budget from ``metadata.deadline_ms`` or
+    ``metadata.remaining_ms``. When the remaining budget is below
+    ``NEXUS_DEADLINE_AWARE_THRESHOLD_MS`` (default ``500``), the strategy
+    selects the lowest observed healthy latency. Otherwise it stays
+    quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    Missing or invalid deadline metadata keeps quality-first routing.
+    """
+
+    strategy_name = RoutingStrategyName.DEADLINE_AWARE_PICK
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        latency_stats: LatencyStats,
+        deadline_threshold_ms: float = 500.0,
+    ) -> None:
+        """Initialize deadline-aware pick routing."""
+        super().__init__(model_catalog)
+        if deadline_threshold_ms < 0.0:
+            raise ValueError(f"deadline_threshold_ms must be >= 0.0, got {deadline_threshold_ms}")
+        self._provider_health = provider_health
+        self._latency_stats = latency_stats
+        self._deadline_threshold_ms = deadline_threshold_ms
+
+    @staticmethod
+    def _remaining_ms(request: RouterRequest) -> float | None:
+        """Parse remaining deadline budget from request metadata."""
+        for key in ("remaining_ms", "deadline_ms"):
+            value = request.metadata.get(key)
+            if value is None:
+                continue
+            try:
+                remaining = float(value)
+            except (TypeError, ValueError):
+                continue
+            if remaining < 0.0:
+                continue
+            return remaining
+        return None
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose fastest healthy model under deadline pressure, else quality."""
+        remaining_ms = self._remaining_ms(request)
+        deadline_tight = remaining_ms is not None and remaining_ms < self._deadline_threshold_ms
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        candidates = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in candidates
+        }
+        availability_note = "healthy" if healthy else "emergency"
+
+        if deadline_tight:
+            observed = [
+                candidate for candidate in candidates if self._latency_stats.p95(candidate.provider)
+            ]
+            priority_pool = observed or candidates
+            selected = min(
+                priority_pool,
+                key=lambda candidate: (
+                    self._latency_stats.p95(candidate.provider)
+                    if observed
+                    else -candidate.quality_score,
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            policy = "fastest healthy deadline route"
+            deadline_note = (
+                f"remaining {remaining_ms:.2f}ms below threshold "
+                f"{self._deadline_threshold_ms:.2f}ms"
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in candidates if candidate.model != selected.model),
+                key=lambda candidate: (
+                    self._latency_stats.p95(candidate.provider) == 0.0,
+                    self._latency_stats.p95(candidate.provider),
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+        else:
+            selected = max(
+                candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            policy = "quality-first route"
+            if remaining_ms is None:
+                deadline_note = "no deadline metadata; quality-first"
+            else:
+                deadline_note = (
+                    f"remaining {remaining_ms:.2f}ms at/above threshold "
+                    f"{self._deadline_threshold_ms:.2f}ms"
+                )
+            fallback_candidates = sorted(
+                (candidate for candidate in candidates if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=(
+                f"deadline-aware-pick {deadline_note}; selected {availability_note} "
+                f"{policy} {selected.model}"
+            ),
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -10305,6 +10441,7 @@ def build_strategies(
     tenant_priority_high_quota: int = 100,
     tenant_priority_normal_quota: int = 60,
     tenant_priority_low_quota: int = 30,
+    deadline_aware_threshold_ms: float = 500.0,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -10458,6 +10595,8 @@ def build_strategies(
         tenant_priority_high_quota: High-lane soft quota inside the lookback.
         tenant_priority_normal_quota: Normal-lane soft quota inside the lookback.
         tenant_priority_low_quota: Low-lane soft quota inside the lookback.
+        deadline_aware_threshold_ms: Remaining-budget threshold in milliseconds
+            that switches deadline-aware pick to the fastest healthy model.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -10937,6 +11076,12 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             latency_stats=latency_stats,
+        ),
+        RoutingStrategyName.DEADLINE_AWARE_PICK: DeadlineAwarePickStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            latency_stats=latency_stats,
+            deadline_threshold_ms=deadline_aware_threshold_ms,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
