@@ -2079,3 +2079,22 @@ Unknown values fall back to interactive. When every provider circuit is open the
 strategy retains an emergency eligible route for GPT-5.5 / Claude Sonnet 4.6 /
 Gemini 3.x / Kimi K2 traffic. See
 [docs/guides/REQUEST_CLASS_QOS_GUIDE.md](docs/guides/REQUEST_CLASS_QOS_GUIDE.md).
+
+## Deadline-Aware-Pick Routing
+
+The `deadline-aware-pick` strategy compares remaining request budget from
+`metadata.remaining_ms` or `metadata.deadline_ms` against a configurable
+threshold. Below the threshold it selects the fastest observed healthy provider;
+at or above the threshold it keeps quality-first routing.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=deadline-aware-pick
+NEXUS_DEADLINE_AWARE_THRESHOLD_MS=500.0
+```
+
+`NEXUS_DEADLINE_AWARE_THRESHOLD_MS` must be greater than or equal to `0.0`.
+Missing or invalid deadline metadata keeps quality-first selection. When every
+provider circuit is open the strategy retains an emergency eligible route for
+GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+[docs/guides/DEADLINE_AWARE_PICK_GUIDE.md](docs/guides/DEADLINE_AWARE_PICK_GUIDE.md).
+

@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `deadline-aware-pick` routing strategy: reads `metadata.deadline_ms` or `metadata.remaining_ms` and switches to the fastest healthy model when remaining budget is below `NEXUS_DEADLINE_AWARE_THRESHOLD_MS` (default `500`), otherwise keeping quality-first selection for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/DEADLINE_AWARE_PICK_GUIDE.md`.
+
 - `request-class-qos` routing strategy: maps `metadata.request_class` or `metadata.qos_class` to interactive (lowest observed healthy latency + quality), batch (quality-first mid-cost), or bulk (cheapest healthy) policies for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/REQUEST_CLASS_QOS_GUIDE.md`.
 
 - `tenant-priority-lanes` routing strategy: maps configured or per-request tenants to high, normal, and low lanes. Under provider health pressure or recent lane-quota pressure, high tenants prefer the fastest observed healthy provider, normal tenants preserve quality, and low tenants shift to a cost-efficient relief route for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/TENANT_PRIORITY_LANES_GUIDE.md`.

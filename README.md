@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-652%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-661%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -193,6 +193,7 @@ Select a strategy with `X-Router-Strategy`:
 - `sticky-model-pin-expire`: keeps each session on a healthy model for `NEXUS_STICKY_MODEL_PIN_TTL_SECONDS`, then expires the process-local pin and re-evaluates current provider health and quality before creating a fresh pin for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `tenant-priority-lanes`: maps configured or per-request tenants into high, normal, and low lanes, preserving quality when capacity is available while using fastest-healthy or cost-efficient relief routes under provider-health or lane-quota pressure for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `request-class-qos`: maps `metadata.request_class` or `metadata.qos_class` to interactive (lowest observed healthy latency + quality), batch (quality-first mid-cost), or bulk (cheapest healthy) policies for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `deadline-aware-pick`: reads `metadata.deadline_ms` or `metadata.remaining_ms` and picks the fastest healthy model when remaining budget is below `NEXUS_DEADLINE_AWARE_THRESHOLD_MS`, otherwise staying quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
