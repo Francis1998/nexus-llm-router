@@ -2062,3 +2062,20 @@ change routing preference rather than preempting in-flight work. This provides
 capacity-aware differentiation for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
 Kimi K2 traffic. See
 [docs/guides/TENANT_PRIORITY_LANES_GUIDE.md](docs/guides/TENANT_PRIORITY_LANES_GUIDE.md).
+
+## Request-Class-QoS Routing
+
+The `request-class-qos` strategy reads `metadata.request_class` or
+`metadata.qos_class` and applies a class-specific healthy-provider policy:
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=request-class-qos
+```
+
+Supported classes are `interactive` (default), `batch`, and `bulk`. Interactive
+selects the lowest observed healthy latency with quality tie-breaks, batch keeps
+quality-first mid-cost preference, and bulk minimizes estimated request cost.
+Unknown values fall back to interactive. When every provider circuit is open the
+strategy retains an emergency eligible route for GPT-5.5 / Claude Sonnet 4.6 /
+Gemini 3.x / Kimi K2 traffic. See
+[docs/guides/REQUEST_CLASS_QOS_GUIDE.md](docs/guides/REQUEST_CLASS_QOS_GUIDE.md).

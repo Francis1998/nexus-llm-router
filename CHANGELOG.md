@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `request-class-qos` routing strategy: maps `metadata.request_class` or `metadata.qos_class` to interactive (lowest observed healthy latency + quality), batch (quality-first mid-cost), or bulk (cheapest healthy) policies for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/REQUEST_CLASS_QOS_GUIDE.md`.
+
 - `tenant-priority-lanes` routing strategy: maps configured or per-request tenants to high, normal, and low lanes. Under provider health pressure or recent lane-quota pressure, high tenants prefer the fastest observed healthy provider, normal tenants preserve quality, and low tenants shift to a cost-efficient relief route for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/TENANT_PRIORITY_LANES_GUIDE.md`.
 
 - `sticky-model-pin-expire` routing strategy: preserves each session's healthy model pin for `NEXUS_STICKY_MODEL_PIN_TTL_SECONDS` (default `300`), expires it on a monotonic deadline, and re-evaluates provider health and quality before creating a fresh pin. Distinct from regional drain and success-threshold session migration for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/STICKY_MODEL_PIN_EXPIRE_GUIDE.md`.

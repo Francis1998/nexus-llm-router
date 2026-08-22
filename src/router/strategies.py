@@ -10032,6 +10032,159 @@ class TenantPriorityLanesStrategy(RoutingStrategy):
         )
 
 
+class RequestClass(StrEnum):
+    """Supported request QoS classes."""
+
+    INTERACTIVE = "interactive"
+    BATCH = "batch"
+    BULK = "bulk"
+
+
+class RequestClassQosStrategy(RoutingStrategy):
+    """Route by request class QoS from metadata.
+
+    Reads ``request_class`` or ``qos_class`` from request metadata and applies
+    a class-specific policy over healthy domain-eligible candidates:
+
+    - ``interactive`` (default): lowest observed provider latency, then quality
+    - ``batch``: quality-first with mid-cost preference
+    - ``bulk``: cheapest healthy model
+
+    Unknown class values fall back to interactive so GPT-5.5 / Claude Sonnet
+    4.6 / Gemini 3.x / Kimi K2 traffic still receives a deterministic policy.
+    """
+
+    strategy_name = RoutingStrategyName.REQUEST_CLASS_QOS
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        latency_stats: LatencyStats,
+    ) -> None:
+        """Initialize request-class QoS routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._latency_stats = latency_stats
+
+    @staticmethod
+    def _request_class(request: RouterRequest) -> RequestClass:
+        """Resolve the request class from metadata with interactive default."""
+        for key in ("request_class", "qos_class"):
+            value = request.metadata.get(key)
+            if value is None:
+                continue
+            try:
+                return RequestClass(str(value).strip().lower())
+            except ValueError:
+                continue
+        return RequestClass.INTERACTIVE
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Select a model according to the request's QoS class."""
+        request_class = self._request_class(request)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        candidates = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in candidates
+        }
+        availability_note = "healthy" if healthy else "emergency"
+
+        if request_class is RequestClass.BULK:
+            selected = min(
+                candidates,
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            policy = "cheapest healthy route"
+        elif request_class is RequestClass.BATCH:
+            median_cost = sorted(costs.values())[len(costs) // 2]
+            selected = max(
+                candidates,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -abs(costs[candidate.model] - median_cost),
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            policy = "quality-first mid-cost route"
+        else:
+            observed = [
+                candidate for candidate in candidates if self._latency_stats.p95(candidate.provider)
+            ]
+            priority_pool = observed or candidates
+            selected = min(
+                priority_pool,
+                key=lambda candidate: (
+                    self._latency_stats.p95(candidate.provider)
+                    if observed
+                    else -candidate.quality_score,
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            policy = "lowest observed latency high-quality route"
+
+        if request_class is RequestClass.BULK:
+            fallback_candidates = sorted(
+                (candidate for candidate in candidates if candidate.model != selected.model),
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+        elif request_class is RequestClass.BATCH:
+            median_cost = sorted(costs.values())[len(costs) // 2]
+            fallback_candidates = sorted(
+                (candidate for candidate in candidates if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    abs(costs[candidate.model] - median_cost),
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+        else:
+            fallback_candidates = sorted(
+                (candidate for candidate in candidates if candidate.model != selected.model),
+                key=lambda candidate: (
+                    self._latency_stats.p95(candidate.provider) == 0.0,
+                    self._latency_stats.p95(candidate.provider),
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=(
+                f"request-class-qos mapped class '{request_class.value}' to {policy}; "
+                f"selected {availability_note} {selected.model}"
+            ),
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -10779,6 +10932,11 @@ def build_strategies(
             high_quota=tenant_priority_high_quota,
             normal_quota=tenant_priority_normal_quota,
             low_quota=tenant_priority_low_quota,
+        ),
+        RoutingStrategyName.REQUEST_CLASS_QOS: RequestClassQosStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            latency_stats=latency_stats,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
