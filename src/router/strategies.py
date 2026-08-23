@@ -9,8 +9,10 @@ from hashlib import sha256
 from typing import Protocol
 
 from router.model_ids import (
+    ANTHROPIC_FAST_MODEL,
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_FLASH_MODEL,
+    GEMINI_PRO_MODEL,
     MOONSHOT_BALANCED_MODEL,
     OPENAI_BALANCED_MODEL,
     OPENAI_FRONTIER_MODEL,
@@ -10433,6 +10435,163 @@ class ProviderSuccessFloorStrategy(RoutingStrategy):
         )
 
 
+_KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
+    OPENAI_FRONTIER_MODEL: frozenset({"vision", "tools", "long_context"}),
+    OPENAI_BALANCED_MODEL: frozenset({"tools"}),
+    ANTHROPIC_SAFETY_MODEL: frozenset({"vision", "tools", "long_context"}),
+    ANTHROPIC_FAST_MODEL: frozenset({"tools"}),
+    GEMINI_PRO_MODEL: frozenset({"vision", "tools", "long_context"}),
+    GEMINI_FLASH_MODEL: frozenset({"vision", "tools"}),
+    MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context"}),
+}
+
+
+class ModelCapabilityGateStrategy(RoutingStrategy):
+    """Gate candidate models on request-declared capability requirements.
+
+    Reads ``metadata.required_capabilities`` — a comma-separated string or a
+    list of capability names such as ``vision``, ``tools``, or
+    ``long_context`` — and restricts domain-eligible healthy candidates to
+    those whose capability set covers every required capability. A model's
+    capability set is read from ``metadata.model_capabilities`` (an optional
+    per-request override mapping model name to a capability list) and falls
+    back to the built-in known-model capability map otherwise. When no
+    candidate satisfies every required capability, the strategy
+    emergency-retains the highest-quality healthy candidate so GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic still routes. Inspired by
+    LiteLLM / OpenRouter capability-aware model filtering.
+    """
+
+    strategy_name = RoutingStrategyName.MODEL_CAPABILITY_GATE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        capability_map: Mapping[str, frozenset[str]] | None = None,
+    ) -> None:
+        """Initialize model-capability-gate routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._capability_map = capability_map or _KNOWN_MODEL_CAPABILITIES
+
+    @staticmethod
+    def _required_capabilities(request: RouterRequest) -> frozenset[str]:
+        """Parse the requested capability set from request metadata."""
+        raw = request.metadata.get("required_capabilities")
+        if raw is None:
+            return frozenset()
+        if isinstance(raw, str):
+            parts: Iterable[object] = raw.split(",")
+        elif isinstance(raw, Iterable) and not isinstance(raw, (bytes, bytearray)):
+            parts = raw
+        else:
+            return frozenset()
+        return frozenset(stripped.lower() for item in parts if (stripped := str(item).strip()))
+
+    def _capabilities_for(self, model: str, request: RouterRequest) -> frozenset[str]:
+        """Resolve a model's capability set from request overrides or the known map."""
+        overrides = request.metadata.get("model_capabilities")
+        if isinstance(overrides, Mapping):
+            override = overrides.get(model)
+            if override is not None:
+                if isinstance(override, str):
+                    return frozenset(
+                        stripped.lower()
+                        for part in override.split(",")
+                        if (stripped := part.strip())
+                    )
+                if isinstance(override, Iterable) and not isinstance(override, (bytes, bytearray)):
+                    return frozenset(str(item).strip().lower() for item in override)
+        return self._capability_map.get(model, frozenset())
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the best quality model whose capabilities satisfy the request."""
+        required = self._required_capabilities(request)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        capabilities = {
+            candidate.model: self._capabilities_for(candidate.model, request)
+            for candidate in active
+        }
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        capable = (
+            [candidate for candidate in active if required <= capabilities[candidate.model]]
+            if required
+            else active
+        )
+
+        if capable:
+            selected = max(
+                capable,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            emergency = False
+            if required:
+                gate_note = (
+                    f"required capabilities {sorted(required)} satisfied by "
+                    f"{sorted(capabilities[selected.model])}"
+                )
+            else:
+                gate_note = "no required capabilities declared"
+            policy = "highest-quality capability match"
+        else:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            emergency = True
+            gate_note = (
+                f"no candidate satisfies required capabilities {sorted(required)}; "
+                f"nearest {selected.model} offers {sorted(capabilities[selected.model])}"
+            )
+            policy = "emergency quality-first retain"
+
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+        fallback_pool = capable or active
+        fallback_candidates = sorted(
+            (candidate for candidate in fallback_pool if candidate.model != selected.model),
+            key=lambda candidate: (
+                -candidate.quality_score,
+                costs[candidate.model],
+                candidate.model,
+            ),
+        )
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=(
+                f"model-capability-gate {gate_note}; selected {availability_note} "
+                f"{policy} {selected.model}" + ("; emergency retain" if emergency else "")
+            ),
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -10555,6 +10714,7 @@ def build_strategies(
     tenant_priority_low_quota: int = 30,
     deadline_aware_threshold_ms: float = 500.0,
     provider_success_floor: float = 0.85,
+    model_capability_map: Mapping[str, frozenset[str]] | None = None,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -10712,6 +10872,9 @@ def build_strategies(
             that switches deadline-aware pick to the fastest healthy model.
         provider_success_floor: Minimum rolling provider success rate for
             provider-success-floor routing within ``[0.0, 1.0]``.
+        model_capability_map: Optional override for the known model
+            capability map used by model-capability-gate routing when a
+            request omits a ``metadata.model_capabilities`` override.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -11203,6 +11366,11 @@ def build_strategies(
             provider_health=provider_health,
             success_stats=resolved_success_stats,
             success_floor=provider_success_floor,
+        ),
+        RoutingStrategyName.MODEL_CAPABILITY_GATE: ModelCapabilityGateStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            capability_map=model_capability_map,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
