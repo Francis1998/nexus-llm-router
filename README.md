@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-702%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-700%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -195,7 +195,7 @@ Select a strategy with `X-Router-Strategy`:
 - `request-class-qos`: maps `metadata.request_class` or `metadata.qos_class` to interactive (lowest observed healthy latency + quality), batch (quality-first mid-cost), or bulk (cheapest healthy) policies for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `deadline-aware-pick`: reads `metadata.deadline_ms` or `metadata.remaining_ms` and picks the fastest healthy model when remaining budget is below `NEXUS_DEADLINE_AWARE_THRESHOLD_MS`, otherwise staying quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `provider-success-floor`: skips providers whose rolling success rate is below `NEXUS_PROVIDER_SUCCESS_FLOOR`, preferring highest quality above the floor and emergency-retaining the highest-success provider when every candidate is below for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-warmup-weight`: blends quality with a warmup signal from recent successful traffic (`metadata.provider_warmup_score` or rolling `WarmupStats`) using `NEXUS_PROVIDER_WARMUP_BLEND` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `provider-warmup-weight`: blends quality with a per-request `metadata.provider_warmup` score (defaulting to `0.5` when omitted) using `NEXUS_PROVIDER_WARMUP_BLEND` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `tenant-soft-isolation`: tracks each tenant's rolling request rate and demotes tenants above `NEXUS_TENANT_SOFT_ISOLATION_RPM` to the cheapest healthy domain-compatible model instead of frontier routing, without rejecting the request, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `model-capability-gate`: filters candidates to those whose capability set covers every capability in `metadata.required_capabilities` (for example `vision`, `tools`, `long_context`), using a per-request `metadata.model_capabilities` override or the built-in known-model map, and emergency-retains the highest-quality healthy candidate when none match for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms

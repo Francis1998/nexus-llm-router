@@ -2139,17 +2139,22 @@ OpenRouter capability-aware model filtering. See
 ## Provider-Warmup-Weight Routing
 
 The `provider-warmup-weight` strategy blends each healthy domain-eligible
-candidate's quality score with a warmup signal drawn from recent successful
-traffic, biasing selection toward providers that are already warm.
+candidate's quality score with a per-provider warmup score read directly
+from the request, biasing selection toward providers that are already warm.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=provider-warmup-weight
 NEXUS_PROVIDER_WARMUP_BLEND=0.3
 ```
 
-`NEXUS_PROVIDER_WARMUP_BLEND` must be within `[0.0, 1.0]`. Inspired by
-Envoy warm-host preference for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2. See [docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md](docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md).
+`NEXUS_PROVIDER_WARMUP_BLEND` must be within `[0.0, 1.0]` and is the weight
+applied to the warmup score in `(1 - blend) * quality + blend * warmup`. The
+warmup score is read from `metadata.provider_warmup` — a mapping of provider
+name to a score in `[0.0, 1.0]` — and defaults to `0.5` for any provider
+missing from the mapping, or when a request omits the mapping entirely.
+Inspired by Envoy warm-host preference for GPT-5.5 / Claude Sonnet 4.6 /
+Gemini 3.x / Kimi K2. See
+[docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md](docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md).
 
 ## Tenant-Soft-Isolation Routing
 

@@ -10592,75 +10592,29 @@ class ModelCapabilityGateStrategy(RoutingStrategy):
         )
 
 
-class WarmupStats:
-    """Rolling recent-success warmup signal used to bias toward warm providers.
-
-    Tracks a bounded window of recent attempt outcomes per provider. The
-    warmup score is the fraction of the retained window that were successful
-    attempts, in ``[0.0, 1.0]``, so providers carrying more recent successful
-    traffic register a stronger warmup signal — analogous to Envoy/outlier
-    detection "warm host" preference.
-    """
-
-    def __init__(self, lookback: int = 50) -> None:
-        """Initialize an empty warmup observation window."""
-        if lookback < 1:
-            raise ValueError(f"lookback must be >= 1, got {lookback}")
-        self._lookback = lookback
-        self._observations: dict[str, list[bool]] = {}
-
-    @property
-    def lookback(self) -> int:
-        """Return the maximum number of retained observations per provider."""
-        return self._lookback
-
-    def observe(self, provider: str, *, success: bool) -> None:
-        """Record a provider attempt outcome and evict the oldest excess entry."""
-        window = self._observations.setdefault(provider, [])
-        window.append(success)
-        if len(window) > self._lookback:
-            del window[: len(window) - self._lookback]
-
-    def warmup_score(self, provider: str) -> float:
-        """Return a provider's warmup score in ``[0.0, 1.0]``.
-
-        Providers with no observations yet return ``0.0`` — cold providers
-        carry no warmup bias until real traffic accumulates.
-
-        Args:
-            provider: Provider name.
-
-        Returns:
-            Fraction of the retained window that succeeded.
-        """
-        window = self._observations.get(provider)
-        if not window:
-            return 0.0
-        return sum(window) / self._lookback
-
-
 class ProviderWarmupWeightStrategy(RoutingStrategy):
-    """Bias selection toward providers carrying warm recent successful traffic.
+    """Bias selection toward providers with a higher per-request warmup score.
 
     Blends each domain-eligible healthy candidate's quality score with a
     warmup signal using ``NEXUS_PROVIDER_WARMUP_BLEND`` (default ``0.3``) as
     the warmup weight: ``(1 - blend) * quality + blend * warmup``. The warmup
-    signal is read from a per-request ``metadata.provider_warmup_score``
-    override (mapping provider name to a score in ``[0.0, 1.0]``) or, absent
-    an override, a shared rolling ``WarmupStats`` window of recent successful
-    traffic. Cold providers with no observations register a neutral warmup
-    score of ``0.0`` so quality alone still governs selection until traffic
-    warms them up. Inspired by Envoy/outlier-detection warm-host preference
+    signal is read directly from a per-request ``metadata.provider_warmup``
+    mapping (provider name to a score in ``[0.0, 1.0]``). Providers omitted
+    from the mapping, or requests that omit the mapping entirely, default to
+    a neutral warmup score of ``0.5`` — neither cold nor confidently warm —
+    so quality still meaningfully governs selection absent an explicit
+    warmup signal. Inspired by Envoy/outlier-detection warm-host preference
     for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
     """
 
     strategy_name = RoutingStrategyName.PROVIDER_WARMUP_WEIGHT
 
+    _DEFAULT_WARMUP_SCORE = 0.5
+
     def __init__(
         self,
         model_catalog: Mapping[str, ModelCandidate],
         provider_health: ProviderHealth,
-        warmup_stats: WarmupStats,
         warmup_blend: float = 0.3,
     ) -> None:
         """Initialize provider-warmup-weight routing."""
@@ -10668,12 +10622,16 @@ class ProviderWarmupWeightStrategy(RoutingStrategy):
         if not 0.0 <= warmup_blend <= 1.0:
             raise ValueError(f"warmup_blend must be within [0.0, 1.0], got {warmup_blend}")
         self._provider_health = provider_health
-        self._warmup_stats = warmup_stats
         self._warmup_blend = warmup_blend
 
     def _warmup_score(self, provider: str, request: RouterRequest) -> float:
-        """Resolve a provider's warmup score from request overrides or shared stats."""
-        overrides = request.metadata.get("provider_warmup_score")
+        """Resolve a provider's warmup score from request metadata.
+
+        Reads ``metadata.provider_warmup`` (a mapping of provider name to a
+        score in ``[0.0, 1.0]``). Providers missing from the mapping, or a
+        request that omits the mapping entirely, default to ``0.5``.
+        """
+        overrides = request.metadata.get("provider_warmup")
         if isinstance(overrides, Mapping) and provider in overrides:
             try:
                 score = float(overrides[provider])
@@ -10681,7 +10639,7 @@ class ProviderWarmupWeightStrategy(RoutingStrategy):
                 score = None
             if score is not None:
                 return min(1.0, max(0.0, score))
-        return self._warmup_stats.warmup_score(provider)
+        return self._DEFAULT_WARMUP_SCORE
 
     def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
         """Choose the candidate with the highest quality/warmup blended score."""
@@ -11033,7 +10991,6 @@ def build_strategies(
     deadline_aware_threshold_ms: float = 500.0,
     provider_success_floor: float = 0.85,
     model_capability_map: Mapping[str, frozenset[str]] | None = None,
-    warmup_stats: WarmupStats | None = None,
     provider_warmup_blend: float = 0.3,
     tenant_soft_isolation_stats: TenantSoftIsolationStats | None = None,
     tenant_soft_isolation_rpm: int = 60,
@@ -11285,7 +11242,6 @@ def build_strategies(
     resolved_tenant_priority_lane_stats = tenant_priority_lane_stats or TenantPriorityLaneStats(
         tenant_priority_lane_lookback
     )
-    resolved_warmup_stats = warmup_stats or WarmupStats()
     resolved_tenant_soft_isolation_stats = tenant_soft_isolation_stats or TenantSoftIsolationStats()
 
     return {
@@ -11700,7 +11656,6 @@ def build_strategies(
         RoutingStrategyName.PROVIDER_WARMUP_WEIGHT: ProviderWarmupWeightStrategy(
             model_catalog,
             provider_health,
-            warmup_stats=resolved_warmup_stats,
             warmup_blend=provider_warmup_blend,
         ),
         RoutingStrategyName.TENANT_SOFT_ISOLATION: TenantSoftIsolationStrategy(

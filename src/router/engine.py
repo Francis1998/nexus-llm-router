@@ -52,7 +52,6 @@ from router.strategies import (
     TierRequestStats,
     TokenBucketStats,
     TokenRpmWindow,
-    WarmupStats,
     build_strategies,
 )
 from safety.budget import BudgetExceededError, BudgetGuardrail
@@ -130,7 +129,6 @@ class NexusRouter:
         self._tenant_priority_lane_stats = TenantPriorityLaneStats(
             settings.tenant_priority_lane_lookback
         )
-        self._warmup_stats = WarmupStats()
         self._tenant_soft_isolation_stats = TenantSoftIsolationStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
@@ -257,7 +255,6 @@ class NexusRouter:
             tenant_priority_low_quota=settings.tenant_priority_low_quota,
             deadline_aware_threshold_ms=settings.deadline_aware_threshold_ms,
             provider_success_floor=settings.provider_success_floor,
-            warmup_stats=self._warmup_stats,
             provider_warmup_blend=settings.provider_warmup_blend,
             tenant_soft_isolation_stats=self._tenant_soft_isolation_stats,
             tenant_soft_isolation_rpm=settings.tenant_soft_isolation_rpm,
@@ -366,7 +363,6 @@ class NexusRouter:
                 last_error = exception
                 self._circuit_breakers.record_failure(candidate.provider)
                 self._success_stats.observe(candidate.provider, success=False)
-                self._warmup_stats.observe(candidate.provider, success=False)
                 self._provider_error_budget_reset_stats.observe(
                     candidate.provider,
                     success=False,
@@ -415,7 +411,6 @@ class NexusRouter:
         """Build the router response and persist observability side effects."""
         self._circuit_breakers.record_success(provider)
         self._success_stats.observe(provider, success=True)
-        self._warmup_stats.observe(provider, success=True)
         self._provider_error_budget_reset_stats.observe(provider, success=True)
         self._provider_weight_stats.observe(provider, success=True)
         self._rate_limit_stats.observe(provider, rate_limited=False)
