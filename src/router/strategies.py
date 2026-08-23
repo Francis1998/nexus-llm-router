@@ -10746,6 +10746,170 @@ class ProviderWarmupWeightStrategy(RoutingStrategy):
         )
 
 
+class TenantSoftIsolationStats:
+    """Rolling per-tenant request timestamps used to detect noisy tenants."""
+
+    def __init__(self, window_seconds: float = 60.0) -> None:
+        """Initialize empty tenant request windows."""
+        if window_seconds <= 0.0:
+            raise ValueError(f"window_seconds must be positive, got {window_seconds}")
+        self._window_seconds = window_seconds
+        self._requests: dict[str, list[float]] = {}
+
+    @property
+    def window_seconds(self) -> float:
+        """Return the rolling rate window length."""
+        return self._window_seconds
+
+    def record(self, tenant_key: str, *, now: float | None = None) -> None:
+        """Record one admitted tenant request."""
+        observed_at = time.monotonic() if now is None else now
+        requests = self._requests.setdefault(tenant_key, [])
+        requests.append(observed_at)
+        self._trim(tenant_key, observed_at)
+
+    def request_rate(self, tenant_key: str, *, now: float | None = None) -> int:
+        """Return admitted requests inside the active tenant window."""
+        observed_at = time.monotonic() if now is None else now
+        return len(self._trim(tenant_key, observed_at))
+
+    def _trim(self, tenant_key: str, now: float) -> list[float]:
+        cutoff = now - self._window_seconds
+        requests = [
+            observed_at
+            for observed_at in self._requests.get(tenant_key, [])
+            if observed_at >= cutoff
+        ]
+        if requests:
+            self._requests[tenant_key] = requests
+        else:
+            self._requests.pop(tenant_key, None)
+        return requests
+
+
+class TenantSoftIsolationStrategy(RoutingStrategy):
+    """Soft-isolate noisy tenants onto spare, lower-cost capacity.
+
+    Tracks each tenant's rolling request rate with ``TenantSoftIsolationStats``.
+    Tenants at or below ``NEXUS_TENANT_SOFT_ISOLATION_RPM`` (default ``60``)
+    stay on quality-first frontier routing for GPT-5.5 / Claude Sonnet 4.6 /
+    Gemini 3.x / Kimi K2. Tenants above the soft rate are shifted to the
+    cheapest healthy domain-compatible model so a single noisy tenant borrows
+    spare capacity instead of frontier slots reserved for well-behaved
+    tenants. Unlike ``tenant-quota-burst``, this strategy never rejects a
+    request — it only demotes routing quality. Fair-use isolation inspired by
+    multi-tenant LLM gateways (Portkey/Helicone).
+    """
+
+    strategy_name = RoutingStrategyName.TENANT_SOFT_ISOLATION
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        isolation_stats: TenantSoftIsolationStats,
+        soft_isolation_rpm: int = 60,
+    ) -> None:
+        """Initialize tenant-soft-isolation routing."""
+        super().__init__(model_catalog)
+        if soft_isolation_rpm < 1:
+            raise ValueError(f"soft_isolation_rpm must be >= 1, got {soft_isolation_rpm}")
+        self._provider_health = provider_health
+        self._isolation_stats = isolation_stats
+        self._soft_isolation_rpm = soft_isolation_rpm
+
+    @staticmethod
+    def _tenant_key(request: RouterRequest) -> str:
+        """Resolve the tenant key used for soft isolation accounting."""
+        for key in ("tenant_id", "user_id", "sticky_key"):
+            value = request.metadata.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+        if request.user_id != "anonymous":
+            return request.user_id
+        return request.session_id
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Route quality-first below the soft rate, else to spare capacity."""
+        tenant_key = self._tenant_key(request)
+        current_rate = self._isolation_stats.request_rate(tenant_key)
+        self._isolation_stats.record(tenant_key)
+        admitted_rate = current_rate + 1
+
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+
+        if current_rate < self._soft_isolation_rpm:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"tenant-soft-isolation tenant '{tenant_key}' at {admitted_rate}/"
+                f"{self._soft_isolation_rpm} rpm; selected {availability_note} "
+                f"quality-first {selected.model}"
+            )
+        else:
+            selected = min(
+                active,
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"tenant-soft-isolation tenant '{tenant_key}' exceeded soft rate "
+                f"{admitted_rate}/{self._soft_isolation_rpm} rpm; soft-isolated to "
+                f"{availability_note} spare-capacity {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -10871,6 +11035,8 @@ def build_strategies(
     model_capability_map: Mapping[str, frozenset[str]] | None = None,
     warmup_stats: WarmupStats | None = None,
     provider_warmup_blend: float = 0.3,
+    tenant_soft_isolation_stats: TenantSoftIsolationStats | None = None,
+    tenant_soft_isolation_rpm: int = 60,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -11120,6 +11286,7 @@ def build_strategies(
         tenant_priority_lane_lookback
     )
     resolved_warmup_stats = warmup_stats or WarmupStats()
+    resolved_tenant_soft_isolation_stats = tenant_soft_isolation_stats or TenantSoftIsolationStats()
 
     return {
         RoutingStrategyName.RULE_BASED: RuleBasedStrategy(model_catalog),
@@ -11535,6 +11702,12 @@ def build_strategies(
             provider_health,
             warmup_stats=resolved_warmup_stats,
             warmup_blend=provider_warmup_blend,
+        ),
+        RoutingStrategyName.TENANT_SOFT_ISOLATION: TenantSoftIsolationStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            isolation_stats=resolved_tenant_soft_isolation_stats,
+            soft_isolation_rpm=tenant_soft_isolation_rpm,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
