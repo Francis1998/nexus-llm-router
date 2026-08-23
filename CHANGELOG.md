@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `tenant-soft-isolation` routing strategy: tracks each tenant's rolling 60-second request rate with `TenantSoftIsolationStats` and demotes tenants above `NEXUS_TENANT_SOFT_ISOLATION_RPM` (default `60`) to the cheapest healthy domain-compatible model instead of frontier routing — without ever rejecting the request — for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Fair-use isolation inspired by multi-tenant LLM gateways (Portkey/Helicone). See `docs/guides/TENANT_SOFT_ISOLATION_GUIDE.md`.
 - `provider-warmup-weight` routing strategy: blends quality with warmup via `NEXUS_PROVIDER_WARMUP_BLEND` (default `0.3`) using `metadata.provider_warmup_score` or rolling `WarmupStats` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md`.
 
 - `model-capability-gate` routing strategy: filters domain-eligible healthy candidates to those whose capability set — read from a per-request `metadata.model_capabilities` override or the built-in known-model capability map — covers every capability declared in `metadata.required_capabilities` (for example `vision`, `tools`, `long_context`), emergency-retaining the highest-quality healthy candidate when no candidate matches, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Inspired by LiteLLM / OpenRouter capability filtering. See `docs/guides/MODEL_CAPABILITY_GATE_GUIDE.md`.
