@@ -2153,22 +2153,26 @@ Kimi K2. See [docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md](docs/guides/PROVIDER_
 
 ## Tenant-Soft-Isolation Routing
 
-The `tenant-soft-isolation` strategy tracks each tenant's rolling request
-rate and demotes tenants above a soft ceiling to spare, lower-cost capacity
-instead of frontier models, without rejecting the request.
+The `tenant-soft-isolation` strategy reads a tenant's reported request rate
+directly from the request and demotes tenants above a soft ceiling to
+lower-cost capacity instead of frontier models, without rejecting the
+request.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=tenant-soft-isolation
 NEXUS_TENANT_SOFT_ISOLATION_RPM=60
 ```
 
-`NEXUS_TENANT_SOFT_ISOLATION_RPM` must be `>= 1` and bounds the 60-second
-rolling per-tenant request rate. Tenants at or below the ceiling stay
-quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2; tenants
-above it route to the cheapest healthy domain-compatible model. The tenant
-key is resolved from `metadata.tenant_id`, then `metadata.user_id`,
-`metadata.sticky_key`, top-level `user_id`, and finally `session_id`.
-Fair-use isolation inspired by multi-tenant LLM gateways (Portkey/Helicone).
+`NEXUS_TENANT_SOFT_ISOLATION_RPM` must be `>= 1` and bounds the per-tenant
+request rate reported via `metadata.tenant_rpm` (or `metadata.tenant_request_rate`
+as an alias). Tenants at or below the ceiling — or requests that omit both
+keys — stay quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2; tenants whose reported rate exceeds the ceiling route to the
+lowest-cost healthy domain-compatible model. A tenant identifier is
+resolved from `metadata.tenant_id`, then `metadata.user_id`,
+`metadata.sticky_key`, top-level `user_id`, and finally `session_id`, and is
+used only for the routing rationale — not for accounting. Fair-use
+isolation inspired by multi-tenant LLM gateways (Portkey/Helicone).
 See
 [docs/guides/TENANT_SOFT_ISOLATION_GUIDE.md](docs/guides/TENANT_SOFT_ISOLATION_GUIDE.md).
 
