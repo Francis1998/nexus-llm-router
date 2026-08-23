@@ -2136,3 +2136,18 @@ Gemini 3.x / Kimi K2 traffic still routes. Requests that omit
 OpenRouter capability-aware model filtering. See
 [docs/guides/MODEL_CAPABILITY_GATE_GUIDE.md](docs/guides/MODEL_CAPABILITY_GATE_GUIDE.md).
 
+## Provider-Warmup-Weight Routing
+
+The `provider-warmup-weight` strategy blends each healthy domain-eligible
+candidate's quality score with a warmup signal drawn from recent successful
+traffic, biasing selection toward providers that are already warm.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-warmup-weight
+NEXUS_PROVIDER_WARMUP_BLEND=0.3
+```
+
+`NEXUS_PROVIDER_WARMUP_BLEND` must be within `[0.0, 1.0]`. Inspired by
+Envoy warm-host preference for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2. See [docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md](docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md).
+
