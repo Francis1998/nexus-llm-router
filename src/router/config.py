@@ -153,6 +153,7 @@ class RouterSettings(BaseSettings):
     deadline_aware_threshold_ms: Annotated[float, Field(ge=0.0)] = 500.0
     provider_success_floor: Annotated[float, Field(ge=0.0, le=1.0)] = 0.85
     provider_warmup_blend: Annotated[float, Field(ge=0.0, le=1.0)] = 0.3
+    tenant_soft_isolation_rpm: Annotated[int, Field(ge=1)] = 60
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

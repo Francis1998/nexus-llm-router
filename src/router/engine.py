@@ -48,6 +48,7 @@ from router.strategies import (
     TenantFairQueueStats,
     TenantPriorityLaneStats,
     TenantQuotaBurstStats,
+    TenantSoftIsolationStats,
     TierRequestStats,
     TokenBucketStats,
     TokenRpmWindow,
@@ -128,6 +129,7 @@ class NexusRouter:
         self._tenant_priority_lane_stats = TenantPriorityLaneStats(
             settings.tenant_priority_lane_lookback
         )
+        self._tenant_soft_isolation_stats = TenantSoftIsolationStats()
         self._circuit_breakers = CircuitBreakerRegistry()
         self._strategies = build_strategies(
             self._model_catalog,
@@ -254,6 +256,8 @@ class NexusRouter:
             deadline_aware_threshold_ms=settings.deadline_aware_threshold_ms,
             provider_success_floor=settings.provider_success_floor,
             provider_warmup_blend=settings.provider_warmup_blend,
+            tenant_soft_isolation_stats=self._tenant_soft_isolation_stats,
+            tenant_soft_isolation_rpm=settings.tenant_soft_isolation_rpm,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
