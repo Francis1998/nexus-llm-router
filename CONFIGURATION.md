@@ -2116,3 +2116,23 @@ observations are treated as fully healthy. Distinct from cumulative
 GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
 [docs/guides/PROVIDER_SUCCESS_FLOOR_GUIDE.md](docs/guides/PROVIDER_SUCCESS_FLOOR_GUIDE.md).
 
+## Model-Capability-Gate Routing
+
+The `model-capability-gate` strategy reads `metadata.required_capabilities`
+(a comma-separated string or list such as `vision`, `tools`, `long_context`)
+and restricts healthy domain-eligible candidates to those whose capability
+set — from a per-request `metadata.model_capabilities` override or the
+built-in known-model capability map — covers every required capability.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=model-capability-gate
+```
+
+No additional `NEXUS_*` environment variables are required. When no
+candidate satisfies every required capability the strategy emergency-retains
+the highest-quality healthy candidate so GPT-5.5 / Claude Sonnet 4.6 /
+Gemini 3.x / Kimi K2 traffic still routes. Requests that omit
+`required_capabilities` skip the gate entirely. Inspired by LiteLLM /
+OpenRouter capability-aware model filtering. See
+[docs/guides/MODEL_CAPABILITY_GATE_GUIDE.md](docs/guides/MODEL_CAPABILITY_GATE_GUIDE.md).
+

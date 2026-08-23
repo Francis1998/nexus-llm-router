@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `model-capability-gate` routing strategy: filters domain-eligible healthy candidates to those whose capability set — read from a per-request `metadata.model_capabilities` override or the built-in known-model capability map — covers every capability declared in `metadata.required_capabilities` (for example `vision`, `tools`, `long_context`), emergency-retaining the highest-quality healthy candidate when no candidate matches, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Inspired by LiteLLM / OpenRouter capability filtering. See `docs/guides/MODEL_CAPABILITY_GATE_GUIDE.md`.
+
 - `provider-success-floor` routing strategy: skips providers whose rolling `SuccessStats` success rate is below `NEXUS_PROVIDER_SUCCESS_FLOOR` (default `0.85`), selecting highest quality above the floor and emergency-retaining the highest-success provider when every candidate is below for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/PROVIDER_SUCCESS_FLOOR_GUIDE.md`.
 
 - `deadline-aware-pick` routing strategy: reads `metadata.deadline_ms` or `metadata.remaining_ms` and switches to the fastest healthy model when remaining budget is below `NEXUS_DEADLINE_AWARE_THRESHOLD_MS` (default `500`), otherwise keeping quality-first selection for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See `docs/guides/DEADLINE_AWARE_PICK_GUIDE.md`.

@@ -110,6 +110,7 @@ class RoutingStrategyName(StrEnum):
     REQUEST_CLASS_QOS = "request-class-qos"
     DEADLINE_AWARE_PICK = "deadline-aware-pick"
     PROVIDER_SUCCESS_FLOOR = "provider-success-floor"
+    MODEL_CAPABILITY_GATE = "model-capability-gate"
     AB_TEST = "ab"
 
 
