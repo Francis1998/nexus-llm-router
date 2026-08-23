@@ -16,7 +16,6 @@ from router.strategies import (
     InflightStats,
     LatencyStats,
     SuccessStats,
-    TenantSoftIsolationStats,
     TenantSoftIsolationStrategy,
     build_strategies,
 )
@@ -31,11 +30,11 @@ class _FakeHealth:
         return provider not in self._unavailable
 
 
-def _request(tenant_id: str = "tenant-a") -> RouterRequest:
+def _request(metadata: dict | None = None) -> RouterRequest:
     return RouterRequest(
         request_id="req-tenant-soft-isolation",
         messages=[ChatMessage(content="Route with tenant soft isolation.")],
-        metadata={"tenant_id": tenant_id},
+        metadata=metadata or {},
     )
 
 
@@ -50,7 +49,6 @@ def _signals() -> TaskSignals:
 
 
 def _strategy(
-    stats: TenantSoftIsolationStats | None = None,
     *,
     soft_rpm: int = 60,
     unavailable: set[str] | None = None,
@@ -58,9 +56,17 @@ def _strategy(
     return TenantSoftIsolationStrategy(
         default_model_catalog(),
         _FakeHealth(unavailable),
-        stats or TenantSoftIsolationStats(),
         soft_isolation_rpm=soft_rpm,
     )
+
+
+def _cheapest_model() -> str:
+    catalog = default_model_catalog()
+    cheapest = min(
+        catalog.values(),
+        key=lambda candidate: candidate.estimate_cost(128, 512),
+    )
+    return cheapest.model
 
 
 def test_tenant_soft_isolation_enum_parses() -> None:
@@ -72,58 +78,47 @@ def test_tenant_soft_isolation_rejects_invalid_rpm() -> None:
         _strategy(soft_rpm=0)
 
 
-def test_tenant_soft_isolation_stats_rejects_invalid_window() -> None:
-    with pytest.raises(ValueError, match="window_seconds must be positive"):
-        TenantSoftIsolationStats(window_seconds=0.0)
-
-
-def test_tenant_soft_isolation_stays_quality_first_below_soft_rate() -> None:
-    strategy = _strategy(soft_rpm=60)
-    decision = strategy.choose(_request(), _signals())
+def test_tenant_soft_isolation_stays_quality_first_without_metadata() -> None:
+    decision = _strategy(soft_rpm=60).choose(_request(), _signals())
 
     assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
     assert "quality-first" in decision.rationale
     assert decision.routing_strategy is RoutingStrategyName.TENANT_SOFT_ISOLATION
 
 
-def test_tenant_soft_isolation_shifts_to_spare_capacity_above_soft_rate() -> None:
-    strategy = _strategy(soft_rpm=2)
-    request = _request("noisy-tenant")
+def test_tenant_soft_isolation_stays_quality_first_at_or_below_threshold() -> None:
+    decision = _strategy(soft_rpm=60).choose(_request({"tenant_rpm": 60}), _signals())
 
-    for _ in range(2):
-        strategy.choose(request, _signals())
-    decision = strategy.choose(request, _signals())
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
+    assert "quality-first" in decision.rationale
 
-    assert decision.chosen_model != ANTHROPIC_SAFETY_MODEL
+
+def test_tenant_soft_isolation_shifts_to_lowest_cost_above_threshold() -> None:
+    decision = _strategy(soft_rpm=60).choose(_request({"tenant_rpm": 61}), _signals())
+
+    assert decision.chosen_model == _cheapest_model()
     assert "soft-isolated" in decision.rationale
     assert "exceeded soft rate" in decision.rationale
 
 
-def test_tenant_soft_isolation_picks_cheapest_when_isolated() -> None:
-    strategy = _strategy(soft_rpm=1)
-    request = _request("bursty-tenant")
+def test_tenant_soft_isolation_reads_tenant_request_rate_alias() -> None:
+    decision = _strategy(soft_rpm=60).choose(_request({"tenant_request_rate": 90}), _signals())
 
-    strategy.choose(request, _signals())
-    decision = strategy.choose(request, _signals())
+    assert decision.chosen_model == _cheapest_model()
 
-    catalog = default_model_catalog()
-    cheapest = min(
-        catalog.values(),
-        key=lambda candidate: candidate.estimate_cost(128, 512),
+
+def test_tenant_soft_isolation_prefers_tenant_rpm_over_alias() -> None:
+    decision = _strategy(soft_rpm=60).choose(
+        _request({"tenant_rpm": 5, "tenant_request_rate": 90}), _signals()
     )
-    assert decision.chosen_model == cheapest.model
+
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
 
 
-def test_tenant_soft_isolation_tracks_tenants_independently() -> None:
-    stats = TenantSoftIsolationStats()
-    strategy = _strategy(stats, soft_rpm=1)
+def test_tenant_soft_isolation_ignores_malformed_rate() -> None:
+    decision = _strategy(soft_rpm=60).choose(_request({"tenant_rpm": "not-a-number"}), _signals())
 
-    strategy.choose(_request("tenant-noisy"), _signals())
-    strategy.choose(_request("tenant-noisy"), _signals())
-    decision_quiet = strategy.choose(_request("tenant-quiet"), _signals())
-
-    assert decision_quiet.chosen_model == ANTHROPIC_SAFETY_MODEL
-    assert "quality-first" in decision_quiet.rationale
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
 
 
 def test_tenant_soft_isolation_falls_back_to_user_id_without_tenant_metadata() -> None:
@@ -135,6 +130,7 @@ def test_tenant_soft_isolation_falls_back_to_user_id_without_tenant_metadata() -
     )
     decision = strategy.choose(request, _signals())
     assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
+    assert "user-123" in decision.rationale
 
 
 def test_tenant_soft_isolation_respects_circuit_health() -> None:
