@@ -6,7 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
-- `provider-warmup-weight` routing strategy: blends quality with warmup via `NEXUS_PROVIDER_WARMUP_BLEND` (default `0.3`) using `metadata.provider_warmup_score` or rolling `WarmupStats` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md`.
+- `provider-warmup-weight` routing strategy: blends quality with a per-provider warmup score read directly from `metadata.provider_warmup` (defaulting to `0.5` for providers omitted from the mapping, or when the mapping itself is omitted) via `NEXUS_PROVIDER_WARMUP_BLEND` (default `0.3`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md`.
 
 - `model-capability-gate` routing strategy: filters domain-eligible healthy candidates to those whose capability set — read from a per-request `metadata.model_capabilities` override or the built-in known-model capability map — covers every capability declared in `metadata.required_capabilities` (for example `vision`, `tools`, `long_context`), emergency-retaining the highest-quality healthy candidate when no candidate matches, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Inspired by LiteLLM / OpenRouter capability filtering. See `docs/guides/MODEL_CAPABILITY_GATE_GUIDE.md`.
 

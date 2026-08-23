@@ -17,7 +17,6 @@ from router.strategies import (
     LatencyStats,
     ProviderWarmupWeightStrategy,
     SuccessStats,
-    WarmupStats,
     build_strategies,
 )
 from safety.circuit_breaker import CircuitBreakerRegistry
@@ -50,7 +49,6 @@ def _signals() -> TaskSignals:
 
 
 def _strategy(
-    stats: WarmupStats | None = None,
     *,
     blend: float = 0.3,
     unavailable: set[str] | None = None,
@@ -58,7 +56,6 @@ def _strategy(
     return ProviderWarmupWeightStrategy(
         default_model_catalog(),
         _FakeHealth(unavailable),
-        stats or WarmupStats(),
         warmup_blend=blend,
     )
 
@@ -74,51 +71,33 @@ def test_provider_warmup_weight_rejects_invalid_blend() -> None:
         _strategy(blend=1.5)
 
 
-def test_warmup_stats_rejects_invalid_lookback() -> None:
-    with pytest.raises(ValueError, match="lookback must be >= 1"):
-        WarmupStats(lookback=0)
-
-
-def test_warmup_stats_cold_provider_scores_zero() -> None:
-    stats = WarmupStats()
-    assert stats.warmup_score("openai") == 0.0
-
-
-def test_warmup_stats_score_reflects_recent_successes() -> None:
-    stats = WarmupStats(lookback=10)
-    for _ in range(5):
-        stats.observe("openai", success=True)
-    assert stats.warmup_score("openai") == pytest.approx(0.5)
-
-
-def test_warmup_stats_evicts_beyond_lookback() -> None:
-    stats = WarmupStats(lookback=4)
-    for _ in range(10):
-        stats.observe("openai", success=True)
-    assert stats.warmup_score("openai") == pytest.approx(1.0)
-
-
-def test_provider_warmup_weight_cold_start_is_quality_first() -> None:
+def test_provider_warmup_weight_defaults_to_neutral_score_without_metadata() -> None:
     decision = _strategy().choose(_request(), _signals())
 
     assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
     assert decision.routing_strategy is RoutingStrategyName.PROVIDER_WARMUP_WEIGHT
-    assert "warmup 0.00" in decision.rationale
+    assert "warmup 0.50" in decision.rationale
+
+
+def test_provider_warmup_weight_defaults_missing_provider_to_neutral_score() -> None:
+    strategy = _strategy(blend=0.5)
+    request = _request({"provider_warmup": {"openai": 0.9}})
+
+    assert strategy._warmup_score("anthropic", request) == 0.5  # noqa: SLF001
 
 
 def test_provider_warmup_weight_biases_toward_warm_provider() -> None:
-    stats = WarmupStats()
-    for _ in range(50):
-        stats.observe("moonshot", success=True)
-    decision = _strategy(stats, blend=0.5).choose(_request(), _signals())
+    decision = _strategy(blend=0.5).choose(
+        _request({"provider_warmup": {"moonshot": 1.0}}), _signals()
+    )
 
     assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
     assert decision.provider == "moonshot"
 
 
-def test_provider_warmup_weight_respects_metadata_override() -> None:
-    decision = _strategy(blend=0.3).choose(
-        _request({"provider_warmup_score": {"moonshot": 1.0}}), _signals()
+def test_provider_warmup_weight_biases_away_from_cold_provider() -> None:
+    decision = _strategy(blend=0.9).choose(
+        _request({"provider_warmup": {"anthropic": 0.0, "moonshot": 1.0}}), _signals()
     )
 
     assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
@@ -126,7 +105,7 @@ def test_provider_warmup_weight_respects_metadata_override() -> None:
 
 def test_provider_warmup_weight_clamps_out_of_range_override() -> None:
     strategy = _strategy(blend=1.0)
-    decision = strategy.choose(_request({"provider_warmup_score": {"moonshot": 5.0}}), _signals())
+    decision = strategy.choose(_request({"provider_warmup": {"moonshot": 5.0}}), _signals())
 
     assert "warmup 1.00" in decision.rationale
     assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
@@ -135,17 +114,24 @@ def test_provider_warmup_weight_clamps_out_of_range_override() -> None:
 def test_provider_warmup_weight_ignores_malformed_override() -> None:
     strategy = _strategy(blend=0.5)
     decision = strategy.choose(
-        _request({"provider_warmup_score": {"moonshot": "not-a-number"}}), _signals()
+        _request({"provider_warmup": {"moonshot": "not-a-number"}}), _signals()
     )
 
-    assert "warmup 0.00" in decision.rationale
+    assert "warmup 0.50" in decision.rationale
+
+
+def test_provider_warmup_weight_zero_blend_is_quality_only() -> None:
+    decision = _strategy(blend=0.0).choose(
+        _request({"provider_warmup": {"moonshot": 1.0}}), _signals()
+    )
+
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
 
 
 def test_provider_warmup_weight_respects_circuit_health() -> None:
-    stats = WarmupStats()
-    for _ in range(50):
-        stats.observe("anthropic", success=True)
-    decision = _strategy(stats, blend=0.5, unavailable={"anthropic"}).choose(_request(), _signals())
+    decision = _strategy(blend=0.5, unavailable={"anthropic"}).choose(
+        _request({"provider_warmup": {"anthropic": 1.0}}), _signals()
+    )
 
     assert decision.provider != "anthropic"
 
