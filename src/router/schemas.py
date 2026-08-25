@@ -114,6 +114,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_WARMUP_WEIGHT = "provider-warmup-weight"
     TENANT_SOFT_ISOLATION = "tenant-soft-isolation"
     STRUCTURED_OUTPUT_PREFER = "structured-output-prefer"
+    PROVIDER_EXCLUSION = "provider-exclusion"
     AB_TEST = "ab"
 
 

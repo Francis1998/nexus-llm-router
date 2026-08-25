@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-709%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-718%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -199,6 +199,7 @@ Select a strategy with `X-Router-Strategy`:
 - `tenant-soft-isolation`: tracks each tenant's rolling request rate and demotes tenants above `NEXUS_TENANT_SOFT_ISOLATION_RPM` to the cheapest healthy domain-compatible model instead of frontier routing, without rejecting the request, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `model-capability-gate`: filters candidates to those whose capability set covers every capability in `metadata.required_capabilities` (for example `vision`, `tools`, `long_context`), using a per-request `metadata.model_capabilities` override or the built-in known-model map, and emergency-retains the highest-quality healthy candidate when none match for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `structured-output-prefer`: when `metadata.structured_output` or `metadata.json_mode` is truthy, prefers candidates advertising a `json` capability (from `metadata.model_capabilities`, the known-model map, or a `gpt-5`/`claude`/`gemini`/`kimi` name heuristic), ranking by JSON support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `provider-exclusion`: filters `metadata.excluded_providers` and `metadata.excluded_models` (comma-separated string or list) out of the healthy domain-eligible pool, then quality-first selects; emergency-retains the highest-quality eligible model when every candidate is excluded for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation

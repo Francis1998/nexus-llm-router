@@ -2202,3 +2202,21 @@ Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Inspired by LiteLLM / OpenRouter
 structured-output routing. See
 [docs/guides/STRUCTURED_OUTPUT_PREFER_GUIDE.md](docs/guides/STRUCTURED_OUTPUT_PREFER_GUIDE.md).
 
+## Provider-Exclusion Routing
+
+The `provider-exclusion` strategy filters providers and models listed in
+request metadata out of the healthy domain-eligible pool before
+quality-first selection.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=provider-exclusion
+```
+
+No additional `NEXUS_*` environment variables are required. Parse
+`metadata.excluded_providers` and `metadata.excluded_models` as a
+comma-separated string or list (case-insensitive). When every candidate is
+excluded the strategy emergency-retains the highest-quality domain-eligible
+model so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic still
+routes. Inspired by Portkey / Helicone provider allow/deny lists. See
+[docs/guides/PROVIDER_EXCLUSION_GUIDE.md](docs/guides/PROVIDER_EXCLUSION_GUIDE.md).
+
