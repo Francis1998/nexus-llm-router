@@ -11005,6 +11005,122 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
         )
 
 
+class ProviderExclusionStrategy(RoutingStrategy):
+    """Exclude providers and models listed in request metadata.
+
+    Reads ``metadata.excluded_providers`` and ``metadata.excluded_models``
+    (each a comma-separated string or a list) and filters those entries out of
+    the healthy domain-eligible pool before selecting the highest-quality
+    remaining candidate. When every candidate is excluded, the strategy
+    emergency-retains the highest-quality model from the full domain-eligible
+    pool so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic still
+    routes. Inspired by Portkey / Helicone provider allow/deny lists.
+    """
+
+    strategy_name = RoutingStrategyName.PROVIDER_EXCLUSION
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+    ) -> None:
+        """Initialize provider-exclusion routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+
+    @staticmethod
+    def _parse_exclusion_list(raw: object) -> frozenset[str]:
+        """Parse a comma-separated string or iterable exclusion list."""
+        if raw is None:
+            return frozenset()
+        if isinstance(raw, str):
+            parts: Iterable[object] = raw.split(",")
+        elif isinstance(raw, Iterable) and not isinstance(raw, (bytes, bytearray)):
+            parts = raw
+        else:
+            return frozenset()
+        return frozenset(stripped.lower() for item in parts if (stripped := str(item).strip()))
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Choose the highest-quality healthy model after applying exclusions."""
+        excluded_providers = self._parse_exclusion_list(request.metadata.get("excluded_providers"))
+        excluded_models = self._parse_exclusion_list(request.metadata.get("excluded_models"))
+
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+
+        def _is_excluded(candidate: ModelCandidate) -> bool:
+            return (
+                candidate.provider.lower() in excluded_providers
+                or candidate.model.lower() in excluded_models
+            )
+
+        filtered = [candidate for candidate in active if not _is_excluded(candidate)]
+        emergency = False
+        if filtered:
+            pool = filtered
+            policy = "highest-quality after exclusion"
+        else:
+            pool = eligible
+            emergency = True
+            policy = "emergency quality-first retain from full eligible"
+
+        selected = max(
+            pool,
+            key=lambda candidate: (
+                candidate.quality_score,
+                -costs.get(
+                    candidate.model,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                ),
+                candidate.model,
+            ),
+        )
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+        fallback_candidates = sorted(
+            (candidate for candidate in pool if candidate.model != selected.model),
+            key=lambda candidate: (
+                -candidate.quality_score,
+                costs.get(
+                    candidate.model,
+                    candidate.estimate_cost(signals.prompt_tokens_estimate, request.max_tokens),
+                ),
+                candidate.model,
+            ),
+        )
+        exclusion_note = (
+            f"excluded_providers={sorted(excluded_providers) or '[]'} "
+            f"excluded_models={sorted(excluded_models) or '[]'}"
+        )
+        rationale = (
+            f"provider-exclusion {exclusion_note}; selected {availability_note} "
+            f"{policy} {selected.model}" + ("; emergency retain" if emergency else "")
+        )
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -11802,6 +11918,10 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             capability_map=model_capability_map,
+        ),
+        RoutingStrategyName.PROVIDER_EXCLUSION: ProviderExclusionStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
