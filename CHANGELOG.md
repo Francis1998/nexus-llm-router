@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `structured-output-prefer` routing strategy: when `metadata.structured_output` or `metadata.json_mode` is truthy, prefers healthy domain-eligible candidates whose capability set includes `json` (from a per-request `metadata.model_capabilities` override, the built-in known-model map, or a `gpt-5` / `claude` / `gemini` / `kimi` name heuristic), ranking by JSON support then quality then cost; otherwise stays quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Inspired by LiteLLM / OpenRouter structured-output routing. See `docs/guides/STRUCTURED_OUTPUT_PREFER_GUIDE.md`.
+
 - `tenant-soft-isolation` routing strategy: reads the tenant's reported request rate directly from `metadata.tenant_rpm` (or `metadata.tenant_request_rate`) and demotes tenants above `NEXUS_TENANT_SOFT_ISOLATION_RPM` (default `60`) to the lowest-cost healthy domain-compatible model instead of frontier routing — without ever rejecting the request — for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Fair-use isolation inspired by multi-tenant LLM gateways (Portkey/Helicone). See `docs/guides/TENANT_SOFT_ISOLATION_GUIDE.md`.
 
 - `provider-warmup-weight` routing strategy: blends quality with a per-provider warmup score read directly from `metadata.provider_warmup` (defaulting to `0.5` for providers omitted from the mapping, or when the mapping itself is omitted) via `NEXUS_PROVIDER_WARMUP_BLEND` (default `0.3`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md`.

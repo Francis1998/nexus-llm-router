@@ -2181,3 +2181,24 @@ isolation inspired by multi-tenant LLM gateways (Portkey/Helicone).
 See
 [docs/guides/TENANT_SOFT_ISOLATION_GUIDE.md](docs/guides/TENANT_SOFT_ISOLATION_GUIDE.md).
 
+## Structured-Output-Prefer Routing
+
+The `structured-output-prefer` strategy biases selection toward JSON /
+structured-output capable models when a request declares
+`metadata.structured_output` or `metadata.json_mode`.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=structured-output-prefer
+```
+
+No additional `NEXUS_*` environment variables are required. Truthy metadata
+values are `true` / `1` / `yes` / `on`, or any other non-empty non-falsy
+token. Capability sets come from `metadata.model_capabilities` or the
+built-in known-model map; when neither is present for a model, names
+containing `gpt-5`, `claude`, `gemini`, or `kimi` are treated as
+JSON-capable. Ranking is `(has_json, quality, cost)`. Requests that omit
+the structured-output signal stay quality-first for GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Inspired by LiteLLM / OpenRouter
+structured-output routing. See
+[docs/guides/STRUCTURED_OUTPUT_PREFER_GUIDE.md](docs/guides/STRUCTURED_OUTPUT_PREFER_GUIDE.md).
+

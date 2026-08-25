@@ -113,6 +113,7 @@ class RoutingStrategyName(StrEnum):
     MODEL_CAPABILITY_GATE = "model-capability-gate"
     PROVIDER_WARMUP_WEIGHT = "provider-warmup-weight"
     TENANT_SOFT_ISOLATION = "tenant-soft-isolation"
+    STRUCTURED_OUTPUT_PREFER = "structured-output-prefer"
     AB_TEST = "ab"
 
 
