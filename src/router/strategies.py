@@ -11121,6 +11121,129 @@ class ProviderExclusionStrategy(RoutingStrategy):
         )
 
 
+class PromptInjectionRiskShedStrategy(RoutingStrategy):
+    """Shed high prompt-injection-risk traffic onto spare low-cost capacity.
+
+    Reads ``metadata.prompt_injection_risk`` as a float in ``[0.0, 1.0]``
+    (default ``0.0`` when absent or malformed). When the risk is at or above
+    ``NEXUS_PROMPT_INJECTION_RISK_THRESHOLD`` (default ``0.7``), route to the
+    lowest-cost healthy domain-eligible model so suspicious prompts borrow
+    spare capacity instead of frontier slots. Below the threshold, stay
+    quality-first. This strategy never rejects a request — it only demotes
+    routing quality. Inspired by Helicone / Portkey risk-aware gateway
+    shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    """
+
+    strategy_name = RoutingStrategyName.PROMPT_INJECTION_RISK_SHED
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        risk_threshold: float = 0.7,
+    ) -> None:
+        """Initialize prompt-injection-risk-shed routing."""
+        super().__init__(model_catalog)
+        if not 0.0 <= risk_threshold <= 1.0:
+            raise ValueError(f"risk_threshold must be within [0.0, 1.0], got {risk_threshold}")
+        self._provider_health = provider_health
+        self._risk_threshold = risk_threshold
+
+    @staticmethod
+    def _prompt_injection_risk(request: RouterRequest) -> float:
+        """Resolve prompt-injection risk from request metadata.
+
+        Reads ``metadata.prompt_injection_risk``. Missing or non-numeric
+        values resolve to ``0.0``. Numeric values are clamped to ``[0.0, 1.0]``.
+        """
+        value = request.metadata.get("prompt_injection_risk")
+        if value is None:
+            return 0.0
+        try:
+            risk = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return min(1.0, max(0.0, risk))
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Route quality-first below the risk threshold, else to spare capacity."""
+        risk = self._prompt_injection_risk(request)
+        should_shed = risk >= self._risk_threshold
+
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+
+        if not should_shed:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"prompt-injection-risk-shed risk {risk:.2f}/"
+                f"{self._risk_threshold:.2f}; selected {availability_note} "
+                f"quality-first {selected.model}"
+            )
+        else:
+            selected = min(
+                active,
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    costs[candidate.model],
+                    -candidate.quality_score,
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"prompt-injection-risk-shed risk {risk:.2f} at/above threshold "
+                f"{self._risk_threshold:.2f}; shed to {availability_note} "
+                f"lowest-cost {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -11246,6 +11369,7 @@ def build_strategies(
     model_capability_map: Mapping[str, frozenset[str]] | None = None,
     provider_warmup_blend: float = 0.3,
     tenant_soft_isolation_rpm: int = 60,
+    prompt_injection_risk_threshold: float = 0.7,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -11922,6 +12046,11 @@ def build_strategies(
         RoutingStrategyName.PROVIDER_EXCLUSION: ProviderExclusionStrategy(
             model_catalog=model_catalog,
             provider_health=provider_health,
+        ),
+        RoutingStrategyName.PROMPT_INJECTION_RISK_SHED: PromptInjectionRiskShedStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            risk_threshold=prompt_injection_risk_threshold,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

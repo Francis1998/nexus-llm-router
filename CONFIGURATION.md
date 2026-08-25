@@ -2220,3 +2220,24 @@ model so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic still
 routes. Inspired by Portkey / Helicone provider allow/deny lists. See
 [docs/guides/PROVIDER_EXCLUSION_GUIDE.md](docs/guides/PROVIDER_EXCLUSION_GUIDE.md).
 
+## Prompt-Injection-Risk-Shed Routing
+
+The `prompt-injection-risk-shed` strategy reads a prompt-injection risk
+score from the request and demotes high-risk traffic to lower-cost
+capacity instead of frontier models, without rejecting the request.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=prompt-injection-risk-shed
+NEXUS_PROMPT_INJECTION_RISK_THRESHOLD=0.7
+```
+
+`NEXUS_PROMPT_INJECTION_RISK_THRESHOLD` must be within `[0.0, 1.0]` and
+bounds the risk reported via `metadata.prompt_injection_risk`. Requests
+below the threshold — or that omit the key — stay quality-first for
+GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2; requests at or above
+the threshold route to the lowest-cost healthy domain-compatible model.
+Missing or non-numeric risk values default to `0.0`; out-of-range values
+are clamped. The strategy never rejects — it only demotes. Inspired by
+Helicone / Portkey risk-aware gateway shedding. See
+[docs/guides/PROMPT_INJECTION_RISK_SHED_GUIDE.md](docs/guides/PROMPT_INJECTION_RISK_SHED_GUIDE.md).
+
