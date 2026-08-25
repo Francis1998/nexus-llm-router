@@ -10844,6 +10844,167 @@ class TenantSoftIsolationStrategy(RoutingStrategy):
         )
 
 
+class StructuredOutputPreferStrategy(RoutingStrategy):
+    """Prefer models with JSON / structured-output capability when requested.
+
+    When ``metadata.structured_output`` or ``metadata.json_mode`` is truthy
+    (``true`` / ``1`` / ``yes`` / ``on``, or any other non-empty value), rank
+    healthy domain-eligible candidates by whether they advertise a ``json``
+    capability, then by quality (descending) and cost (ascending). Capability
+    sets come from a per-request ``metadata.model_capabilities`` override or
+    the built-in known-model map when present; otherwise models whose names
+    contain ``gpt-5``, ``claude``, ``gemini``, or ``kimi`` are treated as
+    JSON-capable. Requests that omit the structured-output signal stay
+    quality-first. Inspired by LiteLLM / OpenRouter structured-output routing
+    for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    """
+
+    strategy_name = RoutingStrategyName.STRUCTURED_OUTPUT_PREFER
+
+    _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
+    _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
+    _JSON_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        capability_map: Mapping[str, frozenset[str]] | None = None,
+    ) -> None:
+        """Initialize structured-output-prefer routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._capability_map: Mapping[str, frozenset[str]] = (
+            _KNOWN_MODEL_CAPABILITIES if capability_map is None else capability_map
+        )
+
+    @classmethod
+    def _wants_structured_output(cls, request: RouterRequest) -> bool:
+        """Return whether the request asks for structured / JSON output."""
+        for key in ("structured_output", "json_mode"):
+            value = request.metadata.get(key)
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                if value:
+                    return True
+                continue
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if value != 0:
+                    return True
+                continue
+            text = str(value).strip().lower()
+            if text in cls._FALSY_TOKENS:
+                continue
+            if text in cls._TRUTHY_TOKENS or text:
+                return True
+        return False
+
+    def _capabilities_for(self, model: str, request: RouterRequest) -> frozenset[str] | None:
+        """Resolve an explicit capability set, or ``None`` when absent."""
+        overrides = request.metadata.get("model_capabilities")
+        if isinstance(overrides, Mapping) and model in overrides:
+            override = overrides[model]
+            if isinstance(override, str):
+                return frozenset(
+                    stripped.lower() for part in override.split(",") if (stripped := part.strip())
+                )
+            if isinstance(override, Iterable) and not isinstance(override, (bytes, bytearray)):
+                return frozenset(str(item).strip().lower() for item in override)
+            return frozenset()
+        if model in self._capability_map:
+            return self._capability_map[model]
+        return None
+
+    def _has_json(self, model: str, request: RouterRequest) -> bool:
+        """Return whether a model is treated as JSON / structured-output capable."""
+        capabilities = self._capabilities_for(model, request)
+        if capabilities is not None:
+            return "json" in capabilities
+        lower = model.lower()
+        return any(token in lower for token in self._JSON_NAME_TOKENS)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer JSON-capable models when structured output is requested."""
+        wants_structured = self._wants_structured_output(request)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        json_flags = {
+            candidate.model: self._has_json(candidate.model, request) for candidate in active
+        }
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+
+        if wants_structured:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    json_flags[candidate.model],
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    not json_flags[candidate.model],
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            json_note = "json-capable" if json_flags[selected.model] else "non-json fallback"
+            rationale = (
+                f"structured-output-prefer requested; selected {availability_note} "
+                f"{json_note} {selected.model} (quality {selected.quality_score:.2f})"
+            )
+        else:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"structured-output-prefer no structured_output/json_mode signal; "
+                f"selected {availability_note} quality-first {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -11636,6 +11797,11 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             soft_isolation_rpm=tenant_soft_isolation_rpm,
+        ),
+        RoutingStrategyName.STRUCTURED_OUTPUT_PREFER: StructuredOutputPreferStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            capability_map=model_capability_map,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
