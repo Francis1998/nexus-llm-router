@@ -115,6 +115,7 @@ class RoutingStrategyName(StrEnum):
     TENANT_SOFT_ISOLATION = "tenant-soft-isolation"
     STRUCTURED_OUTPUT_PREFER = "structured-output-prefer"
     PROVIDER_EXCLUSION = "provider-exclusion"
+    PROMPT_INJECTION_RISK_SHED = "prompt-injection-risk-shed"
     AB_TEST = "ab"
 
 
