@@ -11405,6 +11405,189 @@ class ThinkingModelPreferStrategy(RoutingStrategy):
         )
 
 
+class ToolCallingPreferStrategy(RoutingStrategy):
+    """Prefer tool/function-calling capable models when tools are required.
+
+    When ``metadata.requires_tools`` is truthy, or ``metadata.tools`` is a
+    non-empty list/string (mirroring OpenRouter-style tool-use routing), rank
+    healthy domain-eligible candidates by whether they support tools, then by
+    quality (descending) and cost (ascending). Tool support is resolved from,
+    in order: ``metadata.tool_capable_models``, ``metadata.model_capabilities``
+    / the built-in known-model map (``tools`` capability), or a name heuristic
+    matching ``gpt-5``, ``claude``, ``gemini``, or ``kimi``. Requests that omit
+    the tool-calling signal stay quality-first. Inspired by OpenRouter tool-use
+    routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    """
+
+    strategy_name = RoutingStrategyName.TOOL_CALLING_PREFER
+
+    _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
+    _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
+    _TOOL_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        capability_map: Mapping[str, frozenset[str]] | None = None,
+    ) -> None:
+        """Initialize tool-calling-prefer routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._capability_map: Mapping[str, frozenset[str]] = (
+            _KNOWN_MODEL_CAPABILITIES if capability_map is None else capability_map
+        )
+
+    @classmethod
+    def _is_truthy(cls, value: object) -> bool:
+        """Return whether a metadata value is treated as truthy."""
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value != 0
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) > 0
+        text = str(value).strip().lower()
+        if text in cls._FALSY_TOKENS:
+            return False
+        return text in cls._TRUTHY_TOKENS or bool(text)
+
+    @classmethod
+    def _wants_tools(cls, request: RouterRequest) -> bool:
+        """Return whether the request asks for tool / function calling."""
+        if cls._is_truthy(request.metadata.get("requires_tools")):
+            return True
+        tools = request.metadata.get("tools")
+        if tools is None:
+            return False
+        if isinstance(tools, (list, tuple, set, dict)):
+            return len(tools) > 0
+        return cls._is_truthy(tools)
+
+    @staticmethod
+    def _tool_capable_allowlist(request: RouterRequest) -> frozenset[str] | None:
+        """Parse an optional ``metadata.tool_capable_models`` allowlist."""
+        raw = request.metadata.get("tool_capable_models")
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            parts: Iterable[object] = raw.split(",")
+        elif isinstance(raw, Iterable) and not isinstance(raw, (bytes, bytearray)):
+            parts = raw
+        else:
+            return frozenset()
+        return frozenset(stripped.lower() for item in parts if (stripped := str(item).strip()))
+
+    def _capabilities_for(self, model: str, request: RouterRequest) -> frozenset[str] | None:
+        """Resolve an explicit capability set, or ``None`` when absent."""
+        overrides = request.metadata.get("model_capabilities")
+        if isinstance(overrides, Mapping) and model in overrides:
+            override = overrides[model]
+            if isinstance(override, str):
+                return frozenset(
+                    stripped.lower() for part in override.split(",") if (stripped := part.strip())
+                )
+            if isinstance(override, Iterable) and not isinstance(override, (bytes, bytearray)):
+                return frozenset(str(item).strip().lower() for item in override)
+            return frozenset()
+        if model in self._capability_map:
+            return self._capability_map[model]
+        return None
+
+    def _supports_tools(self, model: str, request: RouterRequest) -> bool:
+        """Return whether a model is treated as tool/function-calling capable."""
+        allowlist = self._tool_capable_allowlist(request)
+        if allowlist is not None:
+            return model.lower() in allowlist
+        capabilities = self._capabilities_for(model, request)
+        if capabilities is not None:
+            return "tools" in capabilities
+        lower = model.lower()
+        return any(token in lower for token in self._TOOL_NAME_TOKENS)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer tool-capable models when tool calling is required."""
+        wants_tools = self._wants_tools(request)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        tool_flags = {
+            candidate.model: self._supports_tools(candidate.model, request) for candidate in active
+        }
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+
+        if wants_tools:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    tool_flags[candidate.model],
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    not tool_flags[candidate.model],
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            tool_note = "tool-capable" if tool_flags[selected.model] else "non-tool fallback"
+            rationale = (
+                f"tool-calling-prefer requested; selected {availability_note} "
+                f"{tool_note} {selected.model} (quality {selected.quality_score:.2f})"
+            )
+        else:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"tool-calling-prefer no requires_tools/tools signal; "
+                f"selected {availability_note} quality-first {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -12220,6 +12403,11 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             complexity_threshold=thinking_complexity_threshold,
+        ),
+        RoutingStrategyName.TOOL_CALLING_PREFER: ToolCallingPreferStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            capability_map=model_capability_map,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,
