@@ -6,6 +6,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `thinking-model-prefer` routing strategy: when `signals.complexity_score` or `metadata.complexity_score` is at or above `NEXUS_THINKING_COMPLEXITY_THRESHOLD` (default `0.7`), prefers healthy domain-eligible thinking/reasoning models (from an optional `metadata.thinking_models` allowlist, or names containing `o1` / `o3` / `reasoning` / `thinking` / `sonnet` / `opus`), ranking by thinking membership then quality then cost; otherwise stays quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Inspired by LiteLLM reasoning-model routing for hard tasks. See `docs/guides/THINKING_MODEL_PREFER_GUIDE.md`.
+
 - `prompt-injection-risk-shed` routing strategy: reads `metadata.prompt_injection_risk` (float in `[0.0, 1.0]`, default `0.0`) and demotes requests at or above `NEXUS_PROMPT_INJECTION_RISK_THRESHOLD` (default `0.7`) to the lowest-cost healthy domain-compatible model instead of frontier routing — without ever rejecting the request — for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Inspired by Helicone / Portkey risk-aware gateway shedding. See `docs/guides/PROMPT_INJECTION_RISK_SHED_GUIDE.md`.
 
 - `provider-exclusion` routing strategy: filters providers listed in `metadata.excluded_providers` and models listed in `metadata.excluded_models` (each a comma-separated string or list) out of the healthy domain-eligible pool before quality-first selection, emergency-retaining the highest-quality domain-eligible model when every candidate is excluded, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Inspired by Portkey / Helicone provider allow/deny lists. See `docs/guides/PROVIDER_EXCLUSION_GUIDE.md`.

@@ -11244,6 +11244,167 @@ class PromptInjectionRiskShedStrategy(RoutingStrategy):
         )
 
 
+class ThinkingModelPreferStrategy(RoutingStrategy):
+    """Prefer reasoning/thinking models when task complexity is high.
+
+    When ``signals.complexity_score`` or ``metadata.complexity_score`` is at
+    or above ``NEXUS_THINKING_COMPLEXITY_THRESHOLD`` (default ``0.7``), rank
+    healthy domain-eligible candidates by whether they are treated as
+    thinking/reasoning models, then by quality (descending) and cost
+    (ascending). Thinking membership comes from an optional
+    ``metadata.thinking_models`` allowlist; otherwise model names matching
+    the deterministic tokens ``o1``, ``o3``, ``reasoning``, ``thinking``,
+    ``sonnet``, or ``opus`` are preferred. Below the threshold, stay
+    quality-first. Inspired by LiteLLM reasoning-model routing for hard
+    tasks on GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    """
+
+    strategy_name = RoutingStrategyName.THINKING_MODEL_PREFER
+
+    _THINKING_NAME_TOKENS = ("o1", "o3", "reasoning", "thinking", "sonnet", "opus")
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        complexity_threshold: float = 0.7,
+    ) -> None:
+        """Initialize thinking-model-prefer routing."""
+        super().__init__(model_catalog)
+        if not 0.0 <= complexity_threshold <= 1.0:
+            raise ValueError(
+                f"complexity_threshold must be within [0.0, 1.0], got {complexity_threshold}"
+            )
+        self._provider_health = provider_health
+        self._complexity_threshold = complexity_threshold
+
+    @staticmethod
+    def _complexity_score(request: RouterRequest, signals: TaskSignals) -> float:
+        """Resolve complexity from metadata when present, else task signals.
+
+        Reads ``metadata.complexity_score`` first. Missing or non-numeric
+        values fall back to ``signals.complexity_score``. Numeric values are
+        clamped to ``[0.0, 1.0]``.
+        """
+        value = request.metadata.get("complexity_score")
+        if value is None:
+            return signals.complexity_score
+        try:
+            score = float(value)
+        except (TypeError, ValueError):
+            return signals.complexity_score
+        return min(1.0, max(0.0, score))
+
+    @staticmethod
+    def _thinking_allowlist(request: RouterRequest) -> frozenset[str] | None:
+        """Parse an optional ``metadata.thinking_models`` allowlist."""
+        raw = request.metadata.get("thinking_models")
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            parts: Iterable[object] = raw.split(",")
+        elif isinstance(raw, Iterable) and not isinstance(raw, (bytes, bytearray)):
+            parts = raw
+        else:
+            return frozenset()
+        return frozenset(stripped.lower() for item in parts if (stripped := str(item).strip()))
+
+    def _is_thinking_model(self, model: str, request: RouterRequest) -> bool:
+        """Return whether a model is treated as a thinking/reasoning model."""
+        allowlist = self._thinking_allowlist(request)
+        if allowlist is not None:
+            return model.lower() in allowlist
+        lower = model.lower()
+        return any(token in lower for token in self._THINKING_NAME_TOKENS)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer thinking models when complexity meets the threshold."""
+        complexity = self._complexity_score(request, signals)
+        wants_thinking = complexity >= self._complexity_threshold
+
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        thinking_flags = {
+            candidate.model: self._is_thinking_model(candidate.model, request)
+            for candidate in active
+        }
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+
+        if wants_thinking:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    thinking_flags[candidate.model],
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    not thinking_flags[candidate.model],
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            thinking_note = (
+                "thinking-capable" if thinking_flags[selected.model] else "non-thinking fallback"
+            )
+            rationale = (
+                f"thinking-model-prefer complexity {complexity:.2f}/"
+                f"{self._complexity_threshold:.2f}; selected {availability_note} "
+                f"{thinking_note} {selected.model} (quality {selected.quality_score:.2f})"
+            )
+        else:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"thinking-model-prefer complexity {complexity:.2f}/"
+                f"{self._complexity_threshold:.2f}; selected {availability_note} "
+                f"quality-first {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -11370,6 +11531,7 @@ def build_strategies(
     provider_warmup_blend: float = 0.3,
     tenant_soft_isolation_rpm: int = 60,
     prompt_injection_risk_threshold: float = 0.7,
+    thinking_complexity_threshold: float = 0.7,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -11530,6 +11692,8 @@ def build_strategies(
         model_capability_map: Optional override for the known model
             capability map used by model-capability-gate routing when a
             request omits a ``metadata.model_capabilities`` override.
+        thinking_complexity_threshold: Complexity floor for
+            thinking-model-prefer routing within ``[0.0, 1.0]``.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -12051,6 +12215,11 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             risk_threshold=prompt_injection_risk_threshold,
+        ),
+        RoutingStrategyName.THINKING_MODEL_PREFER: ThinkingModelPreferStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
+            complexity_threshold=thinking_complexity_threshold,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

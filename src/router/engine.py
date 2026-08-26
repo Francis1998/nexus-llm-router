@@ -256,6 +256,7 @@ class NexusRouter:
             provider_warmup_blend=settings.provider_warmup_blend,
             tenant_soft_isolation_rpm=settings.tenant_soft_isolation_rpm,
             prompt_injection_risk_threshold=settings.prompt_injection_risk_threshold,
+            thinking_complexity_threshold=settings.thinking_complexity_threshold,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)

@@ -155,6 +155,7 @@ class RouterSettings(BaseSettings):
     provider_warmup_blend: Annotated[float, Field(ge=0.0, le=1.0)] = 0.3
     tenant_soft_isolation_rpm: Annotated[int, Field(ge=1)] = 60
     prompt_injection_risk_threshold: Annotated[float, Field(ge=0.0, le=1.0)] = 0.7
+    thinking_complexity_threshold: Annotated[float, Field(ge=0.0, le=1.0)] = 0.7
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
