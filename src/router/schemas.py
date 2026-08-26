@@ -117,6 +117,7 @@ class RoutingStrategyName(StrEnum):
     PROVIDER_EXCLUSION = "provider-exclusion"
     PROMPT_INJECTION_RISK_SHED = "prompt-injection-risk-shed"
     THINKING_MODEL_PREFER = "thinking-model-prefer"
+    TOOL_CALLING_PREFER = "tool-calling-prefer"
     AB_TEST = "ab"
 
 

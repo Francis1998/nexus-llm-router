@@ -2261,3 +2261,28 @@ above the threshold, ranking prefers models listed in
 See
 [docs/guides/THINKING_MODEL_PREFER_GUIDE.md](docs/guides/THINKING_MODEL_PREFER_GUIDE.md).
 
+
+
+## Tool-Calling-Prefer Routing
+
+The `tool-calling-prefer` strategy biases selection toward tool /
+function-calling capable models when a request declares
+`metadata.requires_tools` or supplies a non-empty `metadata.tools` list.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=tool-calling-prefer
+```
+
+No additional `NEXUS_*` environment variables are required. Truthy
+`requires_tools` values are `true` / `1` / `yes` / `on`, or any other
+non-empty non-falsy token; a non-empty `tools` list also triggers
+preference. Tool support is resolved from `metadata.tool_capable_models`,
+then `metadata.model_capabilities` / the built-in known-model map
+(`tools` capability); when neither is present for a model, names
+containing `gpt-5`, `claude`, `gemini`, or `kimi` are treated as
+tool-capable. Ranking is `(supports_tools, quality, cost)`. Requests that
+omit the tool-calling signal stay quality-first for GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Inspired by OpenRouter tool-use
+routing. See
+[docs/guides/TOOL_CALLING_PREFER_GUIDE.md](docs/guides/TOOL_CALLING_PREFER_GUIDE.md).
+
