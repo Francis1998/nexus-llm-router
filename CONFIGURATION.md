@@ -2241,3 +2241,23 @@ are clamped. The strategy never rejects — it only demotes. Inspired by
 Helicone / Portkey risk-aware gateway shedding. See
 [docs/guides/PROMPT_INJECTION_RISK_SHED_GUIDE.md](docs/guides/PROMPT_INJECTION_RISK_SHED_GUIDE.md).
 
+## Thinking-Model-Prefer Routing
+
+The `thinking-model-prefer` strategy biases selection toward
+reasoning / thinking models when task complexity is high.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=thinking-model-prefer
+NEXUS_THINKING_COMPLEXITY_THRESHOLD=0.7
+```
+
+`NEXUS_THINKING_COMPLEXITY_THRESHOLD` must be within `[0.0, 1.0]`. Complexity
+is read from `metadata.complexity_score` when present and numeric (clamped),
+otherwise from `signals.complexity_score`. Requests below the threshold stay
+quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2; at or
+above the threshold, ranking prefers models listed in
+`metadata.thinking_models` or whose names contain `o1`, `o3`, `reasoning`,
+`thinking`, `sonnet`, or `opus`. Inspired by LiteLLM reasoning-model routing.
+See
+[docs/guides/THINKING_MODEL_PREFER_GUIDE.md](docs/guides/THINKING_MODEL_PREFER_GUIDE.md).
+

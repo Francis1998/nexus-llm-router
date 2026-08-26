@@ -116,6 +116,7 @@ class RoutingStrategyName(StrEnum):
     STRUCTURED_OUTPUT_PREFER = "structured-output-prefer"
     PROVIDER_EXCLUSION = "provider-exclusion"
     PROMPT_INJECTION_RISK_SHED = "prompt-injection-risk-shed"
+    THINKING_MODEL_PREFER = "thinking-model-prefer"
     AB_TEST = "ab"
 
 
