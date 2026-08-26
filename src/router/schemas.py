@@ -118,6 +118,7 @@ class RoutingStrategyName(StrEnum):
     PROMPT_INJECTION_RISK_SHED = "prompt-injection-risk-shed"
     THINKING_MODEL_PREFER = "thinking-model-prefer"
     TOOL_CALLING_PREFER = "tool-calling-prefer"
+    MULTIMODAL_INPUT_PREFER = "multimodal-input-prefer"
     AB_TEST = "ab"
 
 

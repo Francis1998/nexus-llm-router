@@ -2286,3 +2286,26 @@ Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Inspired by OpenRouter tool-use
 routing. See
 [docs/guides/TOOL_CALLING_PREFER_GUIDE.md](docs/guides/TOOL_CALLING_PREFER_GUIDE.md).
 
+
+## Multimodal-Input-Prefer Routing
+
+The `multimodal-input-prefer` strategy biases selection toward vision /
+multimodal-capable models when a request declares `metadata.has_images`
+or `metadata.has_audio`.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=multimodal-input-prefer
+```
+
+No additional `NEXUS_*` environment variables are required. Truthy
+metadata values are `true` / `1` / `yes` / `on`, or any other non-empty
+non-falsy token. Capability sets come from `metadata.multimodal_models`,
+then `metadata.model_capabilities` / the built-in known-model map
+(`vision`, `audio`, or `multimodal`); when neither is present for a
+model, names containing `gpt-5`, `claude`, `gemini`, or `vision` are
+treated as multimodal-capable. Ranking is
+`(supports_multimodal, quality, cost)`. Requests that omit the multimodal
+signal stay quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+Kimi K2. Inspired by OpenRouter multimodal routing. See
+[docs/guides/MULTIMODAL_INPUT_PREFER_GUIDE.md](docs/guides/MULTIMODAL_INPUT_PREFER_GUIDE.md).
+
