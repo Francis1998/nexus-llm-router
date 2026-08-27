@@ -2313,3 +2313,7 @@ Kimi K2. Inspired by OpenRouter multimodal routing. See
 The `streaming-prefer` strategy biases selection toward streaming-capable
 models when a request declares `metadata.stream` or
 `metadata.requires_streaming`.
+
+The `long-context-prefer` strategy biases selection toward models whose
+context window meets a requested threshold when a request declares
+`metadata.min_context_tokens` or `metadata.long_context`.
