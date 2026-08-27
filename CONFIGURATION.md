@@ -2310,3 +2310,6 @@ signal stay quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
 Kimi K2. Inspired by OpenRouter multimodal routing. See
 [docs/guides/MULTIMODAL_INPUT_PREFER_GUIDE.md](docs/guides/MULTIMODAL_INPUT_PREFER_GUIDE.md).
 
+The `streaming-prefer` strategy biases selection toward streaming-capable
+models when a request declares `metadata.stream` or
+`metadata.requires_streaming`.

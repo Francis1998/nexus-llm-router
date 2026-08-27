@@ -119,6 +119,7 @@ class RoutingStrategyName(StrEnum):
     THINKING_MODEL_PREFER = "thinking-model-prefer"
     TOOL_CALLING_PREFER = "tool-calling-prefer"
     MULTIMODAL_INPUT_PREFER = "multimodal-input-prefer"
+    STREAMING_PREFER = "streaming-prefer"
     AB_TEST = "ab"
 
 
