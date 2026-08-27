@@ -10445,6 +10445,16 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
     MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context", "json", "streaming"}),
 }
 
+_KNOWN_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+    OPENAI_FRONTIER_MODEL: 200_000,
+    OPENAI_BALANCED_MODEL: 128_000,
+    ANTHROPIC_SAFETY_MODEL: 200_000,
+    ANTHROPIC_FAST_MODEL: 200_000,
+    GEMINI_PRO_MODEL: 1_000_000,
+    GEMINI_FLASH_MODEL: 1_000_000,
+    MOONSHOT_BALANCED_MODEL: 128_000,
+}
+
 
 class ModelCapabilityGateStrategy(RoutingStrategy):
     """Gate candidate models on request-declared capability requirements.
@@ -11978,6 +11988,182 @@ class StreamingPreferStrategy(RoutingStrategy):
         )
 
 
+class LongContextPreferStrategy(RoutingStrategy):
+    """Prefer models whose context window meets a requested threshold.
+
+    When ``metadata.min_context_tokens`` is a positive integer, or
+    ``metadata.long_context`` is truthy (default threshold ``100000``), rank
+    healthy domain-eligible candidates by whether their context window meets
+    the threshold, then by context size (descending), quality (descending),
+    and cost (ascending). Context windows resolve from
+    ``metadata.model_context_windows``, the built-in known-model map, the
+    catalog ``context_window``, or a name heuristic matching ``gpt-5``,
+    ``claude``, ``gemini``, or ``kimi`` (default ``200000``). Requests that
+    omit the long-context signal stay quality-first. Inspired by OpenRouter /
+    LiteLLM / Portkey long-context capability routing for GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    """
+
+    strategy_name = RoutingStrategyName.LONG_CONTEXT_PREFER
+
+    _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
+    _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
+    _LONG_CONTEXT_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _DEFAULT_LONG_CONTEXT_THRESHOLD = 100_000
+    _HEURISTIC_CONTEXT_WINDOW = 200_000
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        context_map: Mapping[str, int] | None = None,
+    ) -> None:
+        """Initialize long-context-prefer routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._context_map: Mapping[str, int] = (
+            _KNOWN_MODEL_CONTEXT_WINDOWS if context_map is None else context_map
+        )
+
+    @classmethod
+    def _is_truthy(cls, value: object) -> bool:
+        """Return whether a metadata value is treated as truthy."""
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value != 0
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) > 0
+        text = str(value).strip().lower()
+        if text in cls._FALSY_TOKENS:
+            return False
+        return text in cls._TRUTHY_TOKENS or bool(text)
+
+    @classmethod
+    def _min_context_threshold(cls, request: RouterRequest) -> int | None:
+        """Return the requested context threshold, or ``None`` when inactive."""
+        raw = request.metadata.get("min_context_tokens")
+        if raw is not None:
+            try:
+                threshold = int(raw)
+            except (TypeError, ValueError):
+                threshold = 0
+            if threshold > 0:
+                return threshold
+        if cls._is_truthy(request.metadata.get("long_context")):
+            return cls._DEFAULT_LONG_CONTEXT_THRESHOLD
+        return None
+
+    def _context_window(self, candidate: ModelCandidate, request: RouterRequest) -> int:
+        """Resolve a model's context window from overrides, known map, or heuristic."""
+        overrides = request.metadata.get("model_context_windows")
+        if isinstance(overrides, Mapping) and candidate.model in overrides:
+            try:
+                return int(overrides[candidate.model])
+            except (TypeError, ValueError):
+                pass
+        if candidate.model in self._context_map:
+            return int(self._context_map[candidate.model])
+        if candidate.context_window > 0:
+            return int(candidate.context_window)
+        lower = candidate.model.lower()
+        if any(token in lower for token in self._LONG_CONTEXT_NAME_TOKENS):
+            return self._HEURISTIC_CONTEXT_WINDOW
+        return 0
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer long-context models when a context threshold is requested."""
+        threshold = self._min_context_threshold(request)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        context_windows = {
+            candidate.model: self._context_window(candidate, request) for candidate in active
+        }
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+
+        if threshold is not None:
+            meets_flags = {
+                candidate.model: context_windows[candidate.model] >= threshold
+                for candidate in active
+            }
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    meets_flags[candidate.model],
+                    context_windows[candidate.model],
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    not meets_flags[candidate.model],
+                    -context_windows[candidate.model],
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            ctx_note = (
+                "long-context-capable" if meets_flags[selected.model] else "short-context fallback"
+            )
+            rationale = (
+                f"long-context-prefer min_context_tokens={threshold}; selected "
+                f"{availability_note} {ctx_note} {selected.model} "
+                f"(context {context_windows[selected.model]}, "
+                f"quality {selected.quality_score:.2f})"
+            )
+        else:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"long-context-prefer no min_context_tokens/long_context signal; "
+                f"selected {availability_note} quality-first {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -12808,6 +12994,10 @@ def build_strategies(
             model_catalog=model_catalog,
             provider_health=provider_health,
             capability_map=model_capability_map,
+        ),
+        RoutingStrategyName.LONG_CONTEXT_PREFER: LongContextPreferStrategy(
+            model_catalog=model_catalog,
+            provider_health=provider_health,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

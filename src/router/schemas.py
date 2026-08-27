@@ -120,6 +120,7 @@ class RoutingStrategyName(StrEnum):
     TOOL_CALLING_PREFER = "tool-calling-prefer"
     MULTIMODAL_INPUT_PREFER = "multimodal-input-prefer"
     STREAMING_PREFER = "streaming-prefer"
+    LONG_CONTEXT_PREFER = "long-context-prefer"
     AB_TEST = "ab"
 
 
