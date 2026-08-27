@@ -75,22 +75,32 @@ def test_structured_output_prefer_quality_first_when_absent() -> None:
     assert decision.routing_strategy is RoutingStrategyName.STRUCTURED_OUTPUT_PREFER
 
 
-def test_structured_output_prefer_json_mode_prefers_json_capable() -> None:
+def test_structured_output_prefer_falsy_flags_stay_quality_first() -> None:
+    decision = _strategy().choose(
+        _request({"requires_json": False, "structured_output": "no"}),
+        _signals(),
+    )
+
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
+    assert "quality-first" in decision.rationale
+
+
+def test_structured_output_prefer_requires_json_prefers_capable() -> None:
     catalog = default_model_catalog()
     capability_map = {model: frozenset({"tools"}) for model in catalog}
     capability_map[MOONSHOT_BALANCED_MODEL] = frozenset({"json"})
     decision = _strategy(capability_map=capability_map).choose(
-        _request({"json_mode": True}), _signals()
+        _request({"requires_json": True}), _signals()
     )
 
     assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
-    assert "json-capable" in decision.rationale
+    assert "structured-capable" in decision.rationale
 
 
 def test_structured_output_prefer_structured_output_alias() -> None:
     catalog = default_model_catalog()
     capability_map = {model: frozenset({"tools"}) for model in catalog}
-    capability_map[MOONSHOT_BALANCED_MODEL] = frozenset({"json"})
+    capability_map[MOONSHOT_BALANCED_MODEL] = frozenset({"structured"})
     decision = _strategy(capability_map=capability_map).choose(
         _request({"structured_output": "yes"}), _signals()
     )
@@ -98,22 +108,36 @@ def test_structured_output_prefer_structured_output_alias() -> None:
     assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
 
 
-def test_structured_output_prefer_name_heuristic_when_map_absent() -> None:
-    decision = _strategy(capability_map={}).choose(_request({"json_mode": 1}), _signals())
+def test_structured_output_prefer_structured_models_allowlist() -> None:
+    decision = _strategy(capability_map={}).choose(
+        _request(
+            {
+                "requires_json": True,
+                "structured_models": [MOONSHOT_BALANCED_MODEL],
+            }
+        ),
+        _signals(),
+    )
 
-    # Empty map → name heuristic; gpt-4.1-mini lacks tokens, frontier names match.
+    assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
+    assert "structured-capable" in decision.rationale
+
+
+def test_structured_output_prefer_name_heuristic_when_map_absent() -> None:
+    decision = _strategy(capability_map={}).choose(_request({"requires_json": 1}), _signals())
+
+    # Empty map → name heuristic; claude/gpt-5/gemini/kimi match.
     assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
-    assert "json-capable" in decision.rationale
+    assert "structured-capable" in decision.rationale
 
 
 def test_structured_output_prefer_respects_model_capabilities_override() -> None:
     catalog = default_model_catalog()
-    # Known map has no json; overrides give only moonshot json so preference is clear.
     decision = _strategy(capability_map={model: frozenset({"tools"}) for model in catalog}).choose(
         _request(
             {
-                "json_mode": True,
-                "model_capabilities": {MOONSHOT_BALANCED_MODEL: "json"},
+                "requires_json": True,
+                "model_capabilities": {MOONSHOT_BALANCED_MODEL: "json_mode"},
             }
         ),
         _signals(),
@@ -122,8 +146,18 @@ def test_structured_output_prefer_respects_model_capabilities_override() -> None
     assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
 
 
+def test_structured_output_prefer_known_map_json_capability() -> None:
+    # Default known map marks anthropic safety as json-capable and highest quality.
+    decision = _strategy().choose(_request({"structured_output": True}), _signals())
+
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
+    assert "structured-capable" in decision.rationale
+
+
 def test_structured_output_prefer_skips_unhealthy_providers() -> None:
-    decision = _strategy(unavailable={"anthropic"}).choose(_request(), _signals())
+    decision = _strategy(unavailable={"anthropic"}).choose(
+        _request({"requires_json": True}), _signals()
+    )
 
     assert decision.provider != "anthropic"
 
