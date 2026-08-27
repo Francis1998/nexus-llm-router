@@ -2185,7 +2185,7 @@ See
 
 The `structured-output-prefer` strategy biases selection toward JSON /
 structured-output capable models when a request declares
-`metadata.structured_output` or `metadata.json_mode`.
+`metadata.requires_json` or `metadata.structured_output`.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=structured-output-prefer
@@ -2193,13 +2193,14 @@ NEXUS_DEFAULT_STRATEGY=structured-output-prefer
 
 No additional `NEXUS_*` environment variables are required. Truthy metadata
 values are `true` / `1` / `yes` / `on`, or any other non-empty non-falsy
-token. Capability sets come from `metadata.model_capabilities` or the
-built-in known-model map; when neither is present for a model, names
-containing `gpt-5`, `claude`, `gemini`, or `kimi` are treated as
-JSON-capable. Ranking is `(has_json, quality, cost)`. Requests that omit
-the structured-output signal stay quality-first for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Inspired by LiteLLM / OpenRouter
-structured-output routing. See
+token. Capability sets come from `metadata.structured_models`,
+`metadata.model_capabilities`, or the built-in known-model map
+(`json`, `structured`, or `json_mode`); when neither is present for a
+model, names containing `gpt-5`, `claude`, `gemini`, or `kimi` are treated
+as structured-capable. Ranking is `(supports_structured, quality, cost)`.
+Requests that omit the structured-output signal stay quality-first for
+GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Inspired by LiteLLM /
+OpenRouter / Portkey structured-output routing. See
 [docs/guides/STRUCTURED_OUTPUT_PREFER_GUIDE.md](docs/guides/STRUCTURED_OUTPUT_PREFER_GUIDE.md).
 
 ## Provider-Exclusion Routing

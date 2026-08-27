@@ -10436,13 +10436,13 @@ class ProviderSuccessFloorStrategy(RoutingStrategy):
 
 
 _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
-    OPENAI_FRONTIER_MODEL: frozenset({"vision", "tools", "long_context"}),
+    OPENAI_FRONTIER_MODEL: frozenset({"vision", "tools", "long_context", "json"}),
     OPENAI_BALANCED_MODEL: frozenset({"tools"}),
-    ANTHROPIC_SAFETY_MODEL: frozenset({"vision", "tools", "long_context"}),
+    ANTHROPIC_SAFETY_MODEL: frozenset({"vision", "tools", "long_context", "json"}),
     ANTHROPIC_FAST_MODEL: frozenset({"tools"}),
-    GEMINI_PRO_MODEL: frozenset({"vision", "tools", "long_context"}),
-    GEMINI_FLASH_MODEL: frozenset({"vision", "tools"}),
-    MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context"}),
+    GEMINI_PRO_MODEL: frozenset({"vision", "tools", "long_context", "json"}),
+    GEMINI_FLASH_MODEL: frozenset({"vision", "tools", "json"}),
+    MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context", "json"}),
 }
 
 
@@ -10847,16 +10847,17 @@ class TenantSoftIsolationStrategy(RoutingStrategy):
 class StructuredOutputPreferStrategy(RoutingStrategy):
     """Prefer models with JSON / structured-output capability when requested.
 
-    When ``metadata.structured_output`` or ``metadata.json_mode`` is truthy
-    (``true`` / ``1`` / ``yes`` / ``on``, or any other non-empty value), rank
-    healthy domain-eligible candidates by whether they advertise a ``json``
-    capability, then by quality (descending) and cost (ascending). Capability
-    sets come from a per-request ``metadata.model_capabilities`` override or
-    the built-in known-model map when present; otherwise models whose names
-    contain ``gpt-5``, ``claude``, ``gemini``, or ``kimi`` are treated as
-    JSON-capable. Requests that omit the structured-output signal stay
-    quality-first. Inspired by LiteLLM / OpenRouter structured-output routing
-    for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    When ``metadata.requires_json`` or ``metadata.structured_output`` is
+    truthy (``true`` / ``1`` / ``yes`` / ``on``, or any other non-empty
+    non-falsy token), rank healthy domain-eligible candidates by whether they
+    support structured/JSON output, then by quality (descending) and cost
+    (ascending). Capability is resolved from ``metadata.structured_models``,
+    ``metadata.model_capabilities`` / the built-in known-model map
+    (``json``, ``structured``, or ``json_mode``), or a name heuristic matching
+    ``gpt-5``, ``claude``, ``gemini``, or ``kimi``. Requests that omit the
+    structured-output signal stay quality-first. Inspired by LiteLLM /
+    OpenRouter / Portkey structured-output routing for GPT-5.5 /
+    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
     """
 
     strategy_name = RoutingStrategyName.STRUCTURED_OUTPUT_PREFER
@@ -10864,6 +10865,7 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
     _JSON_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _STRUCTURED_CAPABILITIES = frozenset({"json", "structured", "json_mode"})
 
     def __init__(
         self,
@@ -10879,26 +10881,41 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
         )
 
     @classmethod
+    def _is_truthy(cls, value: object) -> bool:
+        """Return whether a metadata value is treated as truthy."""
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value != 0
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) > 0
+        text = str(value).strip().lower()
+        if text in cls._FALSY_TOKENS:
+            return False
+        return text in cls._TRUTHY_TOKENS or bool(text)
+
+    @classmethod
     def _wants_structured_output(cls, request: RouterRequest) -> bool:
         """Return whether the request asks for structured / JSON output."""
-        for key in ("structured_output", "json_mode"):
-            value = request.metadata.get(key)
-            if value is None:
-                continue
-            if isinstance(value, bool):
-                if value:
-                    return True
-                continue
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                if value != 0:
-                    return True
-                continue
-            text = str(value).strip().lower()
-            if text in cls._FALSY_TOKENS:
-                continue
-            if text in cls._TRUTHY_TOKENS or text:
-                return True
-        return False
+        return cls._is_truthy(request.metadata.get("requires_json")) or cls._is_truthy(
+            request.metadata.get("structured_output")
+        )
+
+    @staticmethod
+    def _structured_allowlist(request: RouterRequest) -> frozenset[str] | None:
+        """Parse an optional ``metadata.structured_models`` allowlist."""
+        raw = request.metadata.get("structured_models")
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            parts: Iterable[object] = raw.split(",")
+        elif isinstance(raw, Iterable) and not isinstance(raw, (bytes, bytearray)):
+            parts = raw
+        else:
+            return frozenset()
+        return frozenset(stripped.lower() for item in parts if (stripped := str(item).strip()))
 
     def _capabilities_for(self, model: str, request: RouterRequest) -> frozenset[str] | None:
         """Resolve an explicit capability set, or ``None`` when absent."""
@@ -10916,16 +10933,19 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
             return self._capability_map[model]
         return None
 
-    def _has_json(self, model: str, request: RouterRequest) -> bool:
+    def _supports_structured(self, model: str, request: RouterRequest) -> bool:
         """Return whether a model is treated as JSON / structured-output capable."""
+        allowlist = self._structured_allowlist(request)
+        if allowlist is not None:
+            return model.lower() in allowlist
         capabilities = self._capabilities_for(model, request)
         if capabilities is not None:
-            return "json" in capabilities
+            return bool(capabilities & self._STRUCTURED_CAPABILITIES)
         lower = model.lower()
         return any(token in lower for token in self._JSON_NAME_TOKENS)
 
     def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
-        """Prefer JSON-capable models when structured output is requested."""
+        """Prefer structured-output models when JSON / schema output is requested."""
         wants_structured = self._wants_structured_output(request)
         eligible = [
             candidate
@@ -10945,8 +10965,9 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
             )
             for candidate in active
         }
-        json_flags = {
-            candidate.model: self._has_json(candidate.model, request) for candidate in active
+        structured_flags = {
+            candidate.model: self._supports_structured(candidate.model, request)
+            for candidate in active
         }
         availability_note = "healthy" if healthy else "circuit-open emergency"
 
@@ -10954,7 +10975,7 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
             selected = max(
                 active,
                 key=lambda candidate: (
-                    json_flags[candidate.model],
+                    structured_flags[candidate.model],
                     candidate.quality_score,
                     -costs[candidate.model],
                     candidate.model,
@@ -10963,13 +10984,17 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
             fallback_candidates = sorted(
                 (candidate for candidate in active if candidate.model != selected.model),
                 key=lambda candidate: (
-                    not json_flags[candidate.model],
+                    not structured_flags[candidate.model],
                     -candidate.quality_score,
                     costs[candidate.model],
                     candidate.model,
                 ),
             )
-            json_note = "json-capable" if json_flags[selected.model] else "non-json fallback"
+            json_note = (
+                "structured-capable"
+                if structured_flags[selected.model]
+                else "non-structured fallback"
+            )
             rationale = (
                 f"structured-output-prefer requested; selected {availability_note} "
                 f"{json_note} {selected.model} (quality {selected.quality_score:.2f})"
@@ -10992,7 +11017,7 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
                 ),
             )
             rationale = (
-                f"structured-output-prefer no structured_output/json_mode signal; "
+                f"structured-output-prefer no requires_json/structured_output signal; "
                 f"selected {availability_note} quality-first {selected.model}"
             )
 
