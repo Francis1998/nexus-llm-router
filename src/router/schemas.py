@@ -121,6 +121,7 @@ class RoutingStrategyName(StrEnum):
     MULTIMODAL_INPUT_PREFER = "multimodal-input-prefer"
     STREAMING_PREFER = "streaming-prefer"
     LONG_CONTEXT_PREFER = "long-context-prefer"
+    AUDIO_INPUT_PREFER = "audio-input-prefer"
     AB_TEST = "ab"
 
 
