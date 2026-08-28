@@ -123,6 +123,7 @@ class RoutingStrategyName(StrEnum):
     LONG_CONTEXT_PREFER = "long-context-prefer"
     AUDIO_INPUT_PREFER = "audio-input-prefer"
     WEB_SEARCH_PREFER = "web-search-prefer"
+    COMPUTER_USE_PREFER = "computer-use-prefer"
     AB_TEST = "ab"
 
 
