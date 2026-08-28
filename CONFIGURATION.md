@@ -2317,3 +2317,5 @@ models when a request declares `metadata.stream` or
 The `long-context-prefer` strategy biases selection toward models whose
 context window meets a requested threshold when a request declares
 `metadata.min_context_tokens` or `metadata.long_context`.
+
+The `audio-input-prefer` strategy biases selection toward audio-capable models when a request declares `metadata.requires_audio`, `metadata.audio_input`, or `metadata.audio`.
