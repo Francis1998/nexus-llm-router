@@ -2319,3 +2319,4 @@ context window meets a requested threshold when a request declares
 `metadata.min_context_tokens` or `metadata.long_context`.
 
 The `audio-input-prefer` strategy biases selection toward audio-capable models when a request declares `metadata.requires_audio`, `metadata.audio_input`, or `metadata.audio`.
+The `web-search-prefer` strategy biases selection toward web-search-capable models when a request declares `metadata.requires_web_search`, `metadata.web_search`, or `metadata.online`.

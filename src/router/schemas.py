@@ -122,6 +122,7 @@ class RoutingStrategyName(StrEnum):
     STREAMING_PREFER = "streaming-prefer"
     LONG_CONTEXT_PREFER = "long-context-prefer"
     AUDIO_INPUT_PREFER = "audio-input-prefer"
+    WEB_SEARCH_PREFER = "web-search-prefer"
     AB_TEST = "ab"
 
 
