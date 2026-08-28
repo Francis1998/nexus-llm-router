@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-799%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-811%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -207,6 +207,7 @@ Select a strategy with `X-Router-Strategy`:
 - `tool-calling-prefer`: when `metadata.requires_tools` is truthy or `metadata.tools` is non-empty, prefers candidates advertising tool/function calling (from `metadata.tool_capable_models`, `metadata.model_capabilities` / the known-model map, or a `gpt-5`/`claude`/`gemini`/`kimi` name heuristic), ranking by tool support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `multimodal-input-prefer`: when `metadata.has_images` or `metadata.has_audio` is truthy, prefers candidates advertising vision/multimodal capability (from `metadata.multimodal_models`, `metadata.model_capabilities` / the known-model map, or a `gpt-5`/`claude`/`gemini`/`vision` name heuristic), ranking by multimodal support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `audio-input-prefer`: when `metadata.requires_audio`, `metadata.audio_input`, or `metadata.audio` is truthy, prefers candidates advertising audio capability (from `metadata.audio_models`, `metadata.model_capabilities` / the known-model map, or an `audio`/`realtime`/`gpt-4o-audio`/`gemini` name heuristic), ranking by audio support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `web-search-prefer`: when `metadata.requires_web_search`, `metadata.web_search`, or `metadata.online` is truthy, prefers candidates advertising web_search capability (from `metadata.web_search_models`, `metadata.model_capabilities` / the known-model map, or a `search`/`online`/`browse` name heuristic), ranking by web-search support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
