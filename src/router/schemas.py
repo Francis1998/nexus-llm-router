@@ -124,6 +124,7 @@ class RoutingStrategyName(StrEnum):
     AUDIO_INPUT_PREFER = "audio-input-prefer"
     WEB_SEARCH_PREFER = "web-search-prefer"
     COMPUTER_USE_PREFER = "computer-use-prefer"
+    IMAGE_GEN_PREFER = "image-gen-prefer"
     AB_TEST = "ab"
 
 

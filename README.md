@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-823%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-835%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -209,6 +209,7 @@ Select a strategy with `X-Router-Strategy`:
 - `audio-input-prefer`: when `metadata.requires_audio`, `metadata.audio_input`, or `metadata.audio` is truthy, prefers candidates advertising audio capability (from `metadata.audio_models`, `metadata.model_capabilities` / the known-model map, or an `audio`/`realtime`/`gpt-4o-audio`/`gemini` name heuristic), ranking by audio support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `web-search-prefer`: when `metadata.requires_web_search`, `metadata.web_search`, or `metadata.online` is truthy, prefers candidates advertising web_search capability (from `metadata.web_search_models`, `metadata.model_capabilities` / the known-model map, or a `search`/`online`/`browse` name heuristic), ranking by web-search support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `computer-use-prefer`: when `metadata.requires_computer_use`, `metadata.computer_use`, or `metadata.cua` is truthy, prefers candidates advertising computer_use capability (from `metadata.computer_use_models`, `metadata.model_capabilities` / the known-model map, or a `computer`/`cua`/`operator` name heuristic), ranking by computer-use support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `image-gen-prefer`: when `metadata.requires_image_gen`, `metadata.image_gen`, or `metadata.image_generation` is truthy, prefers candidates advertising `image_gen` capability (from `metadata.image_gen_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
