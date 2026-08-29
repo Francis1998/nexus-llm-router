@@ -125,6 +125,7 @@ class RoutingStrategyName(StrEnum):
     WEB_SEARCH_PREFER = "web-search-prefer"
     COMPUTER_USE_PREFER = "computer-use-prefer"
     IMAGE_GEN_PREFER = "image-gen-prefer"
+    CODE_EXECUTION_PREFER = "code-execution-prefer"
     AB_TEST = "ab"
 
 
