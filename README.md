@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-847%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-859%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -211,6 +211,7 @@ Select a strategy with `X-Router-Strategy`:
 - `computer-use-prefer`: when `metadata.requires_computer_use`, `metadata.computer_use`, or `metadata.cua` is truthy, prefers candidates advertising computer_use capability (from `metadata.computer_use_models`, `metadata.model_capabilities` / the known-model map, or a `computer`/`cua`/`operator` name heuristic), ranking by computer-use support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `image-gen-prefer`: when `metadata.requires_image_gen`, `metadata.image_gen`, or `metadata.image_generation` is truthy, prefers candidates advertising `image_gen` capability (from `metadata.image_gen_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `code-execution-prefer`: when `metadata.requires_code_execution`, `metadata.code_execution`, or `metadata.code_interpreter` is truthy, prefers candidates advertising `code_execution` capability (from `metadata.code_execution_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `video-input-prefer`: when `metadata.requires_video`, `metadata.video_input`, or `metadata.has_video` is truthy, prefers candidates advertising `video` capability (from `metadata.video_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
