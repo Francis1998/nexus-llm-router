@@ -127,6 +127,7 @@ class RoutingStrategyName(StrEnum):
     IMAGE_GEN_PREFER = "image-gen-prefer"
     CODE_EXECUTION_PREFER = "code-execution-prefer"
     VIDEO_INPUT_PREFER = "video-input-prefer"
+    PDF_INPUT_PREFER = "pdf-input-prefer"
     AB_TEST = "ab"
 
 
