@@ -129,6 +129,7 @@ class RoutingStrategyName(StrEnum):
     VIDEO_INPUT_PREFER = "video-input-prefer"
     PDF_INPUT_PREFER = "pdf-input-prefer"
     BATCH_API_PREFER = "batch-api-prefer"
+    REASONING_EFFORT_PREFER = "reasoning-effort-prefer"
     AB_TEST = "ab"
 
 
