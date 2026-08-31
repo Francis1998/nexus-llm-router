@@ -132,6 +132,7 @@ class RoutingStrategyName(StrEnum):
     REASONING_EFFORT_PREFER = "reasoning-effort-prefer"
     TRANSCRIPTION_PREFER = "transcription-prefer"
     MODERATION_PREFER = "moderation-prefer"
+    PREDICTED_OUTPUTS_PREFER = "predicted-outputs-prefer"
     AB_TEST = "ab"
 
 
