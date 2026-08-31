@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-919%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-931%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -217,6 +217,7 @@ Select a strategy with `X-Router-Strategy`:
 - `reasoning-effort-prefer`: when `metadata.requires_reasoning_effort` / `metadata.reasoning_effort` / `metadata.effort_control` is truthy, prefers candidates advertising `reasoning_effort` capability (from `metadata.reasoning_effort_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `transcription-prefer`: when `metadata.requires_transcription` / `metadata.transcription` / `metadata.speech_to_text` / `metadata.stt` is truthy, prefers candidates advertising `transcription` capability (from `metadata.transcription_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `moderation-prefer`: when `metadata.requires_moderation` / `metadata.moderation` / `metadata.content_moderation` is truthy, prefers candidates advertising `moderation` capability (from `metadata.moderation_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `predicted-outputs-prefer`: when `metadata.requires_predicted_outputs` / `metadata.predicted_outputs` / `metadata.prediction` is truthy, prefers candidates advertising `predicted_outputs` capability (from `metadata.predicted_outputs_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
