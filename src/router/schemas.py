@@ -131,6 +131,7 @@ class RoutingStrategyName(StrEnum):
     BATCH_API_PREFER = "batch-api-prefer"
     REASONING_EFFORT_PREFER = "reasoning-effort-prefer"
     TRANSCRIPTION_PREFER = "transcription-prefer"
+    MODERATION_PREFER = "moderation-prefer"
     AB_TEST = "ab"
 
 
