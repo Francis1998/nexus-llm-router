@@ -14442,7 +14442,8 @@ class PromptCachingPreferStrategy(RoutingStrategy):
     ``metadata.prompt_caching_models``, ``metadata.model_capabilities`` / the
     built-in known-model map (``prompt_caching`` capability), or a name
     heuristic matching ``prompt-caching``, ``prompt-cache``, or ``cached-tokens``. Requests that
-    omit the signal stay quality-first. Inspired by Anthropic/OpenAI prompt caching and Portkey cache-aware routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    omit the signal stay quality-first. Inspired by Anthropic/OpenAI prompt caching and Portkey
+    cache-aware routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
     Kimi K2.
     """
 
