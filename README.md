@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-943%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-955%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -219,6 +219,7 @@ Select a strategy with `X-Router-Strategy`:
 - `moderation-prefer`: when `metadata.requires_moderation` / `metadata.moderation` / `metadata.content_moderation` is truthy, prefers candidates advertising `moderation` capability (from `metadata.moderation_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `predicted-outputs-prefer`: when `metadata.requires_predicted_outputs` / `metadata.predicted_outputs` / `metadata.prediction` is truthy, prefers candidates advertising `predicted_outputs` capability (from `metadata.predicted_outputs_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `prompt-caching-prefer`: prefers `prompt_caching`-capable models when signaled via metadata (requires_prompt_caching, prompt_caching, cache_prompt); quality-first otherwise. GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+- `fine-tune-prefer`: capability-prefer routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
