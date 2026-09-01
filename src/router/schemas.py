@@ -133,6 +133,7 @@ class RoutingStrategyName(StrEnum):
     TRANSCRIPTION_PREFER = "transcription-prefer"
     MODERATION_PREFER = "moderation-prefer"
     PREDICTED_OUTPUTS_PREFER = "predicted-outputs-prefer"
+    PROMPT_CACHING_PREFER = "prompt-caching-prefer"
     AB_TEST = "ab"
 
 
