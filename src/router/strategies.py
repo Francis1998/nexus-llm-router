@@ -14430,8 +14430,6 @@ class PredictedOutputsPreferStrategy(RoutingStrategy):
             fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
         )
 
-
-
 class PromptCachingPreferStrategy(RoutingStrategy):
     """Prefer models with Prompt Caching / speculative decoding when requested.
 
@@ -14621,8 +14619,6 @@ class PromptCachingPreferStrategy(RoutingStrategy):
             fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
         )
 
-
-
 class FineTunePreferStrategy(RoutingStrategy):
     """Prefer models with Fine-tuning / speculative decoding when requested.
 
@@ -14802,6 +14798,195 @@ class FineTunePreferStrategy(RoutingStrategy):
             )
             rationale = (
                 f"fine-tune-prefer no signal; "
+                f"selected {availability_note} quality-first {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+class EmbeddingsPreferStrategy(RoutingStrategy):
+    """Prefer models with Embeddings / speculative decoding when requested.
+
+    When ``metadata.requires_embeddings``, ``metadata.embeddings``, or
+    ``metadata.prediction`` is truthy, rank healthy domain-eligible candidates by
+    whether they support ``embeddings``, then by quality (descending) and
+    cost (ascending). Capability is resolved from
+    ``metadata.embeddings_models``, ``metadata.model_capabilities`` / the
+    built-in known-model map (``embeddings`` capability), or a name
+    heuristic matching ``embedding``, ``embeddings``, or ``text-embedding``. Requests that
+    omit the signal stay quality-first. Inspired by OpenAI Embeddings API and LiteLLM/Portkey
+    embedding-model routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
+    Kimi K2.
+    """
+
+    strategy_name = RoutingStrategyName.EMBEDDINGS_PREFER
+
+    _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
+    _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
+    _NAME_TOKENS = (
+        "embedding",
+        "embeddings",
+        "text-embedding",
+    )
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        capability_map: Mapping[str, frozenset[str]] | None = None,
+    ) -> None:
+        """Initialize embeddings-prefer routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._capability_map: Mapping[str, frozenset[str]] = (
+            _KNOWN_MODEL_CAPABILITIES if capability_map is None else capability_map
+        )
+
+    @classmethod
+    def _is_truthy(cls, value: object) -> bool:
+        """Return whether a metadata value is treated as truthy."""
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value != 0
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) > 0
+        text = str(value).strip().lower()
+        if text in cls._FALSY_TOKENS:
+            return False
+        return text in cls._TRUTHY_TOKENS or bool(text)
+
+    @classmethod
+    def _wants_embeddings(cls, request: RouterRequest) -> bool:
+        """Return whether the request asks for embeddings support."""
+        return (
+            cls._is_truthy(request.metadata.get("requires_embeddings"))
+            or cls._is_truthy(request.metadata.get("embeddings"))
+            or cls._is_truthy(request.metadata.get("embedding"))
+        )
+
+    @staticmethod
+    def _embeddings_allowlist(request: RouterRequest) -> frozenset[str] | None:
+        """Parse an optional ``metadata.embeddings_models`` allowlist."""
+        raw = request.metadata.get("embeddings_models")
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            parts: Iterable[object] = raw.split(",")
+        elif isinstance(raw, Iterable) and not isinstance(raw, (bytes, bytearray)):
+            parts = raw
+        else:
+            return frozenset()
+        return frozenset(stripped.lower() for item in parts if (stripped := str(item).strip()))
+
+    def _capabilities_for(self, model: str, request: RouterRequest) -> frozenset[str] | None:
+        """Resolve an explicit capability set, or ``None`` when absent."""
+        overrides = request.metadata.get("model_capabilities")
+        if isinstance(overrides, Mapping) and model in overrides:
+            override = overrides[model]
+            if isinstance(override, str):
+                return frozenset(
+                    stripped.lower() for part in override.split(",") if (stripped := part.strip())
+                )
+            if isinstance(override, Iterable) and not isinstance(override, (bytes, bytearray)):
+                return frozenset(str(item).strip().lower() for item in override)
+            return frozenset()
+        if model in self._capability_map:
+            return self._capability_map[model]
+        return None
+
+    def _supports_embeddings(self, model: str, request: RouterRequest) -> bool:
+        """Return whether a model is treated as embeddings capable."""
+        allowlist = self._embeddings_allowlist(request)
+        if allowlist is not None:
+            return model.lower() in allowlist
+        capabilities = self._capabilities_for(model, request)
+        if capabilities is not None:
+            return "embeddings" in capabilities
+        lower = model.lower()
+        return any(token in lower for token in self._NAME_TOKENS)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer embeddings models when the capability is requested."""
+        wants = self._wants_embeddings(request)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        embeddings_flags = {
+            candidate.model: self._supports_embeddings(candidate.model, request)
+            for candidate in active
+        }
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+
+        if wants:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    embeddings_flags[candidate.model],
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    not embeddings_flags[candidate.model],
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            capable_note = (
+                "embeddings-capable"
+                if embeddings_flags[selected.model]
+                else "non-embeddingss fallback"
+            )
+            rationale = (
+                f"embeddings-prefer requested; selected {availability_note} "
+                f"{capable_note} {selected.model} (quality {selected.quality_score:.2f})"
+            )
+        else:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"embeddings-prefer no signal; "
                 f"selected {availability_note} quality-first {selected.model}"
             )
 
@@ -15714,6 +15899,10 @@ def build_strategies(
             provider_health,
         ),
         RoutingStrategyName.FINE_TUNE_PREFER: FineTunePreferStrategy(
+            model_catalog,
+            provider_health,
+        ),
+        RoutingStrategyName.EMBEDDINGS_PREFER: EmbeddingsPreferStrategy(
             model_catalog,
             provider_health,
         ),
