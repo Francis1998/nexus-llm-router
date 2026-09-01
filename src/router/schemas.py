@@ -135,6 +135,7 @@ class RoutingStrategyName(StrEnum):
     PREDICTED_OUTPUTS_PREFER = "predicted-outputs-prefer"
     PROMPT_CACHING_PREFER = "prompt-caching-prefer"
     FINE_TUNE_PREFER = "fine-tune-prefer"
+    EMBEDDINGS_PREFER = "embeddings-prefer"
     AB_TEST = "ab"
 
 
