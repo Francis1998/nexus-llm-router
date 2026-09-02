@@ -136,6 +136,7 @@ class RoutingStrategyName(StrEnum):
     PROMPT_CACHING_PREFER = "prompt-caching-prefer"
     FINE_TUNE_PREFER = "fine-tune-prefer"
     EMBEDDINGS_PREFER = "embeddings-prefer"
+    RESPONSES_API_PREFER = "responses-api-prefer"
     AB_TEST = "ab"
 
 
