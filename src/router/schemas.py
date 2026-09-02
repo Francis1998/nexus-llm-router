@@ -138,6 +138,7 @@ class RoutingStrategyName(StrEnum):
     EMBEDDINGS_PREFER = "embeddings-prefer"
     RESPONSES_API_PREFER = "responses-api-prefer"
     FILE_SEARCH_PREFER = "file-search-prefer"
+    VECTOR_STORE_PREFER = "vector-store-prefer"
     AB_TEST = "ab"
 
 

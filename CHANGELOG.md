@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `vector-store-prefer`: prefer models with `vector_store` capability when requested (OpenAI vector stores / RAG store affinity routing vs embeddings-only).
 - `file-search-prefer`: prefer models with `file_search` capability when requested (OpenAI Assistants file_search / vector retrieval capability routing).
 - `responses-api-prefer`: prefer models with `responses_api` capability when requested (OpenAI Responses API routing in LiteLLM/Portkey capability routers).
 - `embeddings-prefer` routing strategy added for capability-aware preference. See `docs/guides/EMBEDDINGS_PREFER_GUIDE.md`.
