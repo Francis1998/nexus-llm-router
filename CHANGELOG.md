@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `file-search-prefer`: prefer models with `file_search` capability when requested (OpenAI Assistants file_search / vector retrieval capability routing).
 - `responses-api-prefer`: prefer models with `responses_api` capability when requested (OpenAI Responses API routing in LiteLLM/Portkey capability routers).
 - `embeddings-prefer` routing strategy added for capability-aware preference. See `docs/guides/EMBEDDINGS_PREFER_GUIDE.md`.
 - `fine-tune-prefer` routing strategy added for capability-aware preference. See `docs/guides/FINE_TUNE_PREFER_GUIDE.md`.
