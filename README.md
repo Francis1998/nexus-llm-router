@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-979%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-991%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -222,6 +222,7 @@ Select a strategy with `X-Router-Strategy`:
 - `fine-tune-prefer`: capability-prefer routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 - `embeddings-prefer`: capability-prefer routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 - `responses-api-prefer` — prefer `responses_api`-capable models when requested
+- `file-search-prefer` — prefer `file_search`-capable models when requested
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation

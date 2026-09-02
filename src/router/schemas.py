@@ -137,6 +137,7 @@ class RoutingStrategyName(StrEnum):
     FINE_TUNE_PREFER = "fine-tune-prefer"
     EMBEDDINGS_PREFER = "embeddings-prefer"
     RESPONSES_API_PREFER = "responses-api-prefer"
+    FILE_SEARCH_PREFER = "file-search-prefer"
     AB_TEST = "ab"
 
 
