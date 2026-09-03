@@ -2321,3 +2321,4 @@ context window meets a requested threshold when a request declares
 The `audio-input-prefer` strategy biases selection toward audio-capable models when a request declares `metadata.requires_audio`, `metadata.audio_input`, or `metadata.audio`.
 The `web-search-prefer` strategy biases selection toward web-search-capable models when a request declares `metadata.requires_web_search`, `metadata.web_search`, or `metadata.online`.
 The `computer-use-prefer` strategy biases selection toward computer-use-capable models when a request declares `metadata.requires_computer_use`, `metadata.computer_use`, or `metadata.cua`.
+The `realtime-api-prefer` strategy biases selection toward realtime-api-capable models when a request declares `metadata.requires_realtime`, `metadata.realtime_api`, or `metadata.websocket_streaming`.
