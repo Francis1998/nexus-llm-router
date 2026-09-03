@@ -2322,3 +2322,4 @@ The `audio-input-prefer` strategy biases selection toward audio-capable models w
 The `web-search-prefer` strategy biases selection toward web-search-capable models when a request declares `metadata.requires_web_search`, `metadata.web_search`, or `metadata.online`.
 The `computer-use-prefer` strategy biases selection toward computer-use-capable models when a request declares `metadata.requires_computer_use`, `metadata.computer_use`, or `metadata.cua`.
 The `realtime-api-prefer` strategy biases selection toward realtime-api-capable models when a request declares `metadata.requires_realtime`, `metadata.realtime_api`, or `metadata.websocket_streaming`.
+The `mcp-prefer` strategy biases selection toward MCP-capable models when a request declares `metadata.requires_mcp`, `metadata.mcp_servers`, or `metadata.model_context_protocol`. Optional allowlist: `metadata.mcp_models`.
