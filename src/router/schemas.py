@@ -140,6 +140,7 @@ class RoutingStrategyName(StrEnum):
     FILE_SEARCH_PREFER = "file-search-prefer"
     VECTOR_STORE_PREFER = "vector-store-prefer"
     REALTIME_API_PREFER = "realtime-api-prefer"
+    MCP_PREFER = "mcp-prefer"
     AB_TEST = "ab"
 
 
