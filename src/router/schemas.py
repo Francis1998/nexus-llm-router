@@ -139,6 +139,7 @@ class RoutingStrategyName(StrEnum):
     RESPONSES_API_PREFER = "responses-api-prefer"
     FILE_SEARCH_PREFER = "file-search-prefer"
     VECTOR_STORE_PREFER = "vector-store-prefer"
+    REALTIME_API_PREFER = "realtime-api-prefer"
     AB_TEST = "ab"
 
 
