@@ -141,6 +141,7 @@ class RoutingStrategyName(StrEnum):
     VECTOR_STORE_PREFER = "vector-store-prefer"
     REALTIME_API_PREFER = "realtime-api-prefer"
     MCP_PREFER = "mcp-prefer"
+    LOGPROBS_PREFER = "logprobs-prefer"
     AB_TEST = "ab"
 
 

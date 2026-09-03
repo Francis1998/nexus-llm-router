@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1029%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1042%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -226,6 +226,7 @@ Select a strategy with `X-Router-Strategy`:
 - `vector-store-prefer` — prefer `vector_store`-capable models when requested
 - `realtime-api-prefer`: when `metadata.requires_realtime` / `metadata.realtime_api` / `metadata.websocket_streaming` is truthy, prefers candidates advertising `realtime_api` capability (from `metadata.realtime_api_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `mcp-prefer`: when `metadata.requires_mcp` / `metadata.mcp_servers` / `metadata.model_context_protocol` is truthy, prefers candidates advertising `mcp` capability (from `metadata.mcp_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `logprobs-prefer`: when `metadata.requires_logprobs` / `metadata.logprobs` / `metadata.top_logprobs` is truthy, prefers candidates advertising `logprobs` capability (from `metadata.logprobs_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation

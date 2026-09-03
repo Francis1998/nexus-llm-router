@@ -2323,3 +2323,4 @@ The `web-search-prefer` strategy biases selection toward web-search-capable mode
 The `computer-use-prefer` strategy biases selection toward computer-use-capable models when a request declares `metadata.requires_computer_use`, `metadata.computer_use`, or `metadata.cua`.
 The `realtime-api-prefer` strategy biases selection toward realtime-api-capable models when a request declares `metadata.requires_realtime`, `metadata.realtime_api`, or `metadata.websocket_streaming`.
 The `mcp-prefer` strategy biases selection toward MCP-capable models when a request declares `metadata.requires_mcp`, `metadata.mcp_servers`, or `metadata.model_context_protocol`. Optional allowlist: `metadata.mcp_models`.
+The `logprobs-prefer` strategy biases selection toward logprobs-capable models when a request declares `metadata.requires_logprobs`, `metadata.logprobs`, or `metadata.top_logprobs`. Optional allowlist: `metadata.logprobs_models`.
