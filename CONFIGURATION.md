@@ -2329,4 +2329,7 @@ The `background-mode-prefer` strategy biases selection toward background_mode-ca
 
 The `parallel-tool-prefer` strategy biases selection toward parallel_tool_calls-capable models when a request declares `metadata.requires_parallel_tool_calls`, `metadata.parallel_tool_calls`, or `metadata.parallel_tools`. Optional allowlist: `metadata.parallel_tool_models`.
 
+The `deep-research-prefer` strategy biases selection toward deep_research-capable models when a request declares `metadata.requires_deep_research`, `metadata.deep_research`, or `metadata.o_deep_research`. Optional allowlist: `metadata.deep_research_models`.
+
+
 
