@@ -144,6 +144,7 @@ class RoutingStrategyName(StrEnum):
     LOGPROBS_PREFER = "logprobs-prefer"
     BACKGROUND_MODE_PREFER = "background-mode-prefer"
     PARALLEL_TOOL_PREFER = "parallel-tool-prefer"
+    DEEP_RESEARCH_PREFER = "deep-research-prefer"
     AB_TEST = "ab"
 
 
