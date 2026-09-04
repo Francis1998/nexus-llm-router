@@ -143,6 +143,7 @@ class RoutingStrategyName(StrEnum):
     MCP_PREFER = "mcp-prefer"
     LOGPROBS_PREFER = "logprobs-prefer"
     BACKGROUND_MODE_PREFER = "background-mode-prefer"
+    PARALLEL_TOOL_PREFER = "parallel-tool-prefer"
     AB_TEST = "ab"
 
 
