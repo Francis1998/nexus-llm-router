@@ -2324,3 +2324,6 @@ The `computer-use-prefer` strategy biases selection toward computer-use-capable 
 The `realtime-api-prefer` strategy biases selection toward realtime-api-capable models when a request declares `metadata.requires_realtime`, `metadata.realtime_api`, or `metadata.websocket_streaming`.
 The `mcp-prefer` strategy biases selection toward MCP-capable models when a request declares `metadata.requires_mcp`, `metadata.mcp_servers`, or `metadata.model_context_protocol`. Optional allowlist: `metadata.mcp_models`.
 The `logprobs-prefer` strategy biases selection toward logprobs-capable models when a request declares `metadata.requires_logprobs`, `metadata.logprobs`, or `metadata.top_logprobs`. Optional allowlist: `metadata.logprobs_models`.
+
+The `background-mode-prefer` strategy biases selection toward background_mode-capable models when a request declares `metadata.requires_background_mode`, `metadata.background_mode`, or `metadata.background_agent`. Optional allowlist: `metadata.background_mode_models`.
+

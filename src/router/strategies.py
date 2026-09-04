@@ -10438,15 +10438,16 @@ class ProviderSuccessFloorStrategy(RoutingStrategy):
 _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
     OPENAI_FRONTIER_MODEL: frozenset(
         {
-            "vision",
-            "tools",
-            "long_context",
-            "json",
-            "streaming",
             "audio",
-            "realtime_api",
-            "mcp",
+            "background_mode",
+            "json",
             "logprobs",
+            "long_context",
+            "mcp",
+            "realtime_api",
+            "streaming",
+            "tools",
+            "vision",
         }
     ),
     OPENAI_BALANCED_MODEL: frozenset({"tools", "streaming", "logprobs"}),
@@ -16142,6 +16143,197 @@ class LogprobsPreferStrategy(RoutingStrategy):
         )
 
 
+
+class BackgroundModePreferStrategy(RoutingStrategy):
+    """Prefer models with background_mode capability when requested.
+
+    When ``metadata.requires_background_mode``, ``metadata.background_mode``, or
+    ``metadata.background_agent`` is truthy, rank healthy domain-eligible
+    candidates by whether they support ``background_mode``, then by quality
+    (descending) and cost (ascending). Capability is resolved from
+    ``metadata.background_mode_models``, ``metadata.model_capabilities`` / the
+    built-in known-model map (``background_mode`` capability), or a name
+    heuristic matching ``background_mode``. Requests that omit the signal stay
+    quality-first. Inspired by OpenAI Background mode / Agents API long-running jobs
+    in LiteLLM/Portkey capability routers on GPT-5.5 / Claude Sonnet 4.6 /
+    Gemini 3.x / Kimi K2.
+    """
+
+    strategy_name = RoutingStrategyName.BACKGROUND_MODE_PREFER
+
+    _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
+    _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
+    _NAME_TOKENS = (
+        "background_mode",
+        "background-mode",
+        "background",
+    )
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        capability_map: Mapping[str, frozenset[str]] | None = None,
+    ) -> None:
+        """Initialize background-mode-prefer routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._capability_map: Mapping[str, frozenset[str]] = (
+            _KNOWN_MODEL_CAPABILITIES if capability_map is None else capability_map
+        )
+
+    @classmethod
+    def _is_truthy(cls, value: object) -> bool:
+        """Return whether a metadata value is treated as truthy."""
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value != 0
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) > 0
+        text = str(value).strip().lower()
+        if text in cls._FALSY_TOKENS:
+            return False
+        return text in cls._TRUTHY_TOKENS or bool(text)
+
+    @classmethod
+    def _wants_background_mode(cls, request: RouterRequest) -> bool:
+        """Return whether the request asks for background_mode support."""
+        return (
+            cls._is_truthy(request.metadata.get("requires_background_mode"))
+            or cls._is_truthy(request.metadata.get("background_mode"))
+            or cls._is_truthy(request.metadata.get("background_agent"))
+        )
+
+    @staticmethod
+    def _background_mode_allowlist(request: RouterRequest) -> frozenset[str] | None:
+        """Parse an optional ``metadata.background_mode_models`` allowlist."""
+        raw = request.metadata.get("background_mode_models")
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            parts: Iterable[object] = raw.split(",")
+        elif isinstance(raw, Iterable) and not isinstance(raw, (bytes, bytearray)):
+            parts = raw
+        else:
+            return frozenset()
+        return frozenset(stripped.lower() for item in parts if (stripped := str(item).strip()))
+
+    def _capabilities_for(self, model: str, request: RouterRequest) -> frozenset[str] | None:
+        """Resolve an explicit capability set, or ``None`` when absent."""
+        overrides = request.metadata.get("model_capabilities")
+        if isinstance(overrides, Mapping) and model in overrides:
+            override = overrides[model]
+            if isinstance(override, str):
+                return frozenset(
+                    stripped.lower() for part in override.split(",") if (stripped := part.strip())
+                )
+            if isinstance(override, Iterable) and not isinstance(override, (bytes, bytearray)):
+                return frozenset(str(item).strip().lower() for item in override)
+            return frozenset()
+        if model in self._capability_map:
+            return self._capability_map[model]
+        return None
+
+    def _supports_background_mode(self, model: str, request: RouterRequest) -> bool:
+        """Return whether a model is treated as background_mode capable."""
+        allowlist = self._background_mode_allowlist(request)
+        if allowlist is not None:
+            return model.lower() in allowlist
+        capabilities = self._capabilities_for(model, request)
+        if capabilities is not None:
+            return "background_mode" in capabilities
+        lower = model.lower()
+        return any(token in lower for token in self._NAME_TOKENS)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer background_mode models when the capability is requested."""
+        wants = self._wants_background_mode(request)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        background_mode_flags = {
+            candidate.model: self._supports_background_mode(candidate.model, request)
+            for candidate in active
+        }
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+
+        if wants:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    background_mode_flags[candidate.model],
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    not background_mode_flags[candidate.model],
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            capable_note = (
+                "background_mode-capable"
+                if background_mode_flags[selected.model]
+                else "non-background_mode fallback"
+            )
+            rationale = (
+                f"background-mode-prefer requested; selected {availability_note} "
+                f"{capable_note} {selected.model} (quality {selected.quality_score:.2f})"
+            )
+        else:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"background-mode-prefer no signal; "
+                f"selected {availability_note} quality-first {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -17070,6 +17262,10 @@ def build_strategies(
             provider_health,
         ),
         RoutingStrategyName.LOGPROBS_PREFER: LogprobsPreferStrategy(
+            model_catalog,
+            provider_health,
+        ),
+        RoutingStrategyName.BACKGROUND_MODE_PREFER: BackgroundModePreferStrategy(
             model_catalog,
             provider_health,
         ),

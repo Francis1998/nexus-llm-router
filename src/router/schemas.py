@@ -142,6 +142,7 @@ class RoutingStrategyName(StrEnum):
     REALTIME_API_PREFER = "realtime-api-prefer"
     MCP_PREFER = "mcp-prefer"
     LOGPROBS_PREFER = "logprobs-prefer"
+    BACKGROUND_MODE_PREFER = "background-mode-prefer"
     AB_TEST = "ab"
 
 
