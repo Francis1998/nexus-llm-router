@@ -2327,3 +2327,6 @@ The `logprobs-prefer` strategy biases selection toward logprobs-capable models w
 
 The `background-mode-prefer` strategy biases selection toward background_mode-capable models when a request declares `metadata.requires_background_mode`, `metadata.background_mode`, or `metadata.background_agent`. Optional allowlist: `metadata.background_mode_models`.
 
+The `parallel-tool-prefer` strategy biases selection toward parallel_tool_calls-capable models when a request declares `metadata.requires_parallel_tool_calls`, `metadata.parallel_tool_calls`, or `metadata.parallel_tools`. Optional allowlist: `metadata.parallel_tool_models`.
+
+

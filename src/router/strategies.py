@@ -10444,15 +10444,16 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
             "logprobs",
             "long_context",
             "mcp",
+            "parallel_tool_calls",
             "realtime_api",
             "streaming",
             "tools",
             "vision",
         }
     ),
-    OPENAI_BALANCED_MODEL: frozenset({"tools", "streaming", "logprobs"}),
+    OPENAI_BALANCED_MODEL: frozenset({"logprobs", "parallel_tool_calls", "streaming", "tools"}),
     ANTHROPIC_SAFETY_MODEL: frozenset(
-        {"vision", "tools", "long_context", "json", "streaming", "mcp"}
+        {"json", "long_context", "mcp", "parallel_tool_calls", "streaming", "tools", "vision"}
     ),
     ANTHROPIC_FAST_MODEL: frozenset({"tools", "streaming"}),
     GEMINI_PRO_MODEL: frozenset({"vision", "tools", "long_context", "json", "streaming", "audio"}),
@@ -16334,6 +16335,197 @@ class BackgroundModePreferStrategy(RoutingStrategy):
         )
 
 
+
+class ParallelToolPreferStrategy(RoutingStrategy):
+    """Prefer models with parallel_tool_calls capability when requested.
+
+    When ``metadata.requires_parallel_tool_calls``, ``metadata.parallel_tool_calls``, or
+    ``metadata.parallel_tools`` is truthy, rank healthy domain-eligible
+    candidates by whether they support ``parallel_tool_calls``, then by quality
+    (descending) and cost (ascending). Capability is resolved from
+    ``metadata.parallel_tool_models``, ``metadata.model_capabilities`` / the
+    built-in known-model map (``parallel_tool_calls`` capability), or a name
+    heuristic matching ``parallel_tool_calls``. Requests that omit the signal stay
+    quality-first. Inspired by OpenAI parallel_tool_calls and Anthropic parallel tool use
+    in multi-tool agent loops on GPT-5.5 / Claude Sonnet 4.6 /
+    Gemini 3.x / Kimi K2.
+    """
+
+    strategy_name = RoutingStrategyName.PARALLEL_TOOL_PREFER
+
+    _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
+    _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
+    _NAME_TOKENS = (
+        "parallel_tool",
+        "parallel-tool",
+        "parallel_tools",
+    )
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        capability_map: Mapping[str, frozenset[str]] | None = None,
+    ) -> None:
+        """Initialize parallel-tool-prefer routing."""
+        super().__init__(model_catalog)
+        self._provider_health = provider_health
+        self._capability_map: Mapping[str, frozenset[str]] = (
+            _KNOWN_MODEL_CAPABILITIES if capability_map is None else capability_map
+        )
+
+    @classmethod
+    def _is_truthy(cls, value: object) -> bool:
+        """Return whether a metadata value is treated as truthy."""
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value != 0
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) > 0
+        text = str(value).strip().lower()
+        if text in cls._FALSY_TOKENS:
+            return False
+        return text in cls._TRUTHY_TOKENS or bool(text)
+
+    @classmethod
+    def _wants_parallel_tool_calls(cls, request: RouterRequest) -> bool:
+        """Return whether the request asks for parallel_tool_calls support."""
+        return (
+            cls._is_truthy(request.metadata.get("requires_parallel_tool_calls"))
+            or cls._is_truthy(request.metadata.get("parallel_tool_calls"))
+            or cls._is_truthy(request.metadata.get("parallel_tools"))
+        )
+
+    @staticmethod
+    def _parallel_tool_calls_allowlist(request: RouterRequest) -> frozenset[str] | None:
+        """Parse an optional ``metadata.parallel_tool_models`` allowlist."""
+        raw = request.metadata.get("parallel_tool_models")
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            parts: Iterable[object] = raw.split(",")
+        elif isinstance(raw, Iterable) and not isinstance(raw, (bytes, bytearray)):
+            parts = raw
+        else:
+            return frozenset()
+        return frozenset(stripped.lower() for item in parts if (stripped := str(item).strip()))
+
+    def _capabilities_for(self, model: str, request: RouterRequest) -> frozenset[str] | None:
+        """Resolve an explicit capability set, or ``None`` when absent."""
+        overrides = request.metadata.get("model_capabilities")
+        if isinstance(overrides, Mapping) and model in overrides:
+            override = overrides[model]
+            if isinstance(override, str):
+                return frozenset(
+                    stripped.lower() for part in override.split(",") if (stripped := part.strip())
+                )
+            if isinstance(override, Iterable) and not isinstance(override, (bytes, bytearray)):
+                return frozenset(str(item).strip().lower() for item in override)
+            return frozenset()
+        if model in self._capability_map:
+            return self._capability_map[model]
+        return None
+
+    def _supports_parallel_tool_calls(self, model: str, request: RouterRequest) -> bool:
+        """Return whether a model is treated as parallel_tool_calls capable."""
+        allowlist = self._parallel_tool_calls_allowlist(request)
+        if allowlist is not None:
+            return model.lower() in allowlist
+        capabilities = self._capabilities_for(model, request)
+        if capabilities is not None:
+            return "parallel_tool_calls" in capabilities
+        lower = model.lower()
+        return any(token in lower for token in self._NAME_TOKENS)
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Prefer parallel_tool_calls models when the capability is requested."""
+        wants = self._wants_parallel_tool_calls(request)
+        eligible = [
+            candidate
+            for candidate in self._model_catalog.values()
+            if signals.domain_tag in candidate.supports_domains
+        ] or list(self._model_catalog.values())
+        healthy = [
+            candidate
+            for candidate in eligible
+            if self._provider_health.is_available(candidate.provider)
+        ]
+        active = healthy or eligible
+        costs = {
+            candidate.model: candidate.estimate_cost(
+                signals.prompt_tokens_estimate,
+                request.max_tokens,
+            )
+            for candidate in active
+        }
+        parallel_tool_calls_flags = {
+            candidate.model: self._supports_parallel_tool_calls(candidate.model, request)
+            for candidate in active
+        }
+        availability_note = "healthy" if healthy else "circuit-open emergency"
+
+        if wants:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    parallel_tool_calls_flags[candidate.model],
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    not parallel_tool_calls_flags[candidate.model],
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            capable_note = (
+                "parallel_tool_calls-capable"
+                if parallel_tool_calls_flags[selected.model]
+                else "non-parallel_tool_calls fallback"
+            )
+            rationale = (
+                f"parallel-tool-prefer requested; selected {availability_note} "
+                f"{capable_note} {selected.model} (quality {selected.quality_score:.2f})"
+            )
+        else:
+            selected = max(
+                active,
+                key=lambda candidate: (
+                    candidate.quality_score,
+                    -costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            fallback_candidates = sorted(
+                (candidate for candidate in active if candidate.model != selected.model),
+                key=lambda candidate: (
+                    -candidate.quality_score,
+                    costs[candidate.model],
+                    candidate.model,
+                ),
+            )
+            rationale = (
+                f"parallel-tool-prefer no signal; "
+                f"selected {availability_note} quality-first {selected.model}"
+            )
+
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in fallback_candidates[:3]],
+        )
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -17266,6 +17458,10 @@ def build_strategies(
             provider_health,
         ),
         RoutingStrategyName.BACKGROUND_MODE_PREFER: BackgroundModePreferStrategy(
+            model_catalog,
+            provider_health,
+        ),
+        RoutingStrategyName.PARALLEL_TOOL_PREFER: ParallelToolPreferStrategy(
             model_catalog,
             provider_health,
         ),
