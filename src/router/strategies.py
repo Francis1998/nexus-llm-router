@@ -10454,7 +10454,16 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
     ),
     OPENAI_BALANCED_MODEL: frozenset({"logprobs", "parallel_tool_calls", "streaming", "tools"}),
     ANTHROPIC_SAFETY_MODEL: frozenset(
-        {"deep_research", "json", "long_context", "mcp", "parallel_tool_calls", "streaming", "tools", "vision"}
+        {
+            "deep_research",
+            "json",
+            "long_context",
+            "mcp",
+            "parallel_tool_calls",
+            "streaming",
+            "tools",
+            "vision",
+        }
     ),
     ANTHROPIC_FAST_MODEL: frozenset({"tools", "streaming"}),
     GEMINI_PRO_MODEL: frozenset({"vision", "tools", "long_context", "json", "streaming", "audio"}),
