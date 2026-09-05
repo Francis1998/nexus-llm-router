@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1107%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1120%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -231,6 +231,7 @@ Select a strategy with `X-Router-Strategy`:
 - `deep-research-prefer`: when `metadata.requires_deep_research` / `metadata.deep_research` / `metadata.o_deep_research` is truthy, prefers candidates advertising `deep_research` capability (from `metadata.deep_research_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `agents-api-prefer`: when `metadata.requires_agents_api` / `metadata.agents_api` / `metadata.openai_agents` is truthy, prefers candidates advertising `agents_api` capability (from `metadata.agents_api_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `webhook-prefer`: when `metadata.requires_webhook` / `metadata.webhook_callbacks` / `metadata.async_webhook` is truthy, prefers candidates advertising `webhook` capability (from `metadata.webhook_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `memory-tool-prefer`: when `metadata.requires_memory_tool` / `metadata.memory_tool` / `metadata.agent_memory` is truthy, prefers candidates advertising `memory_tool` capability (from `metadata.memory_tool_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `background-mode-prefer`: when `metadata.requires_background_mode` / `metadata.background_mode` / `metadata.background_agent` is truthy, prefers candidates advertising `background_mode` capability (from `metadata.background_mode_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
 - `ab`: deterministic request-id buckets across two model arms
 
