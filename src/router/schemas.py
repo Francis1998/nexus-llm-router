@@ -147,6 +147,7 @@ class RoutingStrategyName(StrEnum):
     DEEP_RESEARCH_PREFER = "deep-research-prefer"
     AGENTS_API_PREFER = "agents-api-prefer"
     WEBHOOK_PREFER = "webhook-prefer"
+    MEMORY_TOOL_PREFER = "memory-tool-prefer"
     AB_TEST = "ab"
 
 
