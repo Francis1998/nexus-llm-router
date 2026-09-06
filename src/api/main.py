@@ -11,7 +11,12 @@ from fastapi import FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from adapters.registry import AdapterRegistry, build_adapter_registry
-from api.schemas import ChatCompletionRequest, ChatCompletionResponse
+from api.schemas import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    SpendRecordRequest,
+    SpendSummaryResponse,
+)
 from cache.response_cache import ResponseCache
 from observability.logging import configure_logging
 from observability.metrics import (
@@ -25,6 +30,7 @@ from router.engine import NexusRouter, RoutingFailedError
 from router.schemas import RouterRequest, RouterResponse, RoutingStrategyName
 from safety.budget import BudgetExceededError
 from safety.rate_limiter import RateLimitExceededError
+from safety.spend_ledger import SpendLedger
 
 configure_logging()
 app = FastAPI(title="Nexus LLM Router", version="0.1.0")
@@ -59,6 +65,16 @@ def get_router() -> NexusRouter:
         Nexus router.
     """
     return NexusRouter(get_settings(), get_adapter_registry())
+
+
+@lru_cache(maxsize=1)
+def get_spend_ledger() -> SpendLedger:
+    """Return the durable spend ledger.
+
+    Returns:
+        Spend ledger instance.
+    """
+    return SpendLedger(get_settings().spend_ledger_path)
 
 
 @lru_cache(maxsize=1)
@@ -233,3 +249,59 @@ def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_publisher(), media_type="text/event-stream")
+
+
+@app.get("/v1/spend", response_model=SpendSummaryResponse)
+def get_spend(
+    tenant: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+) -> SpendSummaryResponse:
+    """Return aggregated spend from the durable ledger.
+
+    Args:
+        tenant: Optional tenant filter.
+        provider: Optional provider filter.
+        model: Optional model filter.
+
+    Returns:
+        Spend summary payload.
+    """
+    summary = get_spend_ledger().summary(tenant=tenant, provider=provider, model=model)
+    return SpendSummaryResponse(
+        total_cost_usd=summary.total_cost_usd,
+        request_count=summary.request_count,
+        by_tenant=summary.by_tenant,
+        by_provider=summary.by_provider,
+        by_model=summary.by_model,
+    )
+
+
+@app.post("/v1/spend", response_model=SpendSummaryResponse)
+def post_spend(payload: SpendRecordRequest) -> SpendSummaryResponse:
+    """Record a spend event (portfolio / demo ingestion) and return summary.
+
+    Args:
+        payload: Spend event to persist.
+
+    Returns:
+        Updated spend summary for the event tenant.
+    """
+    ledger = get_spend_ledger()
+    ledger.record(
+        request_id=payload.request_id,
+        tenant=payload.tenant,
+        provider=payload.provider,
+        model=payload.model,
+        cost_usd=payload.cost_usd,
+        input_tokens=payload.input_tokens,
+        output_tokens=payload.output_tokens,
+    )
+    summary = ledger.summary(tenant=payload.tenant)
+    return SpendSummaryResponse(
+        total_cost_usd=summary.total_cost_usd,
+        request_count=summary.request_count,
+        by_tenant=summary.by_tenant,
+        by_provider=summary.by_provider,
+        by_model=summary.by_model,
+    )
