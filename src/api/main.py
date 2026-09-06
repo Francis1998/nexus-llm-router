@@ -11,21 +11,20 @@ from fastapi import FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from adapters.registry import AdapterRegistry, build_adapter_registry
-from api.schemas import (
-    ChatCompletionRequest,
-    ChatCompletionResponse,
-    SpendRecordRequest,
-    SpendSummaryResponse,
-)
+from api.schemas import ChatCompletionRequest, ChatCompletionResponse
+from cache.response_cache import ResponseCache
 from observability.logging import configure_logging
-from observability.metrics import metrics_response
+from observability.metrics import (
+    metrics_response,
+    response_cache_hits_total,
+    response_cache_misses_total,
+)
 from observability.tracing import configure_tracing
 from router.config import RouterSettings, load_settings
 from router.engine import NexusRouter, RoutingFailedError
 from router.schemas import RouterRequest, RoutingStrategyName
 from safety.budget import BudgetExceededError
 from safety.rate_limiter import RateLimitExceededError
-from safety.spend_ledger import SpendLedger
 
 configure_logging()
 app = FastAPI(title="Nexus LLM Router", version="0.1.0")
@@ -63,13 +62,17 @@ def get_router() -> NexusRouter:
 
 
 @lru_cache(maxsize=1)
-def get_spend_ledger() -> SpendLedger:
-    """Return the durable spend ledger.
+def get_response_cache() -> ResponseCache:
+    """Return the process-local exact-match response cache.
 
     Returns:
-        Spend ledger instance.
+        Response cache instance.
     """
-    return SpendLedger(get_settings().spend_ledger_path)
+    settings = get_settings()
+    return ResponseCache(
+        ttl_seconds=settings.response_cache_ttl_seconds,
+        enabled=settings.response_cache_enabled,
+    )
 
 
 @app.get("/health")
@@ -136,6 +139,20 @@ async def chat_completions(
     if payload.stream:
         return _stream_chat_completion(router_request)
 
+    tenant = payload.user or api_key_id
+    cache = get_response_cache()
+    cache_key = ResponseCache.make_key(
+        model=payload.model,
+        messages=payload.messages,
+        temperature=payload.temperature,
+        tenant=tenant,
+    )
+    cached = cache.get(cache_key)
+    if cached is not None:
+        response_cache_hits_total.inc()
+        return ChatCompletionResponse.from_router_response(cached)
+    response_cache_misses_total.inc()
+
     try:
         router_response = await get_router().complete(router_request)
     except RateLimitExceededError as exception:
@@ -150,6 +167,7 @@ async def chat_completions(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exception)
         ) from exception
+    cache.set(cache_key, router_response)
     return ChatCompletionResponse.from_router_response(router_response)
 
 
@@ -210,58 +228,3 @@ def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_publisher(), media_type="text/event-stream")
-
-@app.get("/v1/spend", response_model=SpendSummaryResponse)
-def get_spend(
-    tenant: str | None = None,
-    provider: str | None = None,
-    model: str | None = None,
-) -> SpendSummaryResponse:
-    """Return aggregated spend from the durable ledger.
-
-    Args:
-        tenant: Optional tenant filter.
-        provider: Optional provider filter.
-        model: Optional model filter.
-
-    Returns:
-        Spend summary payload.
-    """
-    summary = get_spend_ledger().summary(tenant=tenant, provider=provider, model=model)
-    return SpendSummaryResponse(
-        total_cost_usd=summary.total_cost_usd,
-        request_count=summary.request_count,
-        by_tenant=summary.by_tenant,
-        by_provider=summary.by_provider,
-        by_model=summary.by_model,
-    )
-
-
-@app.post("/v1/spend", response_model=SpendSummaryResponse)
-def post_spend(payload: SpendRecordRequest) -> SpendSummaryResponse:
-    """Record a spend event (portfolio / demo ingestion) and return summary.
-
-    Args:
-        payload: Spend event to persist.
-
-    Returns:
-        Updated spend summary for the event tenant.
-    """
-    ledger = get_spend_ledger()
-    ledger.record(
-        request_id=payload.request_id,
-        tenant=payload.tenant,
-        provider=payload.provider,
-        model=payload.model,
-        cost_usd=payload.cost_usd,
-        input_tokens=payload.input_tokens,
-        output_tokens=payload.output_tokens,
-    )
-    summary = ledger.summary(tenant=payload.tenant)
-    return SpendSummaryResponse(
-        total_cost_usd=summary.total_cost_usd,
-        request_count=summary.request_count,
-        by_tenant=summary.by_tenant,
-        by_provider=summary.by_provider,
-        by_model=summary.by_model,
-    )

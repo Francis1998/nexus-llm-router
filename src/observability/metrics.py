@@ -23,6 +23,14 @@ provider_error_rate = Counter(
     "Provider errors by provider and model.",
     ["provider", "model"],
 )
+response_cache_hits_total = Counter(
+    "response_cache_hits_total",
+    "Exact-match response cache hits.",
+)
+response_cache_misses_total = Counter(
+    "response_cache_misses_total",
+    "Exact-match response cache misses.",
+)
 
 
 def metrics_response() -> Response:

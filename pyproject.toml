@@ -42,7 +42,7 @@ Repository = "https://github.com/Francis1998/nexus-llm-router"
 Issues = "https://github.com/Francis1998/nexus-llm-router/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/router", "src/adapters", "src/classifier", "src/safety", "src/observability", "src/api"]
+packages = ["src/router", "src/adapters", "src/classifier", "src/safety", "src/observability", "src/api", "src/cache"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -60,7 +60,7 @@ ignore = ["S101"]
 [tool.mypy]
 python_version = "3.11"
 mypy_path = "src"
-packages = ["router", "adapters", "classifier", "safety", "observability", "api"]
+packages = ["router", "adapters", "classifier", "safety", "observability", "api", "cache"]
 strict = true
 warn_unreachable = true
 warn_unused_ignores = true

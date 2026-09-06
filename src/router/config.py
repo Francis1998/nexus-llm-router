@@ -156,7 +156,8 @@ class RouterSettings(BaseSettings):
     tenant_soft_isolation_rpm: Annotated[int, Field(ge=1)] = 60
     prompt_injection_risk_threshold: Annotated[float, Field(ge=0.0, le=1.0)] = 0.7
     thinking_complexity_threshold: Annotated[float, Field(ge=0.0, le=1.0)] = 0.7
-    spend_ledger_path: str = "migrations/spend-ledger.sqlite3"
+    response_cache_enabled: bool = True
+    response_cache_ttl_seconds: Annotated[float, Field(ge=0.0)] = 300.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:
