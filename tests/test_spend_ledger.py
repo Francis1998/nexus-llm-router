@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pytest import MonkeyPatch
-
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
 from api.main import app, get_settings, get_spend_ledger
 from safety.spend_ledger import SpendLedger
