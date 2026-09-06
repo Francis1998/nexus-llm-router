@@ -1,10 +1,14 @@
 """FastAPI application for Nexus LLM Router."""
 
+import json
+from collections.abc import AsyncIterator
 from functools import lru_cache
+from time import time
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 
 from adapters.registry import AdapterRegistry, build_adapter_registry
 from api.schemas import ChatCompletionRequest, ChatCompletionResponse
@@ -75,12 +79,12 @@ def metrics() -> object:
     return metrics_response()
 
 
-@app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
+@app.post("/v1/chat/completions", response_model=None)
 async def chat_completions(
     payload: ChatCompletionRequest,
     request: Request,
     x_router_strategy: Annotated[str | None, Header(alias="X-Router-Strategy")] = None,
-) -> ChatCompletionResponse:
+) -> ChatCompletionResponse | StreamingResponse:
     """Route an OpenAI-compatible chat completion request.
 
     Args:
@@ -102,11 +106,6 @@ async def chat_completions(
             detail=f"unsupported routing strategy: {x_router_strategy}",
         ) from exception
     api_key_id = request.headers.get("authorization", "anonymous")
-    if payload.stream:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="streaming responses are not supported by the API endpoint yet",
-        )
     router_request = RouterRequest(
         request_id=uuid4().hex,
         messages=payload.messages,
@@ -118,6 +117,9 @@ async def chat_completions(
         max_tokens=payload.max_tokens,
         stream=payload.stream,
     )
+    if payload.stream:
+        return _stream_chat_completion(router_request)
+
     try:
         router_response = await get_router().complete(router_request)
     except RateLimitExceededError as exception:
@@ -133,3 +135,62 @@ async def chat_completions(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exception)
         ) from exception
     return ChatCompletionResponse.from_router_response(router_response)
+
+
+def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:
+    """Return an OpenAI-compatible SSE stream for a routed completion."""
+
+    async def event_publisher() -> AsyncIterator[str]:
+        completion_id = f"chatcmpl-{uuid4().hex}"
+        created = int(time())
+        model_name = router_request.requested_model or "nexus-routed"
+        try:
+            first = True
+            async for model_name, chunk in get_router().complete_stream(router_request):
+                delta: dict[str, str] = {"content": chunk}
+                if first:
+                    delta = {"role": "assistant", "content": chunk}
+                    first = False
+                payload = {
+                    "id": completion_id,
+                    "object": "chat.completion.chunk",
+                    "created": created,
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": delta,
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+            final = {
+                "id": completion_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {},
+                        "finish_reason": "stop",
+                    }
+                ],
+            }
+            yield f"data: {json.dumps(final)}\n\n"
+            yield "data: [DONE]\n\n"
+        except RateLimitExceededError as exception:
+            error = {"error": {"message": str(exception), "type": "rate_limit_error"}}
+            yield f"data: {json.dumps(error)}\n\n"
+            yield "data: [DONE]\n\n"
+        except BudgetExceededError as exception:
+            error = {"error": {"message": str(exception), "type": "budget_exceeded"}}
+            yield f"data: {json.dumps(error)}\n\n"
+            yield "data: [DONE]\n\n"
+        except RoutingFailedError as exception:
+            error = {"error": {"message": str(exception), "type": "routing_failed"}}
+            yield f"data: {json.dumps(error)}\n\n"
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_publisher(), media_type="text/event-stream")

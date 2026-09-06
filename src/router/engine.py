@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 
 from adapters.registry import AdapterRegistry
 from observability.logging import get_logger
@@ -358,6 +358,141 @@ class NexusRouter:
                     provider=candidate.provider,
                     prompt_tokens_estimate=signals.prompt_tokens_estimate,
                 )
+            except Exception as exception:
+                last_error = exception
+                self._circuit_breakers.record_failure(candidate.provider)
+                self._success_stats.observe(candidate.provider, success=False)
+                self._provider_error_budget_reset_stats.observe(
+                    candidate.provider,
+                    success=False,
+                )
+                self._provider_weight_stats.observe(candidate.provider, success=False)
+                region_label = (request.region or "global").strip().lower()
+                self._region_failover_hysteresis_stats.record_failure(region_label)
+                rate_limited = self._is_rate_limit_error(exception)
+                self._rate_limit_stats.observe(
+                    candidate.provider,
+                    rate_limited=rate_limited,
+                )
+                if rate_limited:
+                    self._retry_after_cooldown.set_cooldown(
+                        candidate.provider,
+                        self._extract_retry_after_seconds(exception),
+                    )
+                provider_error_rate.labels(candidate.provider, model_name).inc()
+                self._logger.warning(
+                    "provider_attempt_failed",
+                    request_id=request.request_id,
+                    provider=candidate.provider,
+                    model=model_name,
+                    error=str(exception),
+                )
+                if not is_last_attempt:
+                    if state_machine.current_state is RequestState.DISPATCHED:
+                        state_machine.transition(RequestState.FALLBACK)
+                    continue
+                state_machine.transition(RequestState.FAILED)
+
+        message = f"all provider attempts failed: {last_error}"
+        raise RoutingFailedError(message)
+
+    async def complete_stream(self, request: RouterRequest) -> AsyncIterator[tuple[str, str]]:
+        """Route a request and stream provider chunks.
+
+        Yields:
+            Pairs of ``(model_name, text_chunk)`` from the selected provider.
+            A final ``(model_name, "")`` chunk is not emitted; callers should
+            send the SSE terminal frame themselves after the iterator ends.
+
+        Raises:
+            RoutingFailedError: If all provider attempts fail.
+        """
+        state_machine = RoutingStateMachine()
+        started_at = time.perf_counter()
+        self._rate_limiter.assert_allowed(request.api_key_id)
+        strategy_name = request.strategy or self._settings.default_strategy
+        router_requests_total.labels(strategy_name.value, state_machine.current_state.value).inc()
+
+        signals = self._analyzer.analyze(request)
+        state_machine.transition(RequestState.CLASSIFIED)
+        strategy = self._strategies[strategy_name]
+        decision = strategy.choose(request, signals)
+        state_machine.transition(RequestState.ROUTED)
+        self._logger.info(
+            "routing_decision",
+            request_id=request.request_id,
+            model=decision.chosen_model,
+            strategy=decision.routing_strategy.value,
+            rationale=decision.rationale,
+        )
+        attempts = [decision.chosen_model, *decision.fallback_chain]
+        last_error: Exception | None = None
+
+        for attempt_index, model_name in enumerate(attempts):
+            candidate = self._model_catalog[model_name]
+            is_last_attempt = attempt_index == len(attempts) - 1
+
+            try:
+                estimated_cost = candidate.estimate_cost(
+                    signals.prompt_tokens_estimate, request.max_tokens
+                )
+                self._budget_guardrail.assert_can_spend(request.user_id, estimated_cost)
+                self._circuit_breakers.assert_available(candidate.provider)
+            except (BudgetExceededError, CircuitOpenError) as guardrail_error:
+                last_error = guardrail_error
+                self._logger.warning(
+                    "provider_attempt_skipped",
+                    request_id=request.request_id,
+                    provider=candidate.provider,
+                    model=model_name,
+                    error=str(guardrail_error),
+                )
+                if is_last_attempt:
+                    state_machine.transition(RequestState.FAILED)
+                continue
+
+            try:
+                adapter = self._adapter_registry.get(candidate.provider)
+                dispatchable_state = state_machine.current_state in {
+                    RequestState.ROUTED,
+                    RequestState.FALLBACK,
+                }
+                if dispatchable_state:
+                    state_machine.transition(RequestState.DISPATCHED)
+                sanitized_messages = self._pii_scrubber.scrub_messages(request.messages)
+                tenant_key = self._tenant_inflight_key(request)
+                self._inflight_stats.begin(candidate.provider)
+                self._inflight_stats.begin_for_tenant(tenant_key, candidate.provider)
+                assembled = ""
+                try:
+                    stream = adapter.stream(model_name, sanitized_messages, request.max_tokens)
+                    async for chunk in stream:
+                        assembled += chunk
+                        yield model_name, chunk
+                finally:
+                    self._inflight_stats.finish_for_tenant(tenant_key, candidate.provider)
+                    self._inflight_stats.finish(candidate.provider)
+                output_tokens = max(1, len(assembled) // 4)
+                provider_response = ProviderResponse(
+                    content=assembled,
+                    model=model_name,
+                    input_tokens=signals.prompt_tokens_estimate,
+                    output_tokens=output_tokens,
+                    cost_usd=adapter.estimate_cost(
+                        model_name, signals.prompt_tokens_estimate, output_tokens
+                    ),
+                )
+                self._respond(
+                    request=request,
+                    provider_response=provider_response,
+                    strategy=strategy,
+                    rationale=self._rationale(decision.rationale, model_name, attempt_index),
+                    state_machine=state_machine,
+                    started_at=started_at,
+                    provider=candidate.provider,
+                    prompt_tokens_estimate=signals.prompt_tokens_estimate,
+                )
+                return
             except Exception as exception:
                 last_error = exception
                 self._circuit_breakers.record_failure(candidate.provider)
