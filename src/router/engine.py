@@ -54,6 +54,7 @@ from router.strategies import (
     build_strategies,
 )
 from safety.budget import BudgetExceededError, BudgetGuardrail
+from safety.spend_ledger import SpendLedger
 from safety.circuit_breaker import CircuitBreakerRegistry, CircuitOpenError
 from safety.pii import PiiScrubber
 from safety.rate_limiter import TokenBucketRateLimiter
@@ -259,6 +260,7 @@ class NexusRouter:
             thinking_complexity_threshold=settings.thinking_complexity_threshold,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
+        self._spend_ledger = SpendLedger(settings.spend_ledger_path)
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
         self._pii_scrubber = PiiScrubber(settings.enable_pii_scrubbing)
         self._rate_limiter = TokenBucketRateLimiter(
@@ -555,6 +557,15 @@ class NexusRouter:
         self._latency_stats.observe(provider, latency_ms)
         self._latency_slope_stats.observe(provider, latency_ms)
         self._budget_guardrail.record_spend(request.user_id, provider_response.cost_usd)
+        self._spend_ledger.record(
+            request_id=request.request_id,
+            tenant=request.user_id,
+            provider=provider,
+            model=provider_response.model,
+            cost_usd=provider_response.cost_usd,
+            input_tokens=provider_response.input_tokens,
+            output_tokens=provider_response.output_tokens,
+        )
         self._tenant_budget_cascade_stats.record_spend(
             TenantBudgetCascadeStrategy._tenant_key(request),
             provider_response.cost_usd,

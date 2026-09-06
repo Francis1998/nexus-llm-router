@@ -79,3 +79,25 @@ class ChatCompletionResponse(BaseModel):
             ),
             router=router_response,
         )
+
+
+class SpendRecordRequest(BaseModel):
+    """Request body for recording a spend event via the API."""
+
+    request_id: str
+    tenant: str = "anonymous"
+    provider: str
+    model: str
+    cost_usd: float = Field(ge=0.0)
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+
+
+class SpendSummaryResponse(BaseModel):
+    """Aggregated spend summary payload."""
+
+    total_cost_usd: float
+    request_count: int
+    by_tenant: dict[str, float]
+    by_provider: dict[str, float]
+    by_model: dict[str, float]

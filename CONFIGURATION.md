@@ -2334,6 +2334,19 @@ The `agents-api-prefer` strategy biases selection toward agents_api-capable mode
 The `webhook-prefer` strategy biases selection toward webhook-capable models when a request declares `metadata.requires_webhook`, `metadata.webhook_callbacks`, or `metadata.async_webhook`. Optional allowlist: `metadata.webhook_models`.
 The `memory-tool-prefer` strategy biases selection toward memory_tool-capable models when a request declares `metadata.requires_memory_tool`, `metadata.memory_tool`, or `metadata.agent_memory`. Optional allowlist: `metadata.memory_tool_models`.
 
+## Spend Ledger
+
+Durable SQLite spend tracking for successful completions and portfolio demos.
+
+```dotenv
+NEXUS_SPEND_LEDGER_PATH=migrations/spend-ledger.sqlite3
+```
+
+`NEXUS_SPEND_LEDGER_PATH` is the SQLite file used by `SpendLedger`. Multiple
+router processes sharing the same path read the same durable history.
+`GET /v1/spend` returns aggregates; `POST /v1/spend` accepts manual records.
+See [docs/guides/SPEND_LEDGER_GUIDE.md](docs/guides/SPEND_LEDGER_GUIDE.md).
+
 ## SSE Streaming
 
 Set `"stream": true` on `POST /v1/chat/completions` to receive OpenAI-compatible
