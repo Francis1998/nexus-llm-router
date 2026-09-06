@@ -22,7 +22,7 @@ from observability.metrics import (
 from observability.tracing import configure_tracing
 from router.config import RouterSettings, load_settings
 from router.engine import NexusRouter, RoutingFailedError
-from router.schemas import RouterRequest, RoutingStrategyName
+from router.schemas import RouterRequest, RouterResponse, RoutingStrategyName
 from safety.budget import BudgetExceededError
 from safety.rate_limiter import RateLimitExceededError
 
@@ -150,6 +150,11 @@ async def chat_completions(
     cached = cache.get(cache_key)
     if cached is not None:
         response_cache_hits_total.inc()
+        if not isinstance(cached, RouterResponse):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="invalid cached router response type",
+            )
         return ChatCompletionResponse.from_router_response(cached)
     response_cache_misses_total.inc()
 

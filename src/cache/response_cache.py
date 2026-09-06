@@ -6,6 +6,7 @@ import hashlib
 import json
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 
@@ -53,7 +54,7 @@ class ResponseCache:
     @staticmethod
     def make_key(
         model: str | None,
-        messages: list[dict[str, object]] | list[object],
+        messages: Sequence[object],
         temperature: float,
         tenant: str | None = None,
     ) -> str:
