@@ -84,7 +84,9 @@ def test_api_cache_hit_skips_provider_dispatch() -> None:
     cache.clear()
 
     mock_complete = AsyncMock(return_value=_sample_response(content="from-provider"))
-    with patch.object(get_router(), "complete", mock_complete):
+    with patch("api.main.get_router") as mock_get_router:
+        router = mock_get_router.return_value
+        router.complete = mock_complete
         client = TestClient(app)
         body = {
             "model": "gpt-5.5",
