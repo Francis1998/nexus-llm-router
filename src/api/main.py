@@ -17,12 +17,17 @@ from api.schemas import (
     SpendRecordRequest,
     SpendSummaryResponse,
 )
+from cache.response_cache import ResponseCache
 from observability.logging import configure_logging
-from observability.metrics import metrics_response
+from observability.metrics import (
+    metrics_response,
+    response_cache_hits_total,
+    response_cache_misses_total,
+)
 from observability.tracing import configure_tracing
 from router.config import RouterSettings, load_settings
 from router.engine import NexusRouter, RoutingFailedError
-from router.schemas import RouterRequest, RoutingStrategyName
+from router.schemas import RouterRequest, RouterResponse, RoutingStrategyName
 from safety.budget import BudgetExceededError
 from safety.rate_limiter import RateLimitExceededError
 from safety.spend_ledger import SpendLedger
@@ -70,6 +75,20 @@ def get_spend_ledger() -> SpendLedger:
         Spend ledger instance.
     """
     return SpendLedger(get_settings().spend_ledger_path)
+
+
+@lru_cache(maxsize=1)
+def get_response_cache() -> ResponseCache:
+    """Return the process-local exact-match response cache.
+
+    Returns:
+        Response cache instance.
+    """
+    settings = get_settings()
+    return ResponseCache(
+        ttl_seconds=settings.response_cache_ttl_seconds,
+        enabled=settings.response_cache_enabled,
+    )
 
 
 @app.get("/health")
@@ -136,6 +155,25 @@ async def chat_completions(
     if payload.stream:
         return _stream_chat_completion(router_request)
 
+    tenant = payload.user or api_key_id
+    cache = get_response_cache()
+    cache_key = ResponseCache.make_key(
+        model=payload.model,
+        messages=payload.messages,
+        temperature=payload.temperature,
+        tenant=tenant,
+    )
+    cached = cache.get(cache_key)
+    if cached is not None:
+        response_cache_hits_total.inc()
+        if not isinstance(cached, RouterResponse):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="invalid cached router response type",
+            )
+        return ChatCompletionResponse.from_router_response(cached)
+    response_cache_misses_total.inc()
+
     try:
         router_response = await get_router().complete(router_request)
     except RateLimitExceededError as exception:
@@ -150,6 +188,7 @@ async def chat_completions(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exception)
         ) from exception
+    cache.set(cache_key, router_response)
     return ChatCompletionResponse.from_router_response(router_response)
 
 
@@ -210,6 +249,7 @@ def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_publisher(), media_type="text/event-stream")
+
 
 @app.get("/v1/spend", response_model=SpendSummaryResponse)
 def get_spend(
