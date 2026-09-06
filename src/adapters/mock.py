@@ -41,7 +41,11 @@ class MockProviderAdapter(BaseProviderAdapter):
     ) -> AsyncIterator[str]:
         """Stream deterministic mock chunks."""
         response = await self.complete(model, messages, max_tokens)
-        yield response.content
+        # Split into a few chunks so SSE clients exercise multi-frame parsing.
+        words = response.content.split(" ")
+        for index, word in enumerate(words):
+            suffix = " " if index < len(words) - 1 else ""
+            yield f"{word}{suffix}"
 
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Estimate mock completion cost."""

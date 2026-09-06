@@ -2334,3 +2334,11 @@ The `agents-api-prefer` strategy biases selection toward agents_api-capable mode
 The `webhook-prefer` strategy biases selection toward webhook-capable models when a request declares `metadata.requires_webhook`, `metadata.webhook_callbacks`, or `metadata.async_webhook`. Optional allowlist: `metadata.webhook_models`.
 The `memory-tool-prefer` strategy biases selection toward memory_tool-capable models when a request declares `metadata.requires_memory_tool`, `metadata.memory_tool`, or `metadata.agent_memory`. Optional allowlist: `metadata.memory_tool_models`.
 
+## SSE Streaming
+
+Set `"stream": true` on `POST /v1/chat/completions` to receive OpenAI-compatible
+Server-Sent Events (`text/event-stream`). No extra environment variables are
+required; streaming uses the same routing strategy and provider credentials as
+non-streaming completions. See
+[docs/guides/SSE_STREAMING_GUIDE.md](docs/guides/SSE_STREAMING_GUIDE.md).
+
