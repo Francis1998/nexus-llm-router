@@ -51,3 +51,4 @@ logs/
 *.whl
 
 # Updated: 2026-06-08
+*.sqlite3
