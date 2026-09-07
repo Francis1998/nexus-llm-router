@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1127%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1121%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -80,6 +80,7 @@ Soft rate-limit avoidance demo:
 ## Features
 
 - **Exact-match response cache** with TTL + tenant namespaces
+- **Semantic fuzzy cache** (trigram Jaccard) for near-duplicate prompts
 - **SSE streaming** for `stream=true` chat completions
 - **Router engine** with configurable strategies
 - **Adapter pipeline** with full observability
