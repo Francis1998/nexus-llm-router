@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `VirtualKeyStore`: SQLite hashed virtual API keys with tenant budget/model allowlists (LiteLLM-style). See `docs/guides/VIRTUAL_KEYS_GUIDE.md`.
 - **Semantic fuzzy cache** (`cache.SemanticFuzzyCache`): character-trigram Jaccard near-duplicate response cache with tenant/model namespaces, TTL, and threshold (default `0.92`) — no embeddings dependency. Distinct from exact `ResponseCache` and from the `semantic-cache` routing strategy. Closes the Portkey/LiteLLM semantic response-cache gap for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SEMANTIC_FUZZY_CACHE_GUIDE.md`.
 - Exact-match **response cache** (`cache.ResponseCache`) keyed by `hash(model + messages + temperature)` with TTL and optional tenant namespace; API-layer short-circuit before router dispatch plus `response_cache_hits_total` / `response_cache_misses_total` metrics. Closes the LiteLLM/Portkey response-caching gap for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/RESPONSE_CACHE_GUIDE.md`.
 - OpenAI-compatible **SSE streaming** on `POST /v1/chat/completions` when `stream=true`, powered by `NexusRouter.complete_stream` and provider adapter `stream()` hooks. Closes the OpenRouter/LiteLLM streaming-default gap for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SSE_STREAMING_GUIDE.md`.

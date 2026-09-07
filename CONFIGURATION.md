@@ -2374,3 +2374,8 @@ required; streaming uses the same routing strategy and provider credentials as
 non-streaming completions. See
 [docs/guides/SSE_STREAMING_GUIDE.md](docs/guides/SSE_STREAMING_GUIDE.md).
 
+
+
+## Virtual keys
+
+Optional SQLite virtual key store path can be configured for tenant auth/budget checks. See `docs/guides/VIRTUAL_KEYS_GUIDE.md`.
