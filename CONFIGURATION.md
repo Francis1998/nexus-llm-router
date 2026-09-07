@@ -2379,3 +2379,8 @@ non-streaming completions. See
 ## Virtual keys
 
 Optional SQLite virtual key store path can be configured for tenant auth/budget checks. See `docs/guides/VIRTUAL_KEYS_GUIDE.md`.
+
+
+## Prompt injection gateway
+
+Optional pre-route gateway thresholds for allow/redact/block. See `docs/guides/PROMPT_INJECTION_GATEWAY_GUIDE.md`.
