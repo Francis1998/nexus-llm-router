@@ -60,3 +60,7 @@ signal of provider health only: a user hitting their spend cap, or a circuit tha
 is already open, can never accumulate spurious failures that would open (or keep
 open) a circuit for otherwise-healthy traffic. Only genuine dispatch errors
 (timeouts, adapter/HTTP errors) count toward the circuit breaker.
+
+## Prompt injection gateway
+
+`PromptInjectionGateway` can allow, redact, or block high-risk prompt patterns before routing. Advisory control complementary to routing shed strategies.
