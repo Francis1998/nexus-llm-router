@@ -2350,6 +2350,22 @@ NEXUS_RESPONSE_CACHE_TTL_SECONDS=300.0
 namespace derived from `user` / API key. See
 [docs/guides/RESPONSE_CACHE_GUIDE.md](docs/guides/RESPONSE_CACHE_GUIDE.md).
 
+## Semantic Fuzzy Cache
+
+Near-duplicate response caching via character-trigram Jaccard similarity (no
+embeddings). Distinct from exact `ResponseCache` and from the `semantic-cache`
+routing strategy.
+
+```dotenv
+NEXUS_SEMANTIC_FUZZY_CACHE_ENABLED=true
+NEXUS_SEMANTIC_FUZZY_CACHE_TTL_SECONDS=300.0
+NEXUS_SEMANTIC_FUZZY_CACHE_THRESHOLD=0.92
+NEXUS_SEMANTIC_FUZZY_CACHE_MAX_ENTRIES=256
+```
+
+Entries are namespaced by tenant + model and expire after the TTL. See
+[docs/guides/SEMANTIC_FUZZY_CACHE_GUIDE.md](docs/guides/SEMANTIC_FUZZY_CACHE_GUIDE.md).
+
 ## SSE Streaming
 
 Set `"stream": true` on `POST /v1/chat/completions` to receive OpenAI-compatible

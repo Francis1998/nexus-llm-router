@@ -77,6 +77,12 @@ def test_cache_tenant_isolation() -> None:
 
 def test_api_cache_hit_skips_provider_dispatch() -> None:
     """Second identical API request should be served from cache without routing."""
+    import api.main as main
+
+    # Restore getters in case earlier API tests rebound module attributes.
+    main.get_settings = get_settings
+    main.get_router = get_router
+    main.get_response_cache = get_response_cache
     get_settings.cache_clear()
     get_router.cache_clear()
     get_response_cache.cache_clear()
