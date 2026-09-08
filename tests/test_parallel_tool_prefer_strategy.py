@@ -63,10 +63,7 @@ def _strategy(
 
 
 def test_parallel_tool_prefer_enum_parses() -> None:
-    assert (
-        RoutingStrategyName("parallel-tool-prefer")
-        is RoutingStrategyName.PARALLEL_TOOL_PREFER
-    )
+    assert RoutingStrategyName("parallel-tool-prefer") is RoutingStrategyName.PARALLEL_TOOL_PREFER
 
 
 def test_parallel_tool_prefer_quality_first_when_absent() -> None:

@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `TenantRateLimiter`: hard per-tenant token-bucket rate limiter keyed by `tenant_id` (distinct from `TokenBucketRateLimiter` and `token-bucket-tenant` soft shed) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TENANT_RATE_LIMITER_GUIDE.md`.
 - `PromptInjectionGateway`: pre-route prompt-injection allow/redact/block gateway (distinct from shed routing). See `docs/guides/PROMPT_INJECTION_GATEWAY_GUIDE.md`.
 - `VirtualKeyStore`: SQLite hashed virtual API keys with tenant budget/model allowlists (LiteLLM-style). See `docs/guides/VIRTUAL_KEYS_GUIDE.md`.
 - **Semantic fuzzy cache** (`cache.SemanticFuzzyCache`): character-trigram Jaccard near-duplicate response cache with tenant/model namespaces, TTL, and threshold (default `0.92`) — no embeddings dependency. Distinct from exact `ResponseCache` and from the `semantic-cache` routing strategy. Closes the Portkey/LiteLLM semantic response-cache gap for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SEMANTIC_FUZZY_CACHE_GUIDE.md`.
