@@ -205,7 +205,9 @@ def test_realtime_api_prefer_skips_unhealthy_providers() -> None:
 
 
 def test_realtime_api_prefer_known_model_has_capability() -> None:
-    decision = _strategy().choose(_request({"requires_realtime": True}), _signals())
+    decision = _strategy().choose(
+        _request({"requires_realtime": True}), _signals()
+    )
 
     assert decision.chosen_model == OPENAI_FRONTIER_MODEL
     assert "realtime_api-capable" in decision.rationale

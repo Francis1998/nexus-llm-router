@@ -63,7 +63,10 @@ def _strategy(
 
 
 def test_deep_research_prefer_enum_parses() -> None:
-    assert RoutingStrategyName("deep-research-prefer") is RoutingStrategyName.DEEP_RESEARCH_PREFER
+    assert (
+        RoutingStrategyName("deep-research-prefer")
+        is RoutingStrategyName.DEEP_RESEARCH_PREFER
+    )
 
 
 def test_deep_research_prefer_quality_first_when_absent() -> None:

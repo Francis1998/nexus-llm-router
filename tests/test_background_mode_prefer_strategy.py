@@ -65,7 +65,8 @@ def _strategy(
 
 def test_background_mode_prefer_enum_parses() -> None:
     assert (
-        RoutingStrategyName("background-mode-prefer") is RoutingStrategyName.BACKGROUND_MODE_PREFER
+        RoutingStrategyName("background-mode-prefer")
+        is RoutingStrategyName.BACKGROUND_MODE_PREFER
     )
 
 
