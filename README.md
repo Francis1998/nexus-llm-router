@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1154%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1160%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -79,6 +79,7 @@ Soft rate-limit avoidance demo:
 
 ## Features
 - **TenantRateLimiter**: hard per-tenant token-bucket rate limit (distinct from api-key limiter and token-bucket-tenant shed) — see `docs/guides/TENANT_RATE_LIMITER_GUIDE.md`
+- **ModelCapabilityCatalog**: refreshable capability map — see `docs/guides/CAPABILITY_CATALOG_GUIDE.md`
 - **PromptInjectionGateway**: pre-route allow/redact/block injection control — see `docs/guides/PROMPT_INJECTION_GATEWAY_GUIDE.md`
 - **VirtualKeyStore**: hashed tenant virtual keys with budget + model allowlists — see `docs/guides/VIRTUAL_KEYS_GUIDE.md`
 
