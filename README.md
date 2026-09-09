@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1167%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1173%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -78,6 +78,7 @@ Soft rate-limit avoidance demo:
 ![Nexus soft-rate-limit demo](assets/soft-rate-limit.gif)
 
 ## Features
+- **ProviderFallbackScoreboard**: provider health scoring for fallback order — see `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`
 - **TenantRateLimiter**: hard per-tenant token-bucket rate limit (distinct from api-key limiter and token-bucket-tenant shed) — see `docs/guides/TENANT_RATE_LIMITER_GUIDE.md`
 - **ModelCapabilityCatalog**: refreshable capability map — see `docs/guides/CAPABILITY_CATALOG_GUIDE.md`
 - **IdempotencyStore**: durable Idempotency-Key response replay — see `docs/guides/IDEMPOTENCY_STORE_GUIDE.md`
