@@ -17,15 +17,14 @@ class ModelDescriptor:
     """
 
     model_id: str
-    capabilities: frozenset[str]
+    capabilities: frozenset[str] | set[str] | tuple[str, ...] | list[str]
     provider: str | None = None
 
     def __post_init__(self) -> None:
         """Normalize capabilities to a frozenset and validate ``model_id``."""
         if not self.model_id:
             raise ValueError("model_id must be non-empty")
-        if not isinstance(self.capabilities, frozenset):
-            object.__setattr__(self, "capabilities", frozenset(self.capabilities))
+        object.__setattr__(self, "capabilities", frozenset(self.capabilities))
 
 
 @dataclass(frozen=True, slots=True)
