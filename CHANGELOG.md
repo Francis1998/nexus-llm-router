@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `ProviderFallbackScoreboard`: per-provider success/latency/error health scoring with `record_outcome` / `rank()` fallback ordering, injectable clock, and optional decay (LiteLLM/OpenRouter provider-health gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`.
 - `IdempotencyStore`: SQLite durable idempotency keys with TTL eviction for chat-completion retries (LiteLLM/Portkey gap) covering GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/IDEMPOTENCY_STORE_GUIDE.md`.
 - `ModelCapabilityCatalog`: thread-safe refreshable model capability map for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 (vs static known-map). See `docs/guides/CAPABILITY_CATALOG_GUIDE.md`.
 - `TenantRateLimiter`: hard per-tenant token-bucket rate limiter keyed by `tenant_id` (distinct from `TokenBucketRateLimiter` and `token-bucket-tenant` soft shed) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TENANT_RATE_LIMITER_GUIDE.md`.
