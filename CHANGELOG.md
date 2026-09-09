@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `GatewayGuardService`: composes `IdempotencyStore` + `TenantRateLimiter` for chat-completion ingress (`check_idempotency` / `remember_response` / `assert_tenant_allowed`), wired via `@lru_cache` getters in `api.main` with optional `Idempotency-Key` + `X-Tenant-Id` hooks (backward compatible when headers absent) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/GATEWAY_GUARDS_GUIDE.md`.
 - `ProviderFallbackScoreboard`: per-provider success/latency/error health scoring with `record_outcome` / `rank()` fallback ordering, injectable clock, and optional decay (LiteLLM/OpenRouter provider-health gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`.
 - `IdempotencyStore`: SQLite durable idempotency keys with TTL eviction for chat-completion retries (LiteLLM/Portkey gap) covering GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/IDEMPOTENCY_STORE_GUIDE.md`.
 - `ModelCapabilityCatalog`: thread-safe refreshable model capability map for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 (vs static known-map). See `docs/guides/CAPABILITY_CATALOG_GUIDE.md`.

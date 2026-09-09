@@ -159,6 +159,10 @@ class RouterSettings(BaseSettings):
     spend_ledger_path: str = "migrations/spend-ledger.sqlite3"
     response_cache_enabled: bool = True
     response_cache_ttl_seconds: Annotated[float, Field(ge=0.0)] = 300.0
+    idempotency_path: str = "migrations/idempotency.sqlite3"
+    idempotency_ttl_seconds: Annotated[float, Field(gt=0.0)] = 86_400.0
+    tenant_rate_limit_capacity: Annotated[int, Field(gt=0)] = 60
+    tenant_rate_limit_refill_per_second: Annotated[float, Field(gt=0.0)] = 1.0
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

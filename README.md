@@ -80,6 +80,7 @@ Soft rate-limit avoidance demo:
 ## Features
 - **ProviderFallbackScoreboard**: provider health scoring for fallback order — see `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`
 - **TenantRateLimiter**: hard per-tenant token-bucket rate limit (distinct from api-key limiter and token-bucket-tenant shed) — see `docs/guides/TENANT_RATE_LIMITER_GUIDE.md`
+- **GatewayGuardService**: composed Idempotency-Key replay + hard X-Tenant-Id rate limits on chat completions — see `docs/guides/GATEWAY_GUARDS_GUIDE.md`
 - **ModelCapabilityCatalog**: refreshable capability map — see `docs/guides/CAPABILITY_CATALOG_GUIDE.md`
 - **IdempotencyStore**: durable Idempotency-Key response replay — see `docs/guides/IDEMPOTENCY_STORE_GUIDE.md`
 - **PromptInjectionGateway**: pre-route allow/redact/block injection control — see `docs/guides/PROMPT_INJECTION_GATEWAY_GUIDE.md`

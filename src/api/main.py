@@ -8,7 +8,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from adapters.registry import AdapterRegistry, build_adapter_registry
 from api.schemas import (
@@ -29,8 +29,11 @@ from router.config import RouterSettings, load_settings
 from router.engine import NexusRouter, RoutingFailedError
 from router.schemas import RouterRequest, RouterResponse, RoutingStrategyName
 from safety.budget import BudgetExceededError
+from safety.gateway_guards import GatewayGuardService
+from safety.idempotency import IdempotencyStore
 from safety.rate_limiter import RateLimitExceededError
 from safety.spend_ledger import SpendLedger
+from safety.tenant_rate_limiter import TenantRateLimiter, TenantRateLimitExceededError
 
 configure_logging()
 app = FastAPI(title="Nexus LLM Router", version="0.1.0")
@@ -91,6 +94,47 @@ def get_response_cache() -> ResponseCache:
     )
 
 
+@lru_cache(maxsize=1)
+def get_idempotency_store() -> IdempotencyStore:
+    """Return the durable idempotency key store.
+
+    Returns:
+        Idempotency store instance.
+    """
+    settings = get_settings()
+    return IdempotencyStore(
+        settings.idempotency_path,
+        ttl_seconds=settings.idempotency_ttl_seconds,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_tenant_rate_limiter() -> TenantRateLimiter:
+    """Return the hard per-tenant rate limiter.
+
+    Returns:
+        Tenant rate limiter instance.
+    """
+    settings = get_settings()
+    return TenantRateLimiter(
+        capacity=settings.tenant_rate_limit_capacity,
+        refill_per_second=settings.tenant_rate_limit_refill_per_second,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_gateway_guards() -> GatewayGuardService:
+    """Return the composed gateway guard service.
+
+    Returns:
+        Gateway guard service wiring idempotency + tenant rate limits.
+    """
+    return GatewayGuardService(
+        idempotency_store=get_idempotency_store(),
+        tenant_rate_limiter=get_tenant_rate_limiter(),
+    )
+
+
 @app.get("/health")
 async def health() -> dict[str, object]:
     """Return application and provider health.
@@ -119,13 +163,17 @@ async def chat_completions(
     payload: ChatCompletionRequest,
     request: Request,
     x_router_strategy: Annotated[str | None, Header(alias="X-Router-Strategy")] = None,
-) -> ChatCompletionResponse | StreamingResponse:
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> ChatCompletionResponse | StreamingResponse | JSONResponse:
     """Route an OpenAI-compatible chat completion request.
 
     Args:
         payload: OpenAI-compatible request payload.
         request: FastAPI request object.
         x_router_strategy: Optional routing strategy header.
+        idempotency_key: Optional durable idempotency key for safe retries.
+        x_tenant_id: Optional tenant id for hard per-tenant rate limiting.
 
     Returns:
         OpenAI-compatible chat completion response.
@@ -141,6 +189,24 @@ async def chat_completions(
             detail=f"unsupported routing strategy: {x_router_strategy}",
         ) from exception
     api_key_id = request.headers.get("authorization", "anonymous")
+    guards = get_gateway_guards()
+    # Hard tenant limit only when X-Tenant-Id is present (backward compatible).
+    if x_tenant_id:
+        try:
+            guards.assert_tenant_allowed(x_tenant_id)
+        except TenantRateLimitExceededError as exception:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(exception),
+            ) from exception
+    idempotency_tenant = x_tenant_id or payload.user or api_key_id
+    if idempotency_key:
+        existing = guards.check_idempotency(idempotency_key, idempotency_tenant)
+        if existing is not None:
+            return JSONResponse(
+                content=json.loads(existing.response_json),
+                status_code=existing.status_code,
+            )
     router_request = RouterRequest(
         request_id=uuid4().hex,
         messages=payload.messages,
@@ -171,7 +237,15 @@ async def chat_completions(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="invalid cached router response type",
             )
-        return ChatCompletionResponse.from_router_response(cached)
+        completion = ChatCompletionResponse.from_router_response(cached)
+        if idempotency_key:
+            guards.remember_response(
+                idempotency_key,
+                idempotency_tenant,
+                completion.model_dump_json(),
+                status_code=200,
+            )
+        return completion
     response_cache_misses_total.inc()
 
     try:
@@ -189,7 +263,15 @@ async def chat_completions(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exception)
         ) from exception
     cache.set(cache_key, router_response)
-    return ChatCompletionResponse.from_router_response(router_response)
+    completion = ChatCompletionResponse.from_router_response(router_response)
+    if idempotency_key:
+        guards.remember_response(
+            idempotency_key,
+            idempotency_tenant,
+            completion.model_dump_json(),
+            status_code=200,
+        )
+    return completion
 
 
 def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:

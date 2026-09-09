@@ -2384,3 +2384,22 @@ Optional SQLite virtual key store path can be configured for tenant auth/budget 
 ## Prompt injection gateway
 
 Optional pre-route gateway thresholds for allow/redact/block. See `docs/guides/PROMPT_INJECTION_GATEWAY_GUIDE.md`.
+
+## Gateway Guards
+
+Composed idempotency + hard tenant rate limiting on chat-completion ingress.
+Optional headers (`Idempotency-Key`, `X-Tenant-Id`) keep the API backward
+compatible when omitted.
+
+```dotenv
+NEXUS_IDEMPOTENCY_PATH=migrations/idempotency.sqlite3
+NEXUS_IDEMPOTENCY_TTL_SECONDS=86400
+NEXUS_TENANT_RATE_LIMIT_CAPACITY=60
+NEXUS_TENANT_RATE_LIMIT_REFILL_PER_SECOND=1.0
+```
+
+`NEXUS_IDEMPOTENCY_PATH` is the SQLite path for durable idempotency keys.
+`NEXUS_IDEMPOTENCY_TTL_SECONDS` is the response replay TTL (default `86400`).
+`NEXUS_TENANT_RATE_LIMIT_CAPACITY` is the per-tenant token-bucket size.
+`NEXUS_TENANT_RATE_LIMIT_REFILL_PER_SECOND` is the per-tenant refill rate.
+See [docs/guides/GATEWAY_GUARDS_GUIDE.md](docs/guides/GATEWAY_GUARDS_GUIDE.md).
