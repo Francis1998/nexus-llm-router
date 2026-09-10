@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `ModelLatencySlaTracker`: advisory in-memory per-model p50/p95 latency windows with SLA breach flags via `record` / `breaches` (Helicone/Langfuse latency-dashboard gap for offline gateways; distinct from `latency-slo-shed`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MODEL_LATENCY_SLA_GUIDE.md`.
 - `StreamingTokenBudgetGate`: hard mid-stream token/cost budget cut-off via `observe_chunk` / `allow_continue` / `StreamingTokenBudgetExceededError` (LiteLLM/OpenRouter soft max-token & soft spend-limit gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/STREAMING_TOKEN_BUDGET_GUIDE.md`.
 - `RequestPriorityLane`: high/normal/bulk weighted fair dequeue queue via `enqueue` / `dequeue` (LiteLLM priority / OpenRouter rankings gap; distinct from `tenant-priority-lanes` routing) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/REQUEST_PRIORITY_LANE_GUIDE.md`.
 - `ProviderModelListSync`: offline deterministic sync of static/provider model lists into `ModelCapabilityCatalog` via `refresh_from_static` / `upsert` (LiteLLM `model_list` / Portkey catalog-refresh gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/CAPABILITY_MODEL_LIST_SYNC_GUIDE.md`.
