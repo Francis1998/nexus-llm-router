@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- `RequestPriorityLane`: high/normal/bulk weighted fair dequeue queue via `enqueue` / `dequeue` (LiteLLM priority / OpenRouter rankings gap; distinct from `tenant-priority-lanes` routing) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/REQUEST_PRIORITY_LANE_GUIDE.md`.
 - `ProviderModelListSync`: offline deterministic sync of static/provider model lists into `ModelCapabilityCatalog` via `refresh_from_static` / `upsert` (LiteLLM `model_list` / Portkey catalog-refresh gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/CAPABILITY_MODEL_LIST_SYNC_GUIDE.md`.
 - `GatewayGuardService`: composes `IdempotencyStore` + `TenantRateLimiter` for chat-completion ingress (`check_idempotency` / `remember_response` / `assert_tenant_allowed`), wired via `@lru_cache` getters in `api.main` with optional `Idempotency-Key` + `X-Tenant-Id` hooks (backward compatible when headers absent) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/GATEWAY_GUARDS_GUIDE.md`.
 - `ProviderFallbackScoreboard`: per-provider success/latency/error health scoring with `record_outcome` / `rank()` fallback ordering, injectable clock, and optional decay (LiteLLM/OpenRouter provider-health gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`.
