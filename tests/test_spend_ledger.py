@@ -67,6 +67,41 @@ def test_spend_ledger_aggregates_by_tenant_provider_model(tmp_path: Path) -> Non
     assert round(acme_only.total_cost_usd, 2) == 0.25
 
 
+def test_spend_ledger_summary_since_until_window(tmp_path: Path) -> None:
+    """Optional since/until filters restrict aggregation to a half-open window."""
+    ledger = SpendLedger(tmp_path / "window.sqlite3")
+    ledger.record(
+        request_id="old",
+        tenant="acme",
+        provider="openai",
+        model="gpt-5.5",
+        cost_usd=1.0,
+        recorded_at=1_000.0,
+    )
+    ledger.record(
+        request_id="in",
+        tenant="acme",
+        provider="openai",
+        model="gpt-5.5",
+        cost_usd=0.25,
+        recorded_at=1_500.0,
+    )
+    ledger.record(
+        request_id="new",
+        tenant="acme",
+        provider="openai",
+        model="gpt-5.5",
+        cost_usd=2.0,
+        recorded_at=2_000.0,
+    )
+    window = ledger.summary(tenant="acme", since=1_200.0, until=2_000.0)
+    assert window.request_count == 1
+    assert window.total_cost_usd == 0.25
+    since_only = ledger.summary(since=1_500.0)
+    assert since_only.request_count == 2
+    assert round(since_only.total_cost_usd, 2) == 2.25
+
+
 def test_spend_api_post_and_get(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     """POST /v1/spend records an event; GET /v1/spend returns the aggregate."""
     db_path = tmp_path / "api-spend.sqlite3"

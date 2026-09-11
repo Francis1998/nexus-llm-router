@@ -154,6 +154,8 @@ class SpendLedger:
         tenant: str | None = None,
         provider: str | None = None,
         model: str | None = None,
+        since: float | None = None,
+        until: float | None = None,
     ) -> SpendSummary:
         """Aggregate spend with optional filters.
 
@@ -161,6 +163,10 @@ class SpendLedger:
             tenant: Optional tenant filter.
             provider: Optional provider filter.
             model: Optional model filter.
+            since: Optional unix timestamp lower bound (inclusive:
+                ``recorded_at >= since``).
+            until: Optional unix timestamp upper bound (exclusive:
+                ``recorded_at < until``).
 
         Returns:
             Aggregated spend summary.
@@ -176,6 +182,12 @@ class SpendLedger:
         if model:
             clauses.append("model = ?")
             params.append(model)
+        if since is not None:
+            clauses.append("recorded_at >= ?")
+            params.append(float(since))
+        if until is not None:
+            clauses.append("recorded_at < ?")
+            params.append(float(until))
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
 
         with self._lock, self._connect() as connection:

@@ -18,8 +18,13 @@ instances pointing at the same database path.
    `SpendLedger` (SQLite).
 2. Rows capture `request_id`, tenant (`user_id`), provider, model, cost, and
    token counts.
-3. `GET /v1/spend` returns totals plus breakdowns by tenant / provider / model.
-4. `POST /v1/spend` accepts manual records for demos or offline ingestion.
+3. `summary(tenant=..., provider=..., model=..., since=..., until=...)`
+   aggregates with optional half-open time window
+   (`recorded_at >= since` and `recorded_at < until`).
+4. `GET /v1/spend` returns totals plus breakdowns by tenant / provider / model.
+5. `POST /v1/spend` accepts manual records for demos or offline ingestion.
+6. Pair with `TenantSpendQuotaEnforcer` for fail-closed UTC calendar-month
+   USD caps (see `TENANT_SPEND_QUOTA_GUIDE.md`).
 
 ## Configuration
 
