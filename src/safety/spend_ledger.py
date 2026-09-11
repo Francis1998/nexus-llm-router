@@ -188,36 +188,43 @@ class SpendLedger:
         if until is not None:
             clauses.append("recorded_at < ?")
             params.append(float(until))
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        # WHERE fragments are fixed allowlisted clauses only; values are bound
+        # via ``params`` (no user-controlled SQL identifiers).
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
 
         with self._lock, self._connect() as connection:
-            total_row = connection.execute(
-                f"SELECT COALESCE(SUM(cost_usd), 0), COUNT(*) FROM spend_events {where}",  # noqa: S608
-                params,
-            ).fetchone()
+            # nosec B608 - allowlisted WHERE fragments; values bound in params
+            total_sql = (
+                "SELECT COALESCE(SUM(cost_usd), 0), COUNT(*) FROM spend_events"  # noqa: S608
+                + ((" " + where) if where else "")  # nosec B608
+            )
+            total_row = connection.execute(total_sql, params).fetchone()
+            tenant_sql = (
+                "SELECT tenant, SUM(cost_usd) AS total FROM spend_events"  # noqa: S608
+                + ((" " + where) if where else "")  # nosec B608
+                + " GROUP BY tenant ORDER BY total DESC"
+            )
             by_tenant = {
                 row["tenant"]: float(row["total"])
-                for row in connection.execute(
-                    f"SELECT tenant, SUM(cost_usd) AS total FROM spend_events {where} "  # noqa: S608
-                    "GROUP BY tenant ORDER BY total DESC",
-                    params,
-                )
+                for row in connection.execute(tenant_sql, params)
             }
+            provider_sql = (
+                "SELECT provider, SUM(cost_usd) AS total FROM spend_events"  # noqa: S608
+                + ((" " + where) if where else "")  # nosec B608
+                + " GROUP BY provider ORDER BY total DESC"
+            )
             by_provider = {
                 row["provider"]: float(row["total"])
-                for row in connection.execute(
-                    f"SELECT provider, SUM(cost_usd) AS total FROM spend_events {where} "  # noqa: S608
-                    "GROUP BY provider ORDER BY total DESC",
-                    params,
-                )
+                for row in connection.execute(provider_sql, params)
             }
+            model_sql = (
+                "SELECT model, SUM(cost_usd) AS total FROM spend_events"  # noqa: S608
+                + ((" " + where) if where else "")  # nosec B608
+                + " GROUP BY model ORDER BY total DESC"
+            )
             by_model = {
                 row["model"]: float(row["total"])
-                for row in connection.execute(
-                    f"SELECT model, SUM(cost_usd) AS total FROM spend_events {where} "  # noqa: S608
-                    "GROUP BY model ORDER BY total DESC",
-                    params,
-                )
+                for row in connection.execute(model_sql, params)
             }
 
         return SpendSummary(
