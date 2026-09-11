@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1204%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1214%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -53,6 +53,10 @@ Nexus is designed for AI infrastructure engineers running multi-model production
 
 ## Demo Gallery
 
+Prompt-cache affinity demo:
+
+![Nexus prompt-cache affinity demo](assets/demo/prompt-cache-affinity.gif)
+
 Exact-match response cache demo:
 
 ![Nexus response-cache demo](assets/demo/response-cache.gif)
@@ -78,6 +82,7 @@ Soft rate-limit avoidance demo:
 ![Nexus soft-rate-limit demo](assets/soft-rate-limit.gif)
 
 ## Features
+- **PromptCacheAffinityRouter**: sticky prefix fingerprint → model after cache hits — see `docs/guides/PROMPT_CACHE_AFFINITY_GUIDE.md`
 - **RequestPriorityLane**: high/normal/bulk fair dequeue queue — see `docs/guides/REQUEST_PRIORITY_LANE_GUIDE.md`
 - **ModelLatencySlaTracker**: advisory in-memory per-model p50/p95 SLA breach flags — see `docs/guides/MODEL_LATENCY_SLA_GUIDE.md`
 - **StreamingTokenBudgetGate**: hard mid-stream token/cost cut-off for SSE completions — see `docs/guides/STREAMING_TOKEN_BUDGET_GUIDE.md`
