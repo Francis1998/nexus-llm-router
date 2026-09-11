@@ -13,6 +13,7 @@ from router.config import RouterSettings
 from router.engine import NexusRouter, RoutingFailedError
 from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
+    GEMINI_PRO_MODEL,
     OPENAI_BALANCED_MODEL,
     OPENAI_FRONTIER_MODEL,
 )
@@ -283,3 +284,102 @@ async def test_inflight_counter_is_cleared_after_provider_failure(tmp_path: Path
         router._inflight_stats.load_score(provider) == 0
         for provider in {"openai", "anthropic", "google", "moonshot"}
     )
+
+@pytest.mark.asyncio
+async def test_fallback_scoreboard_reorders_chain_by_provider_health(tmp_path: Path) -> None:
+    """Fallback order should prefer healthier providers from the scoreboard."""
+    router = NexusRouter(
+        settings=RouterSettings(audit_log_path=str(tmp_path / "audit.jsonl")),
+        adapter_registry=AdapterRegistry(
+            {
+                "openai": MockProviderAdapter("openai", fail=True),
+                "anthropic": MockProviderAdapter("anthropic"),
+                "google": MockProviderAdapter("google"),
+                "moonshot": MockProviderAdapter("moonshot"),
+            },
+        ),
+    )
+    board = router._fallback_scoreboard
+    board.record_outcome("google", True, 40.0)
+    board.record_outcome("google", True, 50.0)
+    board.record_outcome("anthropic", False, 900.0)
+    board.record_outcome("anthropic", False, 950.0)
+
+    response = await router.complete(
+        RouterRequest(
+            request_id="req-scoreboard-reorder",
+            messages=[ChatMessage(content="Debug this Python class with async retries and tests.")],
+            strategy=RoutingStrategyName.RULE_BASED,
+        ),
+    )
+
+    assert response.model_used == GEMINI_PRO_MODEL
+    assert "fallback attempt" in response.rationale
+    assert board.rank(["anthropic", "google"])[0] == "google"
+
+
+@pytest.mark.asyncio
+async def test_fallback_scoreboard_records_success_and_failure(tmp_path: Path) -> None:
+    """Successful and failed provider attempts should update the scoreboard."""
+    router = NexusRouter(
+        settings=RouterSettings(audit_log_path=str(tmp_path / "audit.jsonl")),
+        adapter_registry=AdapterRegistry(
+            {
+                "openai": MockProviderAdapter("openai", fail=True),
+                "anthropic": MockProviderAdapter("anthropic"),
+                "google": MockProviderAdapter("google"),
+                "moonshot": MockProviderAdapter("moonshot"),
+            },
+        ),
+    )
+
+    response = await router.complete(
+        RouterRequest(
+            request_id="req-scoreboard-record",
+            messages=[ChatMessage(content="Debug this Python class with async retries and tests.")],
+            strategy=RoutingStrategyName.RULE_BASED,
+        ),
+    )
+
+    board = router._fallback_scoreboard
+    openai_snap = board.snapshot("openai")
+    winner_provider = router._model_catalog[response.model_used].provider
+    winner_snap = board.snapshot(winner_provider)
+    assert openai_snap is not None
+    assert openai_snap.successes == 0.0
+    assert openai_snap.attempts >= 1.0
+    assert winner_snap is not None
+    assert winner_snap.successes >= 1.0
+
+
+@pytest.mark.asyncio
+async def test_budget_rejection_is_not_recorded_on_fallback_scoreboard(
+    tmp_path: Path,
+) -> None:
+    """Budget-cap skips must not pollute provider health on the scoreboard."""
+    router = NexusRouter(
+        settings=RouterSettings(
+            audit_log_path=str(tmp_path / "audit.jsonl"),
+            budget_cap_usd=0.0,
+        ),
+        adapter_registry=AdapterRegistry(
+            {
+                "openai": MockProviderAdapter("openai"),
+                "anthropic": MockProviderAdapter("anthropic"),
+                "google": MockProviderAdapter("google"),
+                "moonshot": MockProviderAdapter("moonshot"),
+            },
+        ),
+    )
+
+    with pytest.raises(RoutingFailedError):
+        await router.complete(
+            RouterRequest(
+                request_id="req-scoreboard-budget",
+                messages=[ChatMessage(content="Summarize this infrastructure incident.")],
+                strategy=RoutingStrategyName.RULE_BASED,
+            ),
+        )
+
+    assert router._fallback_scoreboard.providers() == []
+

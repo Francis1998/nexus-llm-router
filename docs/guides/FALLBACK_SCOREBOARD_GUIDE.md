@@ -11,8 +11,7 @@ Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
 LiteLLM and OpenRouter expose provider health signals used when building
 failover chains. Nexus already has circuit breakers and `SuccessStats` inside
 routing strategies; `ProviderFallbackScoreboard` is the reusable library
-building block that ranks providers by a composite health score so callers
-(engine hooks, ops tooling, or a future strategy) can ask for a recommended
+building block that ranks providers by a composite health score so the router engine (and ops tooling) can ask for a recommended
 fallback order.
 
 ## How it works
@@ -42,6 +41,23 @@ print(board.rank())
 print(board.rank(["google", "openai", "anthropic"]))
 print(board.snapshot("openai"))
 ```
+
+
+## Engine wiring
+
+`NexusRouter` owns a process-local `ProviderFallbackScoreboard` and uses it on
+every `complete` / `complete_stream` dispatch:
+
+1. After the strategy chooses a primary model + fallback chain, the engine keeps
+   the primary model first and reorders the remaining fallbacks with
+   `scoreboard.rank(providers)` (healthiest provider first; unknown providers
+   keep relative input order).
+2. Each real provider attempt records `record_outcome(provider, success, latency_ms)`.
+3. Client-side guardrail skips (budget cap, open circuit) are **not** recorded —
+   those are not provider faults.
+
+Cold start (empty scoreboard) preserves the strategy's original fallback order,
+so existing routing behavior is unchanged until outcomes accumulate.
 
 ## Gap vs LiteLLM / OpenRouter
 

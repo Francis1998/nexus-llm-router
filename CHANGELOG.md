@@ -5,6 +5,9 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- `NexusRouter` wires `ProviderFallbackScoreboard` into fallback dispatch: records per-attempt outcomes and reorders fallbacks via `rank()` while keeping the strategy primary model first (LiteLLM/OpenRouter provider-health gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`.
+
 ### Added
 - `TenantSpendQuotaEnforcer`: fail-closed hard monthly USD spend caps per tenant via `assert_within_quota` / `remaining` / `snapshot` on UTC calendar-month windows from `SpendLedger.summary(since=..., until=...)` (LiteLLM virtual-key hard-budget gap; distinct from `SpendLedger` recording and `tenant-quota-burst` request-count routing) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TENANT_SPEND_QUOTA_GUIDE.md`.
 - `SpendLedger.summary`: optional `since` / `until` unix timestamp filters (half-open `[since, until)`) for calendar-window aggregates used by monthly tenant spend quotas.

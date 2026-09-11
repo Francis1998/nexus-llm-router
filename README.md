@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1222%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1225%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -91,7 +91,7 @@ Soft rate-limit avoidance demo:
 - **RequestPriorityLane**: high/normal/bulk fair dequeue queue — see `docs/guides/REQUEST_PRIORITY_LANE_GUIDE.md`
 - **ModelLatencySlaTracker**: advisory in-memory per-model p50/p95 SLA breach flags — see `docs/guides/MODEL_LATENCY_SLA_GUIDE.md`
 - **StreamingTokenBudgetGate**: hard mid-stream token/cost cut-off for SSE completions — see `docs/guides/STREAMING_TOKEN_BUDGET_GUIDE.md`
-- **ProviderFallbackScoreboard**: provider health scoring for fallback order — see `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`
+- **ProviderFallbackScoreboard**: provider health scoring **wired into** `NexusRouter` fallback order (`record_outcome` + `rank()`) — see `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`
 - **ProviderModelListSync**: offline static/provider model-list sync into the capability catalog — see `docs/guides/CAPABILITY_MODEL_LIST_SYNC_GUIDE.md`
 - **TenantRateLimiter**: hard per-tenant token-bucket rate limit (distinct from api-key limiter and token-bucket-tenant shed) — see `docs/guides/TENANT_RATE_LIMITER_GUIDE.md`
 - **GatewayGuardService**: composed Idempotency-Key replay + hard X-Tenant-Id rate limits on chat completions — see `docs/guides/GATEWAY_GUARDS_GUIDE.md`

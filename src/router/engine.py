@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Mapping, Sequence
 
 from adapters.registry import AdapterRegistry
 from observability.logging import get_logger
@@ -15,6 +15,7 @@ from observability.metrics import (
 from router.analyzer import RequestAnalyzer
 from router.audit import AuditLog
 from router.config import RouterSettings, default_model_catalog
+from router.fallback_scoreboard import ProviderFallbackScoreboard
 from router.schemas import (
     AuditRecord,
     ModelCandidate,
@@ -267,6 +268,7 @@ class NexusRouter:
             settings.rate_limit_capacity,
             settings.rate_limit_refill_per_second,
         )
+        self._fallback_scoreboard = ProviderFallbackScoreboard()
         self._logger = get_logger(__name__)
 
     async def complete(self, request: RouterRequest) -> RouterResponse:
@@ -299,7 +301,7 @@ class NexusRouter:
             strategy=decision.routing_strategy.value,
             rationale=decision.rationale,
         )
-        attempts = [decision.chosen_model, *decision.fallback_chain]
+        attempts = self._order_attempts(decision.chosen_model, decision.fallback_chain)
         last_error: Exception | None = None
 
         for attempt_index, model_name in enumerate(attempts):
@@ -330,6 +332,7 @@ class NexusRouter:
                     state_machine.transition(RequestState.FAILED)
                 continue
 
+            attempt_started_at = time.perf_counter()
             try:
                 adapter = self._adapter_registry.get(candidate.provider)
                 dispatchable_state = state_machine.current_state in {
@@ -359,9 +362,16 @@ class NexusRouter:
                     started_at=started_at,
                     provider=candidate.provider,
                     prompt_tokens_estimate=signals.prompt_tokens_estimate,
+                    attempt_started_at=attempt_started_at,
                 )
             except Exception as exception:
                 last_error = exception
+                attempt_latency_ms = (time.perf_counter() - attempt_started_at) * 1000.0
+                self._fallback_scoreboard.record_outcome(
+                    candidate.provider,
+                    False,
+                    attempt_latency_ms,
+                )
                 self._circuit_breakers.record_failure(candidate.provider)
                 self._success_stats.observe(candidate.provider, success=False)
                 self._provider_error_budget_reset_stats.observe(
@@ -427,7 +437,7 @@ class NexusRouter:
             strategy=decision.routing_strategy.value,
             rationale=decision.rationale,
         )
-        attempts = [decision.chosen_model, *decision.fallback_chain]
+        attempts = self._order_attempts(decision.chosen_model, decision.fallback_chain)
         last_error: Exception | None = None
 
         for attempt_index, model_name in enumerate(attempts):
@@ -453,6 +463,7 @@ class NexusRouter:
                     state_machine.transition(RequestState.FAILED)
                 continue
 
+            attempt_started_at = time.perf_counter()
             try:
                 adapter = self._adapter_registry.get(candidate.provider)
                 dispatchable_state = state_machine.current_state in {
@@ -493,10 +504,17 @@ class NexusRouter:
                     started_at=started_at,
                     provider=candidate.provider,
                     prompt_tokens_estimate=signals.prompt_tokens_estimate,
+                    attempt_started_at=attempt_started_at,
                 )
                 return
             except Exception as exception:
                 last_error = exception
+                attempt_latency_ms = (time.perf_counter() - attempt_started_at) * 1000.0
+                self._fallback_scoreboard.record_outcome(
+                    candidate.provider,
+                    False,
+                    attempt_latency_ms,
+                )
                 self._circuit_breakers.record_failure(candidate.provider)
                 self._success_stats.observe(candidate.provider, success=False)
                 self._provider_error_budget_reset_stats.observe(
@@ -543,6 +561,7 @@ class NexusRouter:
         started_at: float,
         provider: str,
         prompt_tokens_estimate: int,
+        attempt_started_at: float | None = None,
     ) -> RouterResponse:
         """Build the router response and persist observability side effects."""
         self._circuit_breakers.record_success(provider)
@@ -554,6 +573,12 @@ class NexusRouter:
         state_machine.transition(RequestState.RESPONDED)
         latency_ms = (time.perf_counter() - started_at) * 1000.0
         latency_seconds = latency_ms / 1000.0
+        scoreboard_latency_ms = (
+            (time.perf_counter() - attempt_started_at) * 1000.0
+            if attempt_started_at is not None
+            else latency_ms
+        )
+        self._fallback_scoreboard.record_outcome(provider, True, scoreboard_latency_ms)
         self._latency_stats.observe(provider, latency_ms)
         self._latency_slope_stats.observe(provider, latency_ms)
         self._budget_guardrail.record_spend(request.user_id, provider_response.cost_usd)
@@ -620,6 +645,31 @@ class NexusRouter:
             cost_usd=response.cost_usd,
         )
         return response
+
+    def _order_attempts(self, chosen_model: str, fallback_chain: Sequence[str]) -> list[str]:
+        """Keep the strategy primary model, reorder fallbacks by provider health.
+
+        Uses ``ProviderFallbackScoreboard.rank()`` so healthier providers are
+        tried earlier in the fallback chain. Unknown providers keep their
+        relative input order after known scored providers.
+        """
+        if not fallback_chain:
+            return [chosen_model]
+        provider_order: list[str] = []
+        models_by_provider: dict[str, list[str]] = {}
+        for model_name in fallback_chain:
+            provider = self._model_catalog[model_name].provider
+            if provider not in models_by_provider:
+                provider_order.append(provider)
+                models_by_provider[provider] = []
+            models_by_provider[provider].append(model_name)
+        ranked_providers = self._fallback_scoreboard.rank(provider_order)
+        ordered_fallbacks = [
+            model_name
+            for provider in ranked_providers
+            for model_name in models_by_provider[provider]
+        ]
+        return [chosen_model, *ordered_fallbacks]
 
     @staticmethod
     def _tenant_inflight_key(request: RouterRequest) -> str:
