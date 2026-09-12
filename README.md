@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1235%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1240%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -90,6 +90,8 @@ Soft rate-limit avoidance demo:
 ![Nexus soft-rate-limit demo](assets/soft-rate-limit.gif)
 
 ![ModelDeprecationGuard](assets/demo/model-deprecation-guard.gif)
+
+![ProviderErrorBudgetShed](assets/demo/provider-error-budget-shed.gif)
 
 ## Features
 - **RequestCostForecastAdvisor**: offline pre-dispatch USD cost forecast from tokens + $/1M rates — see `docs/guides/REQUEST_COST_FORECAST_GUIDE.md`
