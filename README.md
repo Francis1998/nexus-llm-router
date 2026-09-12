@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1225%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1230%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -53,6 +53,10 @@ Nexus is designed for AI infrastructure engineers running multi-model production
 
 ## Demo Gallery
 
+Request cost forecast demo:
+
+![Nexus request cost forecast demo](assets/demo/request-cost-forecast.gif)
+
 Tenant spend quota demo:
 
 ![Nexus tenant spend quota demo](assets/demo/tenant-spend-quota.gif)
@@ -86,6 +90,7 @@ Soft rate-limit avoidance demo:
 ![Nexus soft-rate-limit demo](assets/soft-rate-limit.gif)
 
 ## Features
+- **RequestCostForecastAdvisor**: offline pre-dispatch USD cost forecast from tokens + $/1M rates — see `docs/guides/REQUEST_COST_FORECAST_GUIDE.md`
 - **TenantSpendQuotaEnforcer**: hard UTC calendar-month USD spend caps on top of SpendLedger — see `docs/guides/TENANT_SPEND_QUOTA_GUIDE.md`
 - **PromptCacheAffinityRouter**: sticky prefix fingerprint → model after cache hits — see `docs/guides/PROMPT_CACHE_AFFINITY_GUIDE.md`
 - **RequestPriorityLane**: high/normal/bulk fair dequeue queue — see `docs/guides/REQUEST_PRIORITY_LANE_GUIDE.md`
