@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1250%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1255%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -93,6 +93,10 @@ Soft rate-limit avoidance demo:
 
 ![ProviderErrorBudgetShed](assets/demo/provider-error-budget-shed.gif)
 
+![ContextWindowFitAdvisor](assets/demo/context-window-fit.gif)
+
+## Features
+- **ContextWindowFitAdvisor**: offline fit bands (fits/tight/overflow) from estimated_tokens vs model_context_limit — see `docs/guides/CONTEXT_WINDOW_FIT_GUIDE.md`
 ![StickyProviderAffinity](assets/demo/sticky-provider.gif)
 
 ![OutputJsonSchemaGuard](assets/demo/output-schema-guard.gif)
