@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1240%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1245%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -93,7 +93,10 @@ Soft rate-limit avoidance demo:
 
 ![ProviderErrorBudgetShed](assets/demo/provider-error-budget-shed.gif)
 
+![OutputJsonSchemaGuard](assets/demo/output-schema-guard.gif)
+
 ## Features
+- **OutputJsonSchemaGuard**: post-check model JSON against required-keys schema (ok/missing/invalid_json) — see `docs/guides/OUTPUT_JSON_SCHEMA_GUARD_GUIDE.md`
 - **RequestCostForecastAdvisor**: offline pre-dispatch USD cost forecast from tokens + $/1M rates — see `docs/guides/REQUEST_COST_FORECAST_GUIDE.md`
 - **TenantSpendQuotaEnforcer**: hard UTC calendar-month USD spend caps on top of SpendLedger — see `docs/guides/TENANT_SPEND_QUOTA_GUIDE.md`
 - **PromptCacheAffinityRouter**: sticky prefix fingerprint → model after cache hits — see `docs/guides/PROMPT_CACHE_AFFINITY_GUIDE.md`
