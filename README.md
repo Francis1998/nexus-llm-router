@@ -93,6 +93,10 @@ Soft rate-limit avoidance demo:
 
 ![ProviderErrorBudgetShed](assets/demo/provider-error-budget-shed.gif)
 
+![ContextWindowFitAdvisor](assets/demo/context-window-fit.gif)
+
+## Features
+- **ContextWindowFitAdvisor**: offline fit bands (fits/tight/overflow) from estimated_tokens vs model_context_limit — see `docs/guides/CONTEXT_WINDOW_FIT_GUIDE.md`
 ![StickyProviderAffinity](assets/demo/sticky-provider.gif)
 
 ![OutputJsonSchemaGuard](assets/demo/output-schema-guard.gif)
