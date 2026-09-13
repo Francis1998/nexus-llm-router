@@ -9,6 +9,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `NexusRouter` wires `ProviderFallbackScoreboard` into fallback dispatch: records per-attempt outcomes and reorders fallbacks via `rank()` while keeping the strategy primary model first (LiteLLM/OpenRouter provider-health gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`.
 
 ### Added
+- `StickyProviderAffinity` (`src/safety/sticky_provider.py`): session_key → provider sticky map via `bind` / `get` / `clear` (LiteLLM/Portkey/OpenRouter sticky-provider gap; distinct from `ProviderErrorBudgetShed` circuit shedding) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/STICKY_PROVIDER_AFFINITY_GUIDE.md`.
 - `OutputJsonSchemaGuard` (`src/safety/output_schema_guard.py`): post-check model JSON against a required-keys schema via `check` → `ok` / `missing` / `invalid_json` (LiteLLM/Portkey/OpenRouter structured-output validation gap; distinct from `PromptInjectionGateway` and PII controls) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/OUTPUT_JSON_SCHEMA_GUARD_GUIDE.md`.
 - `ProviderErrorBudgetShed` (`src/safety/provider_error_budget.py`). See `docs/guides/PROVIDER_ERROR_BUDGET_SHED_GUIDE.md`.
 - `ModelDeprecationGuard` (`src/safety/model_deprecation.py`): warn/block retired model aliases. See `docs/guides/MODEL_DEPRECATION_GUARD_GUIDE.md`.
