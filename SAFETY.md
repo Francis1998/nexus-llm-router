@@ -72,3 +72,11 @@ SHA-256 fingerprint and flags identical payloads inside a short TTL window. It i
 distinct from `IdempotencyStore` (durable client-key response replay): this control
 never stores response bodies and never rejects traffic — callers decide how to
 handle `is_duplicate` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 bursts.
+
+## First-token latency SLO advisor
+
+`FirstTokenLatencySloAdvisor` classifies time-to-first-token (TTFT) into `within` /
+`warn` / `breach` bands against a default or per-model `slo_ttft_ms`. It is distinct
+from `ModelLatencySlaTracker` (end-to-end p50/p95 windows): this control is for
+streaming first-token latency only and never rejects traffic for GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
