@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1255%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1260%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -95,7 +95,10 @@ Soft rate-limit avoidance demo:
 
 ![ContextWindowFitAdvisor](assets/demo/context-window-fit.gif)
 
+![RequestFingerprintDeduper](assets/demo/request-fingerprint-deduper.gif)
+
 ## Features
+- **RequestFingerprintDeduper**: identical request content-hash dedup window (distinct from IdempotencyStore) — see `docs/guides/REQUEST_FINGERPRINT_DEDUPER_GUIDE.md`
 - **ContextWindowFitAdvisor**: offline fit bands (fits/tight/overflow) from estimated_tokens vs model_context_limit — see `docs/guides/CONTEXT_WINDOW_FIT_GUIDE.md`
 ![StickyProviderAffinity](assets/demo/sticky-provider.gif)
 
