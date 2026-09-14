@@ -64,3 +64,11 @@ open) a circuit for otherwise-healthy traffic. Only genuine dispatch errors
 ## Prompt injection gateway
 
 `PromptInjectionGateway` can allow, redact, or block high-risk prompt patterns before routing. Advisory control complementary to routing shed strategies.
+
+## Request fingerprint deduper
+
+`RequestFingerprintDeduper` hashes `model + messages + temperature + tenant` into a
+SHA-256 fingerprint and flags identical payloads inside a short TTL window. It is
+distinct from `IdempotencyStore` (durable client-key response replay): this control
+never stores response bodies and never rejects traffic — callers decide how to
+handle `is_duplicate` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 bursts.
