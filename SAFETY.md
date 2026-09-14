@@ -80,3 +80,13 @@ handle `is_duplicate` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 bur
 from `ModelLatencySlaTracker` (end-to-end p50/p95 windows): this control is for
 streaming first-token latency only and never rejects traffic for GPT-5.5 /
 Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+
+## Provider fallback chain planner
+
+`ProviderFallbackChainPlanner` builds deterministic ordered provider fallback
+chains from explicit preference lists, skipping unavailable providers and
+optionally anchoring on a caller-supplied primary. It is distinct from
+`ProviderFallbackScoreboard` (live health ranking via `record_outcome` / `rank()`):
+this planner never observes latency or errors — preference order only — for
+GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+

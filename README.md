@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1265%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1270%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -97,7 +97,13 @@ Soft rate-limit avoidance demo:
 
 ![RequestFingerprintDeduper](assets/demo/request-fingerprint-deduper.gif)
 
+![FirstTokenLatencySloAdvisor](assets/demo/first-token-latency-slo.gif)
+
+![ProviderFallbackChainPlanner](assets/demo/provider-fallback-chain.gif)
+
 ## Features
+- **ProviderFallbackChainPlanner**: ordered provider fallback chains from preference lists (distinct from ProviderFallbackScoreboard) — see `docs/guides/PROVIDER_FALLBACK_CHAIN_GUIDE.md`
+- **FirstTokenLatencySloAdvisor**: TTFT / first-token SLO bands within/warn/breach (distinct from ModelLatencySlaTracker E2E) — see `docs/guides/FIRST_TOKEN_LATENCY_SLO_GUIDE.md`
 - **RequestFingerprintDeduper**: identical request content-hash dedup window (distinct from IdempotencyStore) — see `docs/guides/REQUEST_FINGERPRINT_DEDUPER_GUIDE.md`
 - **ContextWindowFitAdvisor**: offline fit bands (fits/tight/overflow) from estimated_tokens vs model_context_limit — see `docs/guides/CONTEXT_WINDOW_FIT_GUIDE.md`
 ![StickyProviderAffinity](assets/demo/sticky-provider.gif)
