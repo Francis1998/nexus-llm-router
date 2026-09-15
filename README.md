@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1270%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1275%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -101,7 +101,10 @@ Soft rate-limit avoidance demo:
 
 ![ProviderFallbackChainPlanner](assets/demo/provider-fallback-chain.gif)
 
+![ProviderHealthScoreboard](assets/demo/provider-health-scoreboard.gif)
+
 ## Features
+- **ProviderHealthScoreboard**: rolling success/error health bands healthy/degraded/unhealthy (distinct from ProviderFallbackScoreboard / circuit breaker) — see `docs/guides/PROVIDER_HEALTH_SCOREBOARD_GUIDE.md`
 - **ProviderFallbackChainPlanner**: ordered provider fallback chains from preference lists (distinct from ProviderFallbackScoreboard) — see `docs/guides/PROVIDER_FALLBACK_CHAIN_GUIDE.md`
 - **FirstTokenLatencySloAdvisor**: TTFT / first-token SLO bands within/warn/breach (distinct from ModelLatencySlaTracker E2E) — see `docs/guides/FIRST_TOKEN_LATENCY_SLO_GUIDE.md`
 - **RequestFingerprintDeduper**: identical request content-hash dedup window (distinct from IdempotencyStore) — see `docs/guides/REQUEST_FINGERPRINT_DEDUPER_GUIDE.md`
