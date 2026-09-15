@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1280%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1285%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -105,7 +105,10 @@ Soft rate-limit avoidance demo:
 
 ![StreamingBackpressureAdvisor](assets/demo/stream-backpressure.gif)
 
+![ModelCapabilityMatcher](assets/demo/capability-match.gif)
+
 ## Features
+- **ModelCapabilityMatcher**: match vision/tools/json_schema/long_context needs to model flags (fit/partial/mismatch; distinct from ContextWindowFitAdvisor / OutputJsonSchemaGuard) — see `docs/guides/MODEL_CAPABILITY_MATCHER_GUIDE.md`
 - **StreamingBackpressureAdvisor**: inter-chunk gap bands ok/stall/backpressure (distinct from StreamingTokenBudgetGate / FirstTokenLatencySloAdvisor) — see `docs/guides/STREAMING_BACKPRESSURE_GUIDE.md`
 - **ProviderHealthScoreboard**: rolling success/error health bands healthy/degraded/unhealthy (distinct from ProviderFallbackScoreboard / circuit breaker) — see `docs/guides/PROVIDER_HEALTH_SCOREBOARD_GUIDE.md`
 - **ProviderFallbackChainPlanner**: ordered provider fallback chains from preference lists (distinct from ProviderFallbackScoreboard) — see `docs/guides/PROVIDER_FALLBACK_CHAIN_GUIDE.md`
