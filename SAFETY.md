@@ -99,3 +99,12 @@ GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 stores response bodies — callers log or alert on `band` for GPT-5.5 /
 Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 
+## Output token ceiling guard
+
+`OutputTokenCeilingGuard` classifies `requested_max_tokens` against a policy
+ceiling into `ok` / `near` / `over` bands. It is distinct from
+`StreamingTokenBudgetGate` (hard mid-stream cut-off) and
+`ContextWindowFitAdvisor` (prompt tokens vs model context window): this control
+never kills requests itself — callers clamp, warn, or proceed for GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+
