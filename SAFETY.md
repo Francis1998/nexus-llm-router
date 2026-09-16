@@ -90,3 +90,12 @@ optionally anchoring on a caller-supplied primary. It is distinct from
 this planner never observes latency or errors — preference order only — for
 GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 
+## Prompt cache hit-rate advisor
+
+`PromptCacheHitRateAdvisor` classifies `cached_tokens / prompt_tokens` into
+`cold` / `warm` / `hot` bands. It is distinct from `RequestFingerprintDeduper`
+(identical-request content-hash windows) and `SemanticCacheStrategy`
+(near-duplicate response routing): this control never rejects traffic and never
+stores response bodies — callers log or alert on `band` for GPT-5.5 /
+Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+
