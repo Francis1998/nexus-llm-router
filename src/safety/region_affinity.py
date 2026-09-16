@@ -107,7 +107,7 @@ class ProviderRegionAffinityAdvisor:
 
         scored.sort(key=lambda item: (-item[0], item[1]))
         rankings: list[RegionAffinityRank] = []
-        for idx, (score, provider, matched, cleaned) in enumerate(scored, start=1):
+        for idx, (score, provider, matched, regions_tuple) in enumerate(scored, start=1):
             if score >= 1.0:
                 note = f"primary region {primary!r} matched"
             elif score > 0.0:
@@ -119,7 +119,7 @@ class ProviderRegionAffinityAdvisor:
                     provider=provider,
                     affinity_score=float(score),
                     matched_regions=matched,
-                    provider_regions=cleaned,
+                    provider_regions=regions_tuple,
                     rank=idx,
                     advisory=f"rank={idx} score={score:.3f}: {note}",
                 )
