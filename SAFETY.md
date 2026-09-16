@@ -108,3 +108,12 @@ ceiling into `ok` / `near` / `over` bands. It is distinct from
 never kills requests itself — callers clamp, warn, or proceed for GPT-5.5 /
 Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 
+## Provider region affinity advisor
+
+`ProviderRegionAffinityAdvisor` ranks providers by affinity to a
+`preferred_regions` list using a provider→regions map. It is distinct from
+`ProviderHealthScoreboard` (success/error health bands) and
+`StickyProviderAffinity` (session sticky map): this control never rejects
+traffic and never mutates sticky state — callers reorder or log from
+`rankings` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+
