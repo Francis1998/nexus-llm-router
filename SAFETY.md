@@ -117,3 +117,10 @@ Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 traffic and never mutates sticky state — callers reorder or log from
 `rankings` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 
+## Model temperature clamp advisor
+
+`ModelTemperatureClampAdvisor` classifies requested `temperature` against a
+policy `max_allowed` into `ok` / `high` / `extreme` bands and returns a
+`suggested_clamp`. It never rejects traffic itself — callers clamp, warn, or
+proceed for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+
