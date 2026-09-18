@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1300%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1305%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -113,7 +113,10 @@ Soft rate-limit avoidance demo:
 
 ![ProviderRegionAffinityAdvisor](assets/demo/region-affinity.gif)
 
+![ModelTemperatureClampAdvisor](assets/demo/model-temperature-clamp.gif)
+
 ## Features
+- **ModelTemperatureClampAdvisor**: advisory temperature vs max_allowed bands ok/high/extreme (never rejects; suggested_clamp) — see `docs/guides/MODEL_TEMPERATURE_CLAMP_GUIDE.md`
 - **ProviderRegionAffinityAdvisor**: rank providers by preferred-region affinity score (distinct from ProviderHealthScoreboard / StickyProviderAffinity) — see `docs/guides/PROVIDER_REGION_AFFINITY_GUIDE.md`
 - **OutputTokenCeilingGuard**: advisory max_tokens vs ceiling bands ok/near/over (distinct from StreamingTokenBudgetGate / ContextWindowFitAdvisor) — see `docs/guides/OUTPUT_TOKEN_CEILING_GUIDE.md`
 - **PromptCacheHitRateAdvisor**: advisory prompt-cache hit-rate bands cold/warm/hot from cached_tokens/prompt_tokens (distinct from RequestFingerprintDeduper / SemanticCacheStrategy) — see `docs/guides/PROMPT_CACHE_HIT_RATE_ADVISOR_GUIDE.md`
