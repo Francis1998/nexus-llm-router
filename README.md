@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1325%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1330%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -114,6 +114,7 @@ Soft rate-limit avoidance demo:
 ![ProviderRegionAffinityAdvisor](assets/demo/region-affinity.gif)
 ![RequestPriorityAgingAdvisor](assets/demo/request-priority-aging.gif)
 ![TenantConcurrencySlotGuard](assets/demo/tenant-concurrency-slots.gif)
+![StreamingCancelGraceGuard](assets/demo/streaming-cancel-grace.gif)
 ![ProviderQuotaRemainingAdvisor](assets/demo/provider-quota-remaining.gif)
 ![JsonSchemaRetryBudgetGuard](assets/demo/json-schema-retry-budget.gif)
 
@@ -124,6 +125,7 @@ Soft rate-limit avoidance demo:
 - **ProviderRegionAffinityAdvisor**: rank providers by preferred-region affinity score (distinct from ProviderHealthScoreboard / StickyProviderAffinity) — see `docs/guides/PROVIDER_REGION_AFFINITY_GUIDE.md`
 - **RequestPriorityAgingAdvisor**: wait-age → fresh/aging/stale priority boost bands (Portkey/Helicone gap; distinct from RequestPriorityLane) — see `docs/guides/REQUEST_PRIORITY_AGING_GUIDE.md`
 - **TenantConcurrencySlotGuard**: per-tenant in-flight concurrency slots ok/near/full (optional hard gate; Portkey/LiteLLM gap; distinct from TenantRateLimiter) — see `docs/guides/TENANT_CONCURRENCY_SLOT_GUARD_GUIDE.md`
+- **StreamingCancelGraceGuard**: post-cancel streaming grace windows open/grace/closed (Portkey/LiteLLM gap; distinct from StreamingBackpressureAdvisor) — see `docs/guides/STREAMING_CANCEL_GRACE_GUARD_GUIDE.md`
 - **ProviderQuotaRemainingAdvisor**: advisory ok/low/exhausted provider quota-remaining bands (OpenRouter/Helicone gap; distinct from ProviderErrorBudgetShed) — see `docs/guides/PROVIDER_QUOTA_REMAINING_ADVISOR_GUIDE.md`
 - **JsonSchemaRetryBudgetGuard**: per-request_id JSON schema repair retry budgets ok/advisory/exhausted (LiteLLM/OpenRouter gap; distinct from OutputJsonSchemaGuard) — see `docs/guides/JSON_SCHEMA_RETRY_BUDGET_GUIDE.md`
 - **OutputTokenCeilingGuard**: advisory max_tokens vs ceiling bands ok/near/over (distinct from StreamingTokenBudgetGate / ContextWindowFitAdvisor) — see `docs/guides/OUTPUT_TOKEN_CEILING_GUIDE.md`
