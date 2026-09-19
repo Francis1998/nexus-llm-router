@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1315%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1320%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -113,6 +113,7 @@ Soft rate-limit avoidance demo:
 
 ![ProviderRegionAffinityAdvisor](assets/demo/region-affinity.gif)
 ![RequestPriorityAgingAdvisor](assets/demo/request-priority-aging.gif)
+![TenantConcurrencySlotGuard](assets/demo/tenant-concurrency-slots.gif)
 ![JsonSchemaRetryBudgetGuard](assets/demo/json-schema-retry-budget.gif)
 
 ![ModelTemperatureClampAdvisor](assets/demo/model-temperature-clamp.gif)
@@ -121,6 +122,7 @@ Soft rate-limit avoidance demo:
 - **ModelTemperatureClampAdvisor**: advisory temperature vs max_allowed bands ok/high/extreme (never rejects; suggested_clamp) — see `docs/guides/MODEL_TEMPERATURE_CLAMP_GUIDE.md`
 - **ProviderRegionAffinityAdvisor**: rank providers by preferred-region affinity score (distinct from ProviderHealthScoreboard / StickyProviderAffinity) — see `docs/guides/PROVIDER_REGION_AFFINITY_GUIDE.md`
 - **RequestPriorityAgingAdvisor**: wait-age → fresh/aging/stale priority boost bands (Portkey/Helicone gap; distinct from RequestPriorityLane) — see `docs/guides/REQUEST_PRIORITY_AGING_GUIDE.md`
+- **TenantConcurrencySlotGuard**: per-tenant in-flight concurrency slots ok/near/full (optional hard gate; Portkey/LiteLLM gap; distinct from TenantRateLimiter) — see `docs/guides/TENANT_CONCURRENCY_SLOT_GUARD_GUIDE.md`
 - **JsonSchemaRetryBudgetGuard**: per-request_id JSON schema repair retry budgets ok/advisory/exhausted (LiteLLM/OpenRouter gap; distinct from OutputJsonSchemaGuard) — see `docs/guides/JSON_SCHEMA_RETRY_BUDGET_GUIDE.md`
 - **OutputTokenCeilingGuard**: advisory max_tokens vs ceiling bands ok/near/over (distinct from StreamingTokenBudgetGate / ContextWindowFitAdvisor) — see `docs/guides/OUTPUT_TOKEN_CEILING_GUIDE.md`
 - **PromptCacheHitRateAdvisor**: advisory prompt-cache hit-rate bands cold/warm/hot from cached_tokens/prompt_tokens (distinct from RequestFingerprintDeduper / SemanticCacheStrategy) — see `docs/guides/PROMPT_CACHE_HIT_RATE_ADVISOR_GUIDE.md`
