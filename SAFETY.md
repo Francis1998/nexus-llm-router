@@ -124,3 +124,6 @@ policy `max_allowed` into `ok` / `high` / `extreme` bands and returns a
 `suggested_clamp`. It never rejects traffic itself — callers clamp, warn, or
 proceed for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 
+
+### StructuredOutputRepairAdvisor
+Advisory accept/repair/fail bands for structured JSON outputs against required keys. Never auto-forwards invalid payloads. Prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 for narrative repair prompts. See `docs/guides/STRUCTURED_OUTPUT_REPAIR_ADVISOR_GUIDE.md`.
