@@ -127,3 +127,6 @@ proceed for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 
 ### StructuredOutputRepairAdvisor
 Advisory accept/repair/fail bands for structured JSON outputs against required keys. Never auto-forwards invalid payloads. Prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 for narrative repair prompts. See `docs/guides/STRUCTURED_OUTPUT_REPAIR_ADVISOR_GUIDE.md`.
+
+### ProviderWarmPoolAdvisor
+Advisory cold/warming/hot bands from warm replica counts vs target. Never auto-routes. Prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROVIDER_WARM_POOL_ADVISOR_GUIDE.md`.
