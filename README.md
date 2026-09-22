@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1345%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1350%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -117,6 +117,7 @@ Soft rate-limit avoidance demo:
 ![StreamingCancelGraceGuard](assets/demo/streaming-cancel-grace.gif)
 ![ProviderQuotaRemainingAdvisor](assets/demo/provider-quota-remaining.gif)
 ![RequestHedgingAdvisor](assets/demo/request-hedging.gif)
+![StructuredOutputRepairAdvisor](assets/demo/structured-output-repair.gif)
 ![ShadowTrafficMirrorGuard](assets/demo/shadow-traffic.gif)
 ![ProviderCanaryRolloutGuard](assets/demo/provider-canary.gif)
 ![JsonSchemaRetryBudgetGuard](assets/demo/json-schema-retry-budget.gif)
@@ -129,6 +130,7 @@ Soft rate-limit avoidance demo:
 - **RequestPriorityAgingAdvisor**: wait-age → fresh/aging/stale priority boost bands (Portkey/Helicone gap; distinct from RequestPriorityLane) — see `docs/guides/REQUEST_PRIORITY_AGING_GUIDE.md`
 - **TenantConcurrencySlotGuard**: per-tenant in-flight concurrency slots ok/near/full (optional hard gate; Portkey/LiteLLM gap; distinct from TenantRateLimiter) — see `docs/guides/TENANT_CONCURRENCY_SLOT_GUARD_GUIDE.md`
 - **StreamingCancelGraceGuard**: post-cancel streaming grace windows open/grace/closed (Portkey/LiteLLM gap; distinct from StreamingBackpressureAdvisor) — see `docs/guides/STREAMING_CANCEL_GRACE_GUARD_GUIDE.md`
+- **StructuredOutputRepairAdvisor**: advisory accept/repair/fail bands for structured JSON vs required keys (LiteLLM/Portkey/OpenRouter structured-output repair gap; distinct from JsonSchemaRetryGuard / OutputSchemaGuard) — see `docs/guides/STRUCTURED_OUTPUT_REPAIR_ADVISOR_GUIDE.md`
 - **RequestHedgingAdvisor**: advisory hold/hedge/skip bands via wait_ms vs SLO (LiteLLM/Portkey/OpenRouter request-hedging gap; distinct from RequestPriorityAgingAdvisor / FirstTokenLatencySloAdvisor) — see `docs/guides/REQUEST_HEDGING_ADVISOR_GUIDE.md`
 - **ShadowTrafficMirrorGuard**: shadow mirror off/mirror/full via mirror_pct sampling (Portkey/Helicone/OpenRouter shadow-traffic gap; distinct from ProviderCanaryRolloutGuard) — see `docs/guides/SHADOW_TRAFFIC_MIRROR_GUARD_GUIDE.md`
 - **ProviderCanaryRolloutGuard**: canary rollout off/canary/promote via canary_pct sampling (OpenRouter/Portkey/LiteLLM canary gap; distinct from ShadowTrafficMirrorGuard / ProviderHealthScoreboard) — see `docs/guides/PROVIDER_CANARY_ROLLOUT_GUARD_GUIDE.md`
