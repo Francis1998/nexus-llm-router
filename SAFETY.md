@@ -130,3 +130,6 @@ Advisory accept/repair/fail bands for structured JSON outputs against required k
 
 ### ProviderWarmPoolAdvisor
 Advisory cold/warming/hot bands from warm replica counts vs target. Never auto-routes. Prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROVIDER_WARM_POOL_ADVISOR_GUIDE.md`.
+
+### CostAttributionTagLedger
+Offline Helicone-style cost attribution tags with per-tag rollups. Never enforces spend caps. Prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/COST_ATTRIBUTION_TAG_LEDGER_GUIDE.md`.
