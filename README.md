@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1361%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1365%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -120,6 +120,7 @@ Soft rate-limit avoidance demo:
 ![StructuredOutputRepairAdvisor](assets/demo/structured-output-repair.gif)
 ![ProviderWarmPoolAdvisor](assets/demo/provider-warm-pool.gif)
 ![PromptCompressionRatioAdvisor](assets/demo/prompt-compression-ratio.gif)
+![AdaptiveRetryJitterAdvisor](assets/demo/adaptive-retry-jitter.gif)
 ![CostAttributionTagLedger](assets/demo/cost-attribution-tag.gif)
 ![ShadowTrafficMirrorGuard](assets/demo/shadow-traffic.gif)
 ![ProviderCanaryRolloutGuard](assets/demo/provider-canary.gif)
@@ -134,6 +135,7 @@ Soft rate-limit avoidance demo:
 - **TenantConcurrencySlotGuard**: per-tenant in-flight concurrency slots ok/near/full (optional hard gate; Portkey/LiteLLM gap; distinct from TenantRateLimiter) — see `docs/guides/TENANT_CONCURRENCY_SLOT_GUARD_GUIDE.md`
 - **StreamingCancelGraceGuard**: post-cancel streaming grace windows open/grace/closed (Portkey/LiteLLM gap; distinct from StreamingBackpressureAdvisor) — see `docs/guides/STREAMING_CANCEL_GRACE_GUARD_GUIDE.md`
 - **PromptCompressionRatioAdvisor**: advisory keep/compress/aggressive bands from prompt token ratio (LiteLLM/Portkey/OpenRouter compression gap; distinct from ContextWindowFitGuard / OutputTokenCeilingGuard) — see `docs/guides/PROMPT_COMPRESSION_RATIO_ADVISOR_GUIDE.md`
+- **AdaptiveRetryJitterAdvisor**: see `docs/guides/ADAPTIVE_RETRY_JITTER_ADVISOR_GUIDE.md`
 - **CostAttributionTagLedger**: Helicone-style cost attribution tags + rollups (Helicone/Portkey/LiteLLM gap; distinct from SpendLedgerGuard / TenantSpendQuotaGuard) — see `docs/guides/COST_ATTRIBUTION_TAG_LEDGER_GUIDE.md`
 - **ProviderWarmPoolAdvisor**: advisory cold/warming/hot bands from warm replica counts (OpenRouter/LiteLLM/Portkey warm-pool gap; distinct from ProviderHealthGuard / RequestHedgingAdvisor) — see `docs/guides/PROVIDER_WARM_POOL_ADVISOR_GUIDE.md`
 - **StructuredOutputRepairAdvisor**: advisory accept/repair/fail bands for structured JSON vs required keys (LiteLLM/Portkey/OpenRouter structured-output repair gap; distinct from JsonSchemaRetryGuard / OutputSchemaGuard) — see `docs/guides/STRUCTURED_OUTPUT_REPAIR_ADVISOR_GUIDE.md`
