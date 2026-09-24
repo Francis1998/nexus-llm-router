@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1373%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1377%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -121,6 +121,7 @@ Soft rate-limit avoidance demo:
 ![ProviderWarmPoolAdvisor](assets/demo/provider-warm-pool.gif)
 ![PromptCompressionRatioAdvisor](assets/demo/prompt-compression-ratio.gif)
 ![ReasoningTokenBudgetAdvisor](assets/demo/reasoning-token-budget.gif)
+![MultimodalPayloadSizeGate](assets/demo/multimodal-payload-size-gate.gif)
 ![ResponseCacheTtlAdvisor](assets/demo/response-cache-ttl.gif)
 ![AdaptiveRetryJitterAdvisor](assets/demo/adaptive-retry-jitter.gif)
 ![CostAttributionTagLedger](assets/demo/cost-attribution-tag.gif)
@@ -139,6 +140,7 @@ Soft rate-limit avoidance demo:
 - **PromptCompressionRatioAdvisor**: advisory keep/compress/aggressive bands from prompt token ratio (LiteLLM/Portkey/OpenRouter compression gap; distinct from ContextWindowFitGuard / OutputTokenCeilingGuard) — see `docs/guides/PROMPT_COMPRESSION_RATIO_ADVISOR_GUIDE.md`
 - **AdaptiveRetryJitterAdvisor**: see `docs/guides/ADAPTIVE_RETRY_JITTER_ADVISOR_GUIDE.md`
 - **ReasoningTokenBudgetAdvisor**: advisory reasoning/thinking-token budget bands (OpenRouter/LiteLLM/Portkey reasoning-budget gap) — see `docs/guides/REASONING_TOKEN_BUDGET_ADVISOR_GUIDE.md`
+- **MultimodalPayloadSizeGate**: advisory allow/deny for oversized multimodal payloads (LiteLLM/Portkey/OpenRouter multimodal-limit gap) — see `docs/guides/MULTIMODAL_PAYLOAD_SIZE_GATE_GUIDE.md`
 - **ResponseCacheTtlAdvisor**: see `docs/guides/RESPONSE_CACHE_TTL_ADVISOR_GUIDE.md`
 - **CostAttributionTagLedger**: Helicone-style cost attribution tags + rollups (Helicone/Portkey/LiteLLM gap; distinct from SpendLedgerGuard / TenantSpendQuotaGuard) — see `docs/guides/COST_ATTRIBUTION_TAG_LEDGER_GUIDE.md`
 - **ProviderWarmPoolAdvisor**: advisory cold/warming/hot bands from warm replica counts (OpenRouter/LiteLLM/Portkey warm-pool gap; distinct from ProviderHealthGuard / RequestHedgingAdvisor) — see `docs/guides/PROVIDER_WARM_POOL_ADVISOR_GUIDE.md`
