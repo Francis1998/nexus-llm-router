@@ -1,5 +1,6 @@
 # nexus-llm-router
 
+![Tests](https://img.shields.io/badge/tests-1385%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 ![Tests](https://img.shields.io/badge/tests-1389%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
@@ -120,6 +121,7 @@ Soft rate-limit avoidance demo:
 ![StructuredOutputRepairAdvisor](assets/demo/structured-output-repair.gif)
 ![ProviderWarmPoolAdvisor](assets/demo/provider-warm-pool.gif)
 ![PromptCompressionRatioAdvisor](assets/demo/prompt-compression-ratio.gif)
+![ProviderColdStartLatencyAdvisor](assets/demo/provider-cold-start-latency.gif)
 ![ParallelToolCallArityAdvisor](assets/demo/parallel-tool-call-arity.gif)
 ![SystemPromptShareAdvisor](assets/demo/system-prompt-share.gif)
 ![ReasoningTokenBudgetAdvisor](assets/demo/reasoning-token-budget.gif)
@@ -142,6 +144,7 @@ Soft rate-limit avoidance demo:
 - **StreamingCancelGraceGuard**: post-cancel streaming grace windows open/grace/closed (Portkey/LiteLLM gap; distinct from StreamingBackpressureAdvisor) — see `docs/guides/STREAMING_CANCEL_GRACE_GUARD_GUIDE.md`
 - **PromptCompressionRatioAdvisor**: advisory keep/compress/aggressive bands from prompt token ratio (LiteLLM/Portkey/OpenRouter compression gap; distinct from ContextWindowFitGuard / OutputTokenCeilingGuard) — see `docs/guides/PROMPT_COMPRESSION_RATIO_ADVISOR_GUIDE.md`
 - **AdaptiveRetryJitterAdvisor**: see `docs/guides/ADAPTIVE_RETRY_JITTER_ADVISOR_GUIDE.md`
+- **ProviderColdStartLatencyAdvisor**: advisory provider cold-start latency bands (OpenRouter/LiteLLM/Portkey cold-start gap) — see `docs/guides/PROVIDER_COLD_START_LATENCY_ADVISOR_GUIDE.md`
 - **ParallelToolCallArityAdvisor**: advisory parallel tool-call arity bands (OpenRouter/LiteLLM/Portkey tool-fanout gap) — see `docs/guides/PARALLEL_TOOL_CALL_ARITY_ADVISOR_GUIDE.md`
 - **SystemPromptShareAdvisor**: advisory system-prompt share-of-context bands (OpenRouter/LiteLLM/Portkey system-prompt bloat gap) — see `docs/guides/SYSTEM_PROMPT_SHARE_ADVISOR_GUIDE.md`
 - **ReasoningTokenBudgetAdvisor**: advisory reasoning/thinking-token budget bands (OpenRouter/LiteLLM/Portkey reasoning-budget gap) — see `docs/guides/REASONING_TOKEN_BUDGET_ADVISOR_GUIDE.md`
