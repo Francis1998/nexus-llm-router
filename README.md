@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1381%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1385%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -120,6 +120,7 @@ Soft rate-limit avoidance demo:
 ![StructuredOutputRepairAdvisor](assets/demo/structured-output-repair.gif)
 ![ProviderWarmPoolAdvisor](assets/demo/provider-warm-pool.gif)
 ![PromptCompressionRatioAdvisor](assets/demo/prompt-compression-ratio.gif)
+![SystemPromptShareAdvisor](assets/demo/system-prompt-share.gif)
 ![ReasoningTokenBudgetAdvisor](assets/demo/reasoning-token-budget.gif)
 ![MultimodalPayloadSizeGate](assets/demo/multimodal-payload-size-gate.gif)
 ![ProviderExplorationEpsilonAdvisor](assets/demo/provider-exploration-epsilon.gif)
@@ -140,6 +141,7 @@ Soft rate-limit avoidance demo:
 - **StreamingCancelGraceGuard**: post-cancel streaming grace windows open/grace/closed (Portkey/LiteLLM gap; distinct from StreamingBackpressureAdvisor) — see `docs/guides/STREAMING_CANCEL_GRACE_GUARD_GUIDE.md`
 - **PromptCompressionRatioAdvisor**: advisory keep/compress/aggressive bands from prompt token ratio (LiteLLM/Portkey/OpenRouter compression gap; distinct from ContextWindowFitGuard / OutputTokenCeilingGuard) — see `docs/guides/PROMPT_COMPRESSION_RATIO_ADVISOR_GUIDE.md`
 - **AdaptiveRetryJitterAdvisor**: see `docs/guides/ADAPTIVE_RETRY_JITTER_ADVISOR_GUIDE.md`
+- **SystemPromptShareAdvisor**: advisory system-prompt share-of-context bands (OpenRouter/LiteLLM/Portkey system-prompt bloat gap) — see `docs/guides/SYSTEM_PROMPT_SHARE_ADVISOR_GUIDE.md`
 - **ReasoningTokenBudgetAdvisor**: advisory reasoning/thinking-token budget bands (OpenRouter/LiteLLM/Portkey reasoning-budget gap) — see `docs/guides/REASONING_TOKEN_BUDGET_ADVISOR_GUIDE.md`
 - **MultimodalPayloadSizeGate**: advisory allow/deny for oversized multimodal payloads (LiteLLM/Portkey/OpenRouter multimodal-limit gap) — see `docs/guides/MULTIMODAL_PAYLOAD_SIZE_GATE_GUIDE.md`
 - **ProviderExplorationEpsilonAdvisor**: advisory exploit/explore bands from epsilon-greedy schedule (OpenRouter/LiteLLM/Portkey exploration gap) — see `docs/guides/PROVIDER_EXPLORATION_EPSILON_ADVISOR_GUIDE.md`
