@@ -1,7 +1,7 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1417%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1417%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1421%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1421%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -128,6 +128,7 @@ Soft rate-limit avoidance demo:
 ![TenantFairShareLatencySloAdvisor](assets/demo/tenant-fair-share-latency.gif)
 ![OutputTokenForecastAdvisor](assets/demo/output-token-forecast.gif)
 ![QueueWaitSloAdvisor](assets/demo/queue-wait-slo.gif)
+![KvCacheHitRateAdvisor](assets/demo/kv-cache-hit-rate.gif)
 
 ![ParallelToolCallArityAdvisor](assets/demo/parallel-tool-call-arity.gif)
 ![SystemPromptShareAdvisor](assets/demo/system-prompt-share.gif)
@@ -154,6 +155,7 @@ Soft rate-limit avoidance demo:
 - **ProviderColdStartLatencyAdvisor**: advisory provider cold-start latency bands (OpenRouter/LiteLLM/Portkey cold-start gap) — see `docs/guides/PROVIDER_COLD_START_LATENCY_ADVISOR_GUIDE.md`
 - **SpeculativeDecodeBudgetAdvisor**: advisory speculative-decode draft-token budget bands (OpenRouter/LiteLLM/Portkey speculative-decode gap) — see `docs/guides/SPECULATIVE_DECODE_BUDGET_ADVISOR_GUIDE.md`
 - **PrefillTtftRatioAdvisor**: advisory prefill/TTFT ratio bands (OpenRouter/LiteLLM/Portkey prefill-heavy gap) — see `docs/guides/PREFILL_TTFT_RATIO_ADVISOR_GUIDE.md`
+- **KvCacheHitRateAdvisor**: advisory KV-cache hit-rate vs target bands (vLLM/TensorRT-LLM/OpenRouter cache gap) — see `docs/guides/KV_CACHE_HIT_RATE_ADVISOR_GUIDE.md`
 - **QueueWaitSloAdvisor**: advisory queue-wait seconds vs SLO bands (OpenRouter/LiteLLM/Portkey queue-wait gap) — see `docs/guides/QUEUE_WAIT_SLO_ADVISOR_GUIDE.md`
 - **OutputTokenForecastAdvisor**: advisory estimated completion tokens vs budget bands (OpenRouter/LiteLLM/Portkey foresight gap) — see `docs/guides/OUTPUT_TOKEN_FORECAST_ADVISOR_GUIDE.md`
 - **TenantFairShareLatencySloAdvisor**: advisory tenant p95 vs fair-share SLO bands (Helicone/Portkey/LiteLLM fairness gap) — see `docs/guides/TENANT_FAIR_SHARE_LATENCY_SLO_ADVISOR_GUIDE.md`
