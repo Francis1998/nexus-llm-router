@@ -1,7 +1,7 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1429%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1429%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1433%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1433%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -130,6 +130,7 @@ Soft rate-limit avoidance demo:
 ![QueueWaitSloAdvisor](assets/demo/queue-wait-slo.gif)
 ![ToolSchemaDriftGate](assets/demo/tool-schema-drift.gif)
 ![ProviderTokenBucketForesightAdvisor](assets/demo/provider-token-bucket-foresight.gif)
+![SpeculativeDecodeAbortAdvisor](assets/demo/speculative-decode-abort.gif)
 ![KvCacheHitRateAdvisor](assets/demo/kv-cache-hit-rate.gif)
 
 ![ParallelToolCallArityAdvisor](assets/demo/parallel-tool-call-arity.gif)
@@ -157,6 +158,7 @@ Soft rate-limit avoidance demo:
 - **ProviderColdStartLatencyAdvisor**: advisory provider cold-start latency bands (OpenRouter/LiteLLM/Portkey cold-start gap) — see `docs/guides/PROVIDER_COLD_START_LATENCY_ADVISOR_GUIDE.md`
 - **SpeculativeDecodeBudgetAdvisor**: advisory speculative-decode draft-token budget bands (OpenRouter/LiteLLM/Portkey speculative-decode gap) — see `docs/guides/SPECULATIVE_DECODE_BUDGET_ADVISOR_GUIDE.md`
 - **PrefillTtftRatioAdvisor**: advisory prefill/TTFT ratio bands (OpenRouter/LiteLLM/Portkey prefill-heavy gap) — see `docs/guides/PREFILL_TTFT_RATIO_ADVISOR_GUIDE.md`
+- **SpeculativeDecodeAbortAdvisor**: advisory speculative-decode abort-rate vs budget bands (vLLM/TensorRT-LLM/OpenRouter abort gap) — see `docs/guides/SPECULATIVE_DECODE_ABORT_ADVISOR_GUIDE.md`
 - **KvCacheHitRateAdvisor**: advisory KV-cache hit-rate vs target bands (vLLM/TensorRT-LLM/OpenRouter cache gap) — see `docs/guides/KV_CACHE_HIT_RATE_ADVISOR_GUIDE.md`
 - **ProviderTokenBucketForesightAdvisor**: advisory tokens-remaining vs forecast-demand bands (OpenRouter/LiteLLM/Portkey foresight gap) — see `docs/guides/PROVIDER_TOKEN_BUCKET_FORESIGHT_ADVISOR_GUIDE.md`
 - **ToolSchemaDriftGate**: advisory declared vs observed tool-schema hash bands (OpenRouter/LiteLLM/Portkey tool-schema drift gap) — see `docs/guides/TOOL_SCHEMA_DRIFT_GATE_GUIDE.md`
