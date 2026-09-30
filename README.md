@@ -1,7 +1,7 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1445%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1445%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1449%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1449%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -134,6 +134,7 @@ Soft rate-limit avoidance demo:
 ![ProviderHealthHysteresisAdvisor](assets/demo/provider-health-hysteresis.gif)
 ![StreamingChunkJitterSloAdvisor](assets/demo/streaming-chunk-jitter.gif)
 ![StickySessionBleedAdvisor](assets/demo/sticky-session-bleed.gif)
+![MultimodalTokenTaxAdvisor](assets/demo/multimodal-token-tax.gif)
 ![KvCacheHitRateAdvisor](assets/demo/kv-cache-hit-rate.gif)
 
 ![ParallelToolCallArityAdvisor](assets/demo/parallel-tool-call-arity.gif)
@@ -161,6 +162,7 @@ Soft rate-limit avoidance demo:
 - **ProviderColdStartLatencyAdvisor**: advisory provider cold-start latency bands (OpenRouter/LiteLLM/Portkey cold-start gap) — see `docs/guides/PROVIDER_COLD_START_LATENCY_ADVISOR_GUIDE.md`
 - **SpeculativeDecodeBudgetAdvisor**: advisory speculative-decode draft-token budget bands (OpenRouter/LiteLLM/Portkey speculative-decode gap) — see `docs/guides/SPECULATIVE_DECODE_BUDGET_ADVISOR_GUIDE.md`
 - **PrefillTtftRatioAdvisor**: advisory prefill/TTFT ratio bands (OpenRouter/LiteLLM/Portkey prefill-heavy gap) — see `docs/guides/PREFILL_TTFT_RATIO_ADVISOR_GUIDE.md`
+- **MultimodalTokenTaxAdvisor**: advisory multimodal vision-token tax vs text budget bands — see `docs/guides/MULTIMODAL_TOKEN_TAX_ADVISOR_GUIDE.md`
 - **StickySessionBleedAdvisor**: advisory sticky-session cross-tenant bleed bands (sticky session isolation gap) — see `docs/guides/STICKY_SESSION_BLEED_ADVISOR_GUIDE.md`
 - **StreamingChunkJitterSloAdvisor**: advisory streaming inter-chunk jitter vs SLO bands (vLLM/OpenRouter/LiteLLM stream jitter gap) — see `docs/guides/STREAMING_CHUNK_JITTER_SLO_ADVISOR_GUIDE.md`
 - **ProviderHealthHysteresisAdvisor**: advisory provider health hysteresis enter/exit bands (OpenRouter/LiteLLM/Portkey flap gap) — see `docs/guides/PROVIDER_HEALTH_HYSTERESIS_ADVISOR_GUIDE.md`
