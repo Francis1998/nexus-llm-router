@@ -9,6 +9,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `NexusRouter` wires `ProviderFallbackScoreboard` into fallback dispatch: records per-attempt outcomes and reorders fallbacks via `rank()` while keeping the strategy primary model first (LiteLLM/OpenRouter provider-health gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`.
 
 ### Added
+- `PrefixCacheThrashAdvisor` (`src/safety/prefix_cache_thrash.py`): advisory prefix-cache thrash (evict/hit) bands. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_CACHE_THRASH_ADVISOR_GUIDE.md`.
 - `MultimodalTokenTaxAdvisor` (`src/safety/multimodal_token_tax.py`): advisory multimodal vision-token tax vs text budget bands. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MULTIMODAL_TOKEN_TAX_ADVISOR_GUIDE.md`.
 - `StickySessionBleedAdvisor` (`src/safety/sticky_session_bleed.py`): advisory sticky-session cross-tenant bleed bands (sticky session isolation gap) (vLLM / OpenRouter / LiteLLM sticky-session tenant bleed gap). Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/STICKY_SESSION_BLEED_ADVISOR_GUIDE.md`.
 - `StreamingChunkJitterSloAdvisor` (`src/safety/streaming_chunk_jitter.py`): advisory streaming inter-chunk jitter vs SLO bands (vLLM/OpenRouter/LiteLLM stream jitter gap). Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/STREAMING_CHUNK_JITTER_SLO_ADVISOR_GUIDE.md`.
