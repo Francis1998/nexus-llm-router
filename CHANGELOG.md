@@ -9,6 +9,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `NexusRouter` wires `ProviderFallbackScoreboard` into fallback dispatch: records per-attempt outcomes and reorders fallbacks via `rank()` while keeping the strategy primary model first (LiteLLM/OpenRouter provider-health gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`.
 
 ### Added
+- `LoraAdapterSwapCostAdvisor` (`src/safety/lora_adapter_swap_cost.py`): advisory LoRA adapter swap-cost bands. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/LORA_ADAPTER_SWAP_COST_ADVISOR_GUIDE.md`.
 - `ToolArgSizeForesightAdvisor` (`src/safety/tool_arg_size_foresight.py`): advisory tool-arg size foresight bands. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOOL_ARG_SIZE_FORESIGHT_ADVISOR_GUIDE.md`.
 - `EmbeddingBatchSkewAdvisor` (`src/safety/embedding_batch_skew.py`): advisory embedding-batch skew bands. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/EMBEDDING_BATCH_SKEW_ADVISOR_GUIDE.md`.
 - `PrefixCacheThrashAdvisor` (`src/safety/prefix_cache_thrash.py`): advisory prefix-cache thrash (evict/hit) bands. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_CACHE_THRASH_ADVISOR_GUIDE.md`.
