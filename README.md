@@ -1,7 +1,9 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1469%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1469%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1473%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1473%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1473%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1473%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -136,6 +138,7 @@ Soft rate-limit avoidance demo:
 ![StickySessionBleedAdvisor](assets/demo/sticky-session-bleed.gif)
 ![MultimodalTokenTaxAdvisor](assets/demo/multimodal-token-tax.gif)
 ![SpeculativeDecodeAcceptanceBandAdvisor](assets/demo/speculative-decode-acceptance-band.gif)
+![TokenizerMismatchAdvisor](assets/demo/tokenizer-mismatch-advisor.gif)
 ![LoraAdapterSwapCostAdvisor](assets/demo/lora-adapter-swap-cost.gif)
 ![ToolArgSizeForesightAdvisor](assets/demo/tool-arg-size-foresight.gif)
 ![EmbeddingBatchSkewAdvisor](assets/demo/embedding-batch-skew.gif)
@@ -168,6 +171,7 @@ Soft rate-limit avoidance demo:
 - **SpeculativeDecodeBudgetAdvisor**: advisory speculative-decode draft-token budget bands (OpenRouter/LiteLLM/Portkey speculative-decode gap) — see `docs/guides/SPECULATIVE_DECODE_BUDGET_ADVISOR_GUIDE.md`
 - **PrefillTtftRatioAdvisor**: advisory prefill/TTFT ratio bands (OpenRouter/LiteLLM/Portkey prefill-heavy gap) — see `docs/guides/PREFILL_TTFT_RATIO_ADVISOR_GUIDE.md`
 - **SpeculativeDecodeAcceptanceBandAdvisor**: advisory speculative-decode acceptance-rate bands — see `docs/guides/SPECULATIVE_DECODE_ACCEPTANCE_BAND_ADVISOR_GUIDE.md`
+- **TokenizerMismatchAdvisor**: advisory tokenizer mismatch bands — see `docs/guides/TOKENIZER_MISMATCH_ADVISOR_GUIDE.md`
 - **LoraAdapterSwapCostAdvisor**: advisory LoRA adapter swap cost bands — see `docs/guides/LORA_ADAPTER_SWAP_COST_ADVISOR_GUIDE.md`
 - **ToolArgSizeForesightAdvisor**: advisory tool-arg byte foresight vs budget bands — see `docs/guides/TOOL_ARG_SIZE_FORESIGHT_ADVISOR_GUIDE.md`
 - **EmbeddingBatchSkewAdvisor**: advisory embedding batch size skew vs target bands — see `docs/guides/EMBEDDING_BATCH_SKEW_ADVISOR_GUIDE.md`
