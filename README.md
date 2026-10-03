@@ -1,11 +1,11 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1485%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1485%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1485%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1485%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1485%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1485%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1489%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1489%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1489%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1489%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1489%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1489%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -141,6 +141,7 @@ Soft rate-limit avoidance demo:
 ![MultimodalTokenTaxAdvisor](assets/demo/multimodal-token-tax.gif)
 ![SpeculativeDecodeAcceptanceBandAdvisor](assets/demo/speculative-decode-acceptance-band.gif)
 ![StagedRolloutTrafficSplitGuard](assets/demo/staged-rollout-traffic-split-guard.gif)
+![KvCacheEvictionPressureAdvisor](assets/demo/kv-cache-eviction-pressure-advisor.gif)
 ![PromptCacheKeyCollisionAdvisor](assets/demo/prompt-cache-key-collision-advisor.gif)
 ![TokenizerMismatchAdvisor](assets/demo/tokenizer-mismatch-advisor.gif)
 ![ProviderWeightDecaySchedulerAdvisor](assets/demo/provider-weight-decay-scheduler.gif)
