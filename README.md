@@ -1,11 +1,11 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1493%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1493%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1493%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1493%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1493%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1493%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1497%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1497%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1497%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1497%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1497%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1497%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -141,6 +141,7 @@ Soft rate-limit avoidance demo:
 ![MultimodalTokenTaxAdvisor](assets/demo/multimodal-token-tax.gif)
 ![SpeculativeDecodeAcceptanceBandAdvisor](assets/demo/speculative-decode-acceptance-band.gif)
 ![EmbeddingDimMismatchAdvisor](assets/demo/embedding-dim-mismatch-advisor.gif)
+![ToolChoiceStickyAffinityAdvisor](assets/demo/tool-choice-sticky-affinity-advisor.gif)
 ![StagedRolloutTrafficSplitGuard](assets/demo/staged-rollout-traffic-split-guard.gif)
 ![KvCacheEvictionPressureAdvisor](assets/demo/kv-cache-eviction-pressure-advisor.gif)
 ![PromptCacheKeyCollisionAdvisor](assets/demo/prompt-cache-key-collision-advisor.gif)
@@ -179,6 +180,7 @@ Soft rate-limit avoidance demo:
 - **PrefillTtftRatioAdvisor**: advisory prefill/TTFT ratio bands (OpenRouter/LiteLLM/Portkey prefill-heavy gap) — see `docs/guides/PREFILL_TTFT_RATIO_ADVISOR_GUIDE.md`
 - **SpeculativeDecodeAcceptanceBandAdvisor**: advisory speculative-decode acceptance-rate bands — see `docs/guides/SPECULATIVE_DECODE_ACCEPTANCE_BAND_ADVISOR_GUIDE.md`
 - **EmbeddingDimMismatchAdvisor**: advisory embedding dimension mismatch bands — see `docs/guides/EMBEDDING_DIM_MISMATCH_ADVISOR_GUIDE.md`
+- **ToolChoiceStickyAffinityAdvisor**: advisory tool-choice sticky affinity drift bands — see `docs/guides/TOOL_CHOICE_STICKY_AFFINITY_ADVISOR_GUIDE.md`
 - **TokenizerMismatchAdvisor**: advisory tokenizer mismatch bands — see `docs/guides/TOKENIZER_MISMATCH_ADVISOR_GUIDE.md`
 - **ProviderWeightDecaySchedulerAdvisor**: advisory provider weight-decay scheduler bands — see `docs/guides/PROVIDER_WEIGHT_DECAY_SCHEDULER_ADVISOR_GUIDE.md`
 - **LoraAdapterSwapCostAdvisor**: advisory LoRA adapter swap cost bands — see `docs/guides/LORA_ADAPTER_SWAP_COST_ADVISOR_GUIDE.md`
