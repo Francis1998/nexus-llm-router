@@ -1,11 +1,11 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1505%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1505%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1505%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1505%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1505%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1505%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1509%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -142,6 +142,7 @@ Soft rate-limit avoidance demo:
 ![SpeculativeDecodeAcceptanceBandAdvisor](assets/demo/speculative-decode-acceptance-band.gif)
 ![EmbeddingDimMismatchAdvisor](assets/demo/embedding-dim-mismatch-advisor.gif)
 ![ToolChoiceStickyAffinityAdvisor](assets/demo/tool-choice-sticky-affinity-advisor.gif)
+![LogitBiasMagnitudeBudgetGuard](assets/demo/logit-bias-magnitude-budget-guard.gif)
 ![PrefillDecodeTokenSkewAdvisor](assets/demo/prefill-decode-token-skew-advisor.gif)
 ![GrammarConstrainedDecodeBudgetAdvisor](assets/demo/grammar-constrained-decode-budget-advisor.gif)
 ![StagedRolloutTrafficSplitGuard](assets/demo/staged-rollout-traffic-split-guard.gif)
@@ -183,6 +184,7 @@ Soft rate-limit avoidance demo:
 - **SpeculativeDecodeAcceptanceBandAdvisor**: advisory speculative-decode acceptance-rate bands — see `docs/guides/SPECULATIVE_DECODE_ACCEPTANCE_BAND_ADVISOR_GUIDE.md`
 - **EmbeddingDimMismatchAdvisor**: advisory embedding dimension mismatch bands — see `docs/guides/EMBEDDING_DIM_MISMATCH_ADVISOR_GUIDE.md`
 - **ToolChoiceStickyAffinityAdvisor**: advisory tool-choice sticky affinity drift bands — see `docs/guides/TOOL_CHOICE_STICKY_AFFINITY_ADVISOR_GUIDE.md`
+- **LogitBiasMagnitudeBudgetGuard**: advisory logit-bias L1 magnitude budget bands — see `docs/guides/LOGIT_BIAS_MAGNITUDE_BUDGET_GUARD_GUIDE.md`
 - **PrefillDecodeTokenSkewAdvisor**: advisory prefill/decode token-skew bands — see `docs/guides/PREFILL_DECODE_TOKEN_SKEW_ADVISOR_GUIDE.md`
 - **GrammarConstrainedDecodeBudgetAdvisor**: advisory grammar-constrained decode token-budget bands — see `docs/guides/GRAMMAR_CONSTRAINED_DECODE_BUDGET_ADVISOR_GUIDE.md`
 - **TokenizerMismatchAdvisor**: advisory tokenizer mismatch bands — see `docs/guides/TOKENIZER_MISMATCH_ADVISOR_GUIDE.md`
