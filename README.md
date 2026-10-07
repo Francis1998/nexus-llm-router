@@ -1,11 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1529%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1529%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1529%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1529%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1529%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-1529%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1533%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -144,6 +139,7 @@ Soft rate-limit avoidance demo:
 ![ToolChoiceStickyAffinityAdvisor](assets/demo/tool-choice-sticky-affinity-advisor.gif)
 ![ReasoningEffortCostBandAdvisor](assets/demo/reasoning-effort-cost-band-advisor.gif)
 ![ProviderAuthTokenExpiryAdvisor](assets/demo/provider-auth-token-expiry-advisor.gif)
+![TokenizerVocabularyDriftAdvisor](assets/demo/tokenizer-vocabulary-drift-advisor.gif)
 ![ContextWindowFragmentationAdvisor](assets/demo/context-window-fragmentation-advisor.gif)
 ![MoeExpertLoadImbalanceAdvisor](assets/demo/moe-expert-load-imbalance-advisor.gif)
 ![StructuredOutputRetryBandAdvisor](assets/demo/structured-output-retry-band-advisor.gif)
