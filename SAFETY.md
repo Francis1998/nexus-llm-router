@@ -136,3 +136,6 @@ Offline Helicone-style cost attribution tags with per-tag rollups. Never enforce
 ### ToolLoopDepthGateAdvisor
 `ToolLoopDepthGateAdvisor` advises `loop_depth` bands for HITL review. Never auto-blocks production traffic without human policy. Gap vs LiteLLM/vLLM/OpenAI-compatible tool-loop depth gates.
 
+### WebGroundingInjectionGateAdvisor
+`WebGroundingInjectionGateAdvisor` advises `injection_score` bands for HITL review. Never auto-blocks production traffic without human policy. Gap vs Perplexity/Bing/OpenAI web-grounding injection gates.
+
