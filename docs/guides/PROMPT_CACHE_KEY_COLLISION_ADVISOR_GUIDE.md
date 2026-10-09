@@ -13,7 +13,9 @@ Distinct from `PromptCacheHitRateAdvisor and PrefixCacheThrashAdvisor`.
 ```python
 from safety.prompt_cache_key_collision import PromptCacheKeyCollisionAdvisor
 
-advice = PromptCacheKeyCollisionAdvisor().advise(request_id="r1", collision_rate=0.060000000000000005)
+advice = PromptCacheKeyCollisionAdvisor().advise(
+    request_id="r1", collision_rate=0.060000000000000005
+)
 print(advice.band)
 ```
 

@@ -133,3 +133,6 @@ Advisory cold/warming/hot bands from warm replica counts vs target. Never auto-r
 
 ### CostAttributionTagLedger
 Offline Helicone-style cost attribution tags with per-tag rollups. Never enforces spend caps. Prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/COST_ATTRIBUTION_TAG_LEDGER_GUIDE.md`.
+### ToolLoopDepthGateAdvisor
+`ToolLoopDepthGateAdvisor` advises `loop_depth` bands for HITL review. Never auto-blocks production traffic without human policy. Gap vs LiteLLM/vLLM/OpenAI-compatible tool-loop depth gates.
+
