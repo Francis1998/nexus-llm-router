@@ -139,3 +139,6 @@ Offline Helicone-style cost attribution tags with per-tag rollups. Never enforce
 ### WebGroundingInjectionGateAdvisor
 `WebGroundingInjectionGateAdvisor` advises `injection_score` bands for HITL review. Never auto-blocks production traffic without human policy. Gap vs Perplexity/Bing/OpenAI web-grounding injection gates.
 
+### EmbeddingCacheThrashAdvisor
+`EmbeddingCacheThrashAdvisor` advises `thrash_ratio` bands for HITL review. Never auto-blocks production traffic without human policy. Gap vs Redis/vLLM/embedding-cache thrash monitors.
+

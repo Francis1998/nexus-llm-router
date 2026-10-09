@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1557%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1561%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -17,6 +17,12 @@ Offline HITL loop_depth bands. Gap vs LiteLLM/vLLM/OpenAI-compatible tool-loop d
 ![WebGroundingInjectionGateAdvisor](assets/demo/web-grounding-injection-gate-advisor.gif)
 
 Offline HITL injection_score bands. Gap vs Perplexity/Bing/OpenAI web-grounding injection gates. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/WEB_GROUNDING_INJECTION_GATE_ADVISOR_GUIDE.md`.
+
+### EmbeddingCacheThrashAdvisor
+
+![EmbeddingCacheThrashAdvisor](assets/demo/embedding-cache-thrash-advisor.gif)
+
+Offline HITL thrash_ratio bands. Gap vs Redis/vLLM/embedding-cache thrash monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/EMBEDDING_CACHE_THRASH_ADVISOR_GUIDE.md`.
 
 
 ## Why Nexus
