@@ -1,11 +1,17 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1549%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1553%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
 ![Nexus use cases](assets/use-cases.gif)
+
+### ToolLoopDepthGateAdvisor
+
+![ToolLoopDepthGateAdvisor](assets/demo/tool-loop-depth-gate-advisor.gif)
+
+Offline HITL loop_depth bands. Gap vs LiteLLM/vLLM/OpenAI-compatible tool-loop depth gates. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOOL_LOOP_DEPTH_GATE_ADVISOR_GUIDE.md`.
 
 ## Why Nexus
 

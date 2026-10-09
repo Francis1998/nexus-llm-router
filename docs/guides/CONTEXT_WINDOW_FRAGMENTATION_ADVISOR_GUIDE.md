@@ -13,9 +13,7 @@ Distinct from ``ContextWindowFitAdvisor`` and ``KvCacheEvictionPressureAdvisor``
 ```python
 from safety.context_window_fragmentation import ContextWindowFragmentationAdvisor
 
-advice = ContextWindowFragmentationAdvisor().advise(
-    request_id="r1", fragmentation_ratio=0.25
-)
+advice = ContextWindowFragmentationAdvisor().advise(request_id="r1", fragmentation_ratio=0.25)
 print(advice.band)
 ```
 
