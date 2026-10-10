@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1565%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1569%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -24,6 +24,12 @@ Offline HITL injection_score bands. Gap vs Perplexity/Bing/OpenAI web-grounding 
 
 Offline HITL thrash_ratio bands. Gap vs Redis/vLLM/embedding-cache thrash monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/EMBEDDING_CACHE_THRASH_ADVISOR_GUIDE.md`.
 
+
+### ModalityMixBudgetAdvisor
+
+![ModalityMixBudgetAdvisor](assets/demo/modality-mix-budget-advisor.gif)
+
+Offline HITL mix_ratio bands. Gap vs LiteLLM/OpenRouter multimodal modality-mix budget monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MODALITY_MIX_BUDGET_ADVISOR_GUIDE.md`.
 
 ## Why Nexus
 
