@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1573%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1577%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -30,6 +30,12 @@ Offline HITL thrash_ratio bands. Gap vs Redis/vLLM/embedding-cache thrash monito
 ![ModalityMixBudgetAdvisor](assets/demo/modality-mix-budget-advisor.gif)
 
 Offline HITL mix_ratio bands. Gap vs LiteLLM/OpenRouter multimodal modality-mix budget monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MODALITY_MIX_BUDGET_ADVISOR_GUIDE.md`.
+
+### SpeculativeDecodeQueueStallAdvisor
+
+![SpeculativeDecodeQueueStallAdvisor](assets/demo/speculative-decode-queue-stall-advisor.gif)
+
+Offline HITL stall_ratio bands. Gap vs vLLM/TGI/OpenAI-compatible speculative-decode queue-stall monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SPECULATIVE_DECODE_QUEUE_STALL_ADVISOR_GUIDE.md`.
 
 ### PromptCacheHitRateFloorAdvisor
 
