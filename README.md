@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1577%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1581%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -30,6 +30,12 @@ Offline HITL thrash_ratio bands. Gap vs Redis/vLLM/embedding-cache thrash monito
 ![ModalityMixBudgetAdvisor](assets/demo/modality-mix-budget-advisor.gif)
 
 Offline HITL mix_ratio bands. Gap vs LiteLLM/OpenRouter multimodal modality-mix budget monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MODALITY_MIX_BUDGET_ADVISOR_GUIDE.md`.
+
+### RegionFailoverHysteresisAdvisor
+
+![RegionFailoverHysteresisAdvisor](assets/demo/region-failover-hysteresis-advisor.gif)
+
+Offline HITL failover_score bands. Gap vs LiteLLM/OpenRouter region-failover hysteresis monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/REGION_FAILOVER_HYSTERESIS_ADVISOR_GUIDE.md`.
 
 ### SpeculativeDecodeQueueStallAdvisor
 
