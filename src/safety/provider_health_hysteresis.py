@@ -7,7 +7,6 @@ Distinct from ``ProviderHealthScoreboard`` (instant health) and
 Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Never performs network I/O.
 """
 
-
 from __future__ import annotations
 
 from dataclasses import dataclass

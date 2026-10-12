@@ -34,12 +34,8 @@ def test_calendar_month_utc_window_bounds() -> None:
     """Window is the half-open UTC calendar month containing now."""
     now = _september_2026_mid()
     start, end = calendar_month_utc_window(now)
-    assert datetime.fromtimestamp(start, tz=UTC) == datetime(
-        2026, 9, 1, tzinfo=UTC
-    )
-    assert datetime.fromtimestamp(end, tz=UTC) == datetime(
-        2026, 10, 1, tzinfo=UTC
-    )
+    assert datetime.fromtimestamp(start, tz=UTC) == datetime(2026, 9, 1, tzinfo=UTC)
+    assert datetime.fromtimestamp(end, tz=UTC) == datetime(2026, 10, 1, tzinfo=UTC)
 
 
 def test_assert_within_quota_allows_under_limit(tmp_path: Path) -> None:

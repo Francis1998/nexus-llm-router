@@ -177,9 +177,7 @@ def test_chat_completions_tenant_rate_limit_returns_429() -> None:
             "stream": False,
         }
         ok = client.post("/v1/chat/completions", json=body, headers={"X-Tenant-Id": "noisy"})
-        limited = client.post(
-            "/v1/chat/completions", json=body, headers={"X-Tenant-Id": "noisy"}
-        )
+        limited = client.post("/v1/chat/completions", json=body, headers={"X-Tenant-Id": "noisy"})
         bypass = client.post("/v1/chat/completions", json=bypass_body)
     assert ok.status_code == 200
     assert limited.status_code == 429

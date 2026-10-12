@@ -285,6 +285,7 @@ async def test_inflight_counter_is_cleared_after_provider_failure(tmp_path: Path
         for provider in {"openai", "anthropic", "google", "moonshot"}
     )
 
+
 @pytest.mark.asyncio
 async def test_fallback_scoreboard_reorders_chain_by_provider_health(tmp_path: Path) -> None:
     """Fallback order should prefer healthier providers from the scoreboard."""
@@ -382,4 +383,3 @@ async def test_budget_rejection_is_not_recorded_on_fallback_scoreboard(
         )
 
     assert router._fallback_scoreboard.providers() == []
-

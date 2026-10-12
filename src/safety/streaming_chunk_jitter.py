@@ -7,7 +7,6 @@ OpenRouter / LiteLLM streaming chunk-jitter gap. Distinct from
 Kimi K2. Never performs network I/O.
 """
 
-
 from __future__ import annotations
 
 from dataclasses import dataclass
