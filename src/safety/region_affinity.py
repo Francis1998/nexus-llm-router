@@ -91,9 +91,7 @@ class ProviderRegionAffinityAdvisor:
             cleaned: list[str] = []
             for region in regions:
                 if not region or not str(region).strip():
-                    raise ValueError(
-                        f"provider_regions[{provider!r}] entries must be non-empty"
-                    )
+                    raise ValueError(f"provider_regions[{provider!r}] entries must be non-empty")
                 cleaned.append(str(region).strip())
             region_set = {r.casefold() for r in cleaned}
             pref_cf = [p.casefold() for p in prefs]

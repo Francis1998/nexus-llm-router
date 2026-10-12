@@ -205,8 +205,7 @@ class SpendLedger:
                 + " GROUP BY tenant ORDER BY total DESC"
             )
             by_tenant = {
-                row["tenant"]: float(row["total"])
-                for row in connection.execute(tenant_sql, params)
+                row["tenant"]: float(row["total"]) for row in connection.execute(tenant_sql, params)
             }
             provider_sql = (
                 "SELECT provider, SUM(cost_usd) AS total FROM spend_events"  # noqa: S608
@@ -223,8 +222,7 @@ class SpendLedger:
                 + " GROUP BY model ORDER BY total DESC"
             )
             by_model = {
-                row["model"]: float(row["total"])
-                for row in connection.execute(model_sql, params)
+                row["model"]: float(row["total"]) for row in connection.execute(model_sql, params)
             }
 
         return SpendSummary(

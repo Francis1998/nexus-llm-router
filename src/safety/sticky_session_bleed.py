@@ -6,6 +6,7 @@ Distinct from ``StickyProviderAffinity`` and ``TenantConcurrencySlotGuard``.
 Works with GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 Never performs network I/O.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
