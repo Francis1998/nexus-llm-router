@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1597%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1601%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -18,6 +18,12 @@ Offline HITL skew_score bands. Gap vs LiteLLM/OpenAI/Anthropic tool-schema versi
 ![GpuMemoryFragmentationBandAdvisor](assets/demo/gpu-memory-fragmentation-advisor.gif)
 
 Offline HITL frag_ratio bands. Gap vs vLLM/TGI/TensorRT-LLM GPU memory fragmentation monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/GPU_MEMORY_FRAGMENTATION_ADVISOR_GUIDE.md`.
+
+### PromptInjectionCanaryFloorAdvisor
+
+![PromptInjectionCanaryFloorAdvisor](assets/demo/prompt-injection-canary-floor-advisor.gif)
+
+Offline HITL canary_hit_rate bands. Gap vs LiteLLM/vLLM/Guardrails prompt-injection canary-floor monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROMPT_INJECTION_CANARY_FLOOR_ADVISOR_GUIDE.md`.
 
 ### PrefillDecodeSkewAdvisor
 
