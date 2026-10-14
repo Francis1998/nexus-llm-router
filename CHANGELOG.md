@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- `TokenizerBpeMergeDriftAdvisor` (`src/safety/tokenizer_bpe_merge_drift.py`): advise bpe_merge_drift_score vs soft/hard budgets (never network I/O). Gap vs vLLM/TGI/HuggingFace tokenizer BPE merge-drift monitors. Distinct from `TokenizerVocabularyDriftAdvisor` / `TokenizerMismatchAdvisor`. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOKENIZER_BPE_MERGE_DRIFT_ADVISOR_GUIDE.md`.
 - `NexusRouter` wires `ProviderFallbackScoreboard` into fallback dispatch: records per-attempt outcomes and reorders fallbacks via `rank()` while keeping the strategy primary model first (LiteLLM/OpenRouter provider-health gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`.
 
 ### Added
