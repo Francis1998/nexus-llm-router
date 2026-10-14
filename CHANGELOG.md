@@ -6,6 +6,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- `PagedAttentionSlotFragmentationAdvisor` (`src/safety/paged_attention_slot_fragmentation.py`): advise slot_fragmentation_ratio vs soft/hard budgets (never network I/O). Gap vs vLLM/SGLang paged-attention slot-fragmentation monitors. Distinct from `GpuMemoryFragmentationBandAdvisor` / `ContextWindowFragmentationAdvisor`. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PAGED_ATTENTION_SLOT_FRAGMENTATION_ADVISOR_GUIDE.md`.
 - `TokenizerBpeMergeDriftAdvisor` (`src/safety/tokenizer_bpe_merge_drift.py`): advise bpe_merge_drift_score vs soft/hard budgets (never network I/O). Gap vs vLLM/TGI/HuggingFace tokenizer BPE merge-drift monitors. Distinct from `TokenizerVocabularyDriftAdvisor` / `TokenizerMismatchAdvisor`. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOKENIZER_BPE_MERGE_DRIFT_ADVISOR_GUIDE.md`.
 - `NexusRouter` wires `ProviderFallbackScoreboard` into fallback dispatch: records per-attempt outcomes and reorders fallbacks via `rank()` while keeping the strategy primary model first (LiteLLM/OpenRouter provider-health gap) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`.
 
