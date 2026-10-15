@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1629%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1633%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -30,6 +30,12 @@ Offline advisor for `steal_rate` bands. Gap vs vLLM/SGLang/TGI KV-block steal mo
 ![EmbeddingIndexSkewAdvisor](assets/demo/embedding-index-skew-advisor.gif)
 
 Offline advisor for `index_skew_ratio` bands. Gap vs vLLM/SGLang/embedding-serving index-skew monitors. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+
+### MoeRoutingCollapseAdvisor
+
+![MoeRoutingCollapseAdvisor](assets/demo/moe-routing-collapse-advisor.gif)
+
+Offline advisor for `collapse_rate` bands. Gap vs vLLM/SGLang/DeepSeek MoE routing-collapse monitors. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 
 ### PrefixCachePoisonAdvisor
 
