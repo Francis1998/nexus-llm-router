@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1653%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1657%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -42,6 +42,12 @@ Offline advisor for `error_rate` bands. Gap vs vLLM/SGLang KV-cache quantization
 ![LoraAdapterHotSwapStallAdvisor](assets/demo/lora-adapter-hot-swap-stall-advisor.gif)
 
 Offline advisor for `stall_ratio` bands. Gap vs vLLM/SGLang LoRA adapter hot-swap stall monitors. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+
+### DecodeBatchPriorityInversionAdvisor
+
+![DecodeBatchPriorityInversionAdvisor](assets/demo/decode-batch-priority-inversion-advisor.gif)
+
+Offline HITL `inversion_ratio` bands. Gap vs vLLM/SGLang/TGI decode-batch priority-inversion monitors. See `docs/guides/DECODE_BATCH_PRIORITY_INVERSION_ADVISOR_GUIDE.md`.
 
 ### AttentionSinkDriftAdvisor
 
