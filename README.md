@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1665%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1669%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -54,6 +54,12 @@ Offline HITL `reject_ratio` bands. Gap vs vLLM/SGLang/Outlines grammar-constrain
 ![SpeculativeDecodeMismatchFloorAdvisor](assets/demo/speculative-decode-mismatch-floor-advisor.gif)
 
 Offline HITL `mismatch_ratio` bands. Gap vs vLLM/SGLang speculative-decode mismatch floor monitors. See `docs/guides/SPECULATIVE_DECODE_MISMATCH_FLOOR_ADVISOR_GUIDE.md`.
+
+### PrefixCacheHitFloorAdvisor
+
+![PrefixCacheHitFloorAdvisor](assets/demo/prefix-cache-hit-floor-advisor.gif)
+
+Offline HITL `miss_ratio` bands. Gap vs vLLM/SGLang/TGI prefix-cache hit floor monitors. See `docs/guides/PREFIX_CACHE_HIT_FLOOR_ADVISOR_GUIDE.md`.
 
 ### DecodeBatchPriorityInversionAdvisor
 
