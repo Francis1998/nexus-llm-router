@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1675%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1687%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -66,6 +66,12 @@ Offline HITL `miss_ratio` bands. Gap vs vLLM/SGLang/TGI prefix-cache hit floor m
 ![ContinuousBatchingTailLatencyBandAdvisor](assets/demo/continuous-batching-tail-latency-band-advisor.gif)
 
 Offline HITL `p99_tail_ms` bands. Gap vs vLLM/SGLang/TGI continuous-batching tail-latency band monitors. See `docs/guides/CONTINUOUS_BATCHING_TAIL_LATENCY_BAND_ADVISOR_GUIDE.md`.
+
+### TokenizerBpeMergeStormAdvisor
+
+![TokenizerBpeMergeStormAdvisor](assets/demo/tokenizer-bpe-merge-storm-advisor.gif)
+
+Offline HITL `bpe_merge_storm_rate` bands. Gap vs vLLM/SGLang/TGI tokenizer BPE merge-storm monitors. See `docs/guides/TOKENIZER_BPE_MERGE_STORM_ADVISOR_GUIDE.md`.
 
 ### DecodeBatchPriorityInversionAdvisor
 
@@ -658,12 +664,6 @@ Select a strategy with `X-Router-Strategy`:
 | [Contributing](CONTRIBUTING.md) | Development workflow and PR process |
 | [Security](SECURITY.md) | Vulnerability reporting policy |
 | [Changelog](CHANGELOG.md) | Version history |
-
-![SpeculativeTokenVerifyLagAdvisor](assets/demo/speculative-token-verify-lag-advisor.gif)
-### SpeculativeTokenVerifyLagAdvisor
-
-![SpeculativeTokenVerifyLagAdvisor](assets/demo/speculative-token-verify-lag-advisor.gif)
-
 
 ## License
 
