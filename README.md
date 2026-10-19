@@ -659,6 +659,12 @@ Select a strategy with `X-Router-Strategy`:
 | [Security](SECURITY.md) | Vulnerability reporting policy |
 | [Changelog](CHANGELOG.md) | Version history |
 
+![SpeculativeTokenVerifyLagAdvisor](assets/demo/speculative-token-verify-lag-advisor.gif)
+### SpeculativeTokenVerifyLagAdvisor
+
+![SpeculativeTokenVerifyLagAdvisor](assets/demo/speculative-token-verify-lag-advisor.gif)
+
+
 ## License
 
 Apache-2.0 © [Francis1998](https://github.com/Francis1998)
