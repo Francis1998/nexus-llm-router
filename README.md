@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1669%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1675%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -60,6 +60,12 @@ Offline HITL `mismatch_ratio` bands. Gap vs vLLM/SGLang speculative-decode misma
 ![PrefixCacheHitFloorAdvisor](assets/demo/prefix-cache-hit-floor-advisor.gif)
 
 Offline HITL `miss_ratio` bands. Gap vs vLLM/SGLang/TGI prefix-cache hit floor monitors. See `docs/guides/PREFIX_CACHE_HIT_FLOOR_ADVISOR_GUIDE.md`.
+
+### ContinuousBatchingTailLatencyBandAdvisor
+
+![ContinuousBatchingTailLatencyBandAdvisor](assets/demo/continuous-batching-tail-latency-band-advisor.gif)
+
+Offline HITL `p99_tail_ms` bands. Gap vs vLLM/SGLang/TGI continuous-batching tail-latency band monitors. See `docs/guides/CONTINUOUS_BATCHING_TAIL_LATENCY_BAND_ADVISOR_GUIDE.md`.
 
 ### DecodeBatchPriorityInversionAdvisor
 
