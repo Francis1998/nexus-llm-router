@@ -1,9 +1,15 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1717%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1723%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
+
+### PagedKvSwapThrashAdvisor
+
+![PagedKvSwapThrashAdvisor](assets/demo/paged-kv-swap-thrash-advisor.gif)
+
+Offline HITL `swap_thrash_ratio` bands. Gap vs vLLM/SGLang/TGI paged-KV swap-thrash monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PAGED_KV_SWAP_THRASH_ADVISOR_GUIDE.md`.
 
 ### RopeScaleMismatchBandAdvisor
 
