@@ -1,9 +1,15 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1711%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1717%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
+
+### RopeScaleMismatchBandAdvisor
+
+![RopeScaleMismatchBandAdvisor](assets/demo/rope-scale-mismatch-band-advisor.gif)
+
+Offline HITL `rope_mismatch_ratio` bands. Gap vs vLLM/SGLang/TGI RoPE-scale mismatch monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/ROPE_SCALE_MISMATCH_BAND_ADVISOR_GUIDE.md`.
 
 ### QuantCalibrationDriftBandAdvisor
 
