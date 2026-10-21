@@ -1,9 +1,15 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1705%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1711%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
+
+### QuantCalibrationDriftBandAdvisor
+
+![QuantCalibrationDriftBandAdvisor](assets/demo/quant-calibration-drift-band-advisor.gif)
+
+Offline HITL `calib_drift_ratio` bands. Gap vs vLLM/TGI/TensorRT-LLM AWQ/GPTQ quant-calibration drift monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/QUANT_CALIBRATION_DRIFT_BAND_ADVISOR_GUIDE.md`.
 
 ![Nexus use cases](assets/use-cases.gif)
 
