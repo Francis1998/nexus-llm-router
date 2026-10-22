@@ -1,9 +1,15 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1723%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1728%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
+
+### GuidedDecodeFsmBlowupAdvisor
+
+![GuidedDecodeFsmBlowupAdvisor](assets/demo/guided-decode-fsm-blowup-advisor.gif)
+
+Offline HITL `fsm_blowup_ratio` bands. Gap vs vLLM/Outlines/Guidance guided-decode FSM blowup monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/GUIDED_DECODE_FSM_BLOWUP_ADVISOR_GUIDE.md`.
 
 ### PagedKvSwapThrashAdvisor
 
