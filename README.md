@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1733%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1738%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -16,6 +16,12 @@ Offline HITL `fsm_blowup_ratio` bands. Gap vs vLLM/Outlines/Guidance guided-deco
 ![MoeExpertDropoutStormAdvisor](assets/demo/moe-expert-dropout-storm-advisor.gif)
 
 Offline HITL `dropout_storm_ratio` bands. Gap vs vLLM/SGLang/TGI MoE expert-dropout storm monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MOE_EXPERT_DROPOUT_STORM_ADVISOR_GUIDE.md`.
+
+### SpeculativeDecodeRejectionHysteresisAdvisor
+
+![SpeculativeDecodeRejectionHysteresisAdvisor](assets/demo/speculative-decode-rejection-hysteresis-advisor.gif)
+
+Offline HITL `hysteresis_ratio` bands. Gap vs vLLM/SGLang/TGI speculative-decode rejection-hysteresis monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SPECULATIVE_DECODE_REJECTION_HYSTERESIS_ADVISOR_GUIDE.md`.
 
 ### PagedKvSwapThrashAdvisor
 
