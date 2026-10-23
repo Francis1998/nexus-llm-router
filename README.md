@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1738%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1743%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -22,6 +22,13 @@ Offline HITL `dropout_storm_ratio` bands. Gap vs vLLM/SGLang/TGI MoE expert-drop
 ![SpeculativeDecodeRejectionHysteresisAdvisor](assets/demo/speculative-decode-rejection-hysteresis-advisor.gif)
 
 Offline HITL `hysteresis_ratio` bands. Gap vs vLLM/SGLang/TGI speculative-decode rejection-hysteresis monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SPECULATIVE_DECODE_REJECTION_HYSTERESIS_ADVISOR_GUIDE.md`.
+
+
+### PrefixCacheEvictionStormAdvisor
+
+![PrefixCacheEvictionStormAdvisor](assets/demo/prefix-cache-eviction-storm-advisor.gif)
+
+Offline HITL `eviction_storm_ratio` bands. Gap vs vLLM/SGLang/TGI prefix-cache eviction-storm monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_CACHE_EVICTION_STORM_ADVISOR_GUIDE.md`.
 
 ### PagedKvSwapThrashAdvisor
 
