@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1758%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1763%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -32,6 +32,13 @@ Offline HITL `hysteresis_ratio` bands. Gap vs vLLM/SGLang/TGI speculative-decode
 ![SamplingSeedCollisionBandAdvisor](assets/demo/sampling-seed-collision-band-advisor.gif)
 
 Offline HITL `collision_ratio` bands. Gap vs vLLM/SGLang/TGI sampling-seed collision monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SAMPLING_SEED_COLLISION_BAND_ADVISOR_GUIDE.md`.
+
+
+### TokenizerVocabSkewBandAdvisor
+
+![TokenizerVocabSkewBandAdvisor](assets/demo/tokenizer-vocab-skew-band-advisor.gif)
+
+Offline HITL `vocab_skew_ratio` bands. Gap vs vLLM/SGLang/TGI tokenizer vocab-skew monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOKENIZER_VOCAB_SKEW_BAND_ADVISOR_GUIDE.md`.
 
 ### ContinuousBatchStarveBandAdvisor
 
