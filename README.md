@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1773%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1778%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -47,6 +47,13 @@ Offline HITL `vocab_skew_ratio` bands. Gap vs vLLM/SGLang/TGI tokenizer vocab-sk
 ![SpeculativeAcceptanceEntropyBandAdvisor](assets/demo/speculative-acceptance-entropy-band-advisor.gif)
 
 Offline HITL `entropy_ratio` bands. Gap vs vLLM/SGLang/TGI speculative acceptance-entropy monitors. See `docs/guides/SPECULATIVE_ACCEPTANCE_ENTROPY_BAND_ADVISOR_GUIDE.md`.
+
+
+### DecodePreemptionPingPongBandAdvisor
+
+![DecodePreemptionPingPongBandAdvisor](assets/demo/decode-preemption-ping-pong-band-advisor.gif)
+
+Offline HITL `ping_pong_ratio` bands. Gap vs vLLM/SGLang/TGI decode preemption ping-pong monitors. See `docs/guides/DECODE_PREEMPTION_PING_PONG_BAND_ADVISOR_GUIDE.md`.
 
 ### SpeculativeTreeDepthBlowupAdvisor
 
