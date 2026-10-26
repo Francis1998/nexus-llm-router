@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1788%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1793%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -62,6 +62,13 @@ Offline HITL `ping_pong_ratio` bands. Gap vs vLLM/SGLang/TGI decode preemption p
 ![DisaggPrefillDecodeSkewBandAdvisor](assets/demo/disagg-prefill-decode-skew-band-advisor.gif)
 
 Offline HITL `skew_ratio` bands. Gap vs vLLM/SGLang/TGI disaggregated prefill/decode skew monitors. See `docs/guides/DISAGG_PREFILL_DECODE_SKEW_BAND_ADVISOR_GUIDE.md`.
+
+
+### RadixCacheCollisionBandAdvisor
+
+![RadixCacheCollisionBandAdvisor](assets/demo/radix-cache-collision-band-advisor.gif)
+
+Offline HITL `collision_ratio` bands. Gap vs vLLM/SGLang/TGI radix-cache collision monitors. See `docs/guides/RADIX_CACHE_COLLISION_BAND_ADVISOR_GUIDE.md`.
 
 ### KvBlockStealStormBandAdvisor
 
