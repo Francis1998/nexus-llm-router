@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1793%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1798%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -69,6 +69,13 @@ Offline HITL `skew_ratio` bands. Gap vs vLLM/SGLang/TGI disaggregated prefill/de
 ![RadixCacheCollisionBandAdvisor](assets/demo/radix-cache-collision-band-advisor.gif)
 
 Offline HITL `collision_ratio` bands. Gap vs vLLM/SGLang/TGI radix-cache collision monitors. See `docs/guides/RADIX_CACHE_COLLISION_BAND_ADVISOR_GUIDE.md`.
+
+
+### ChunkedPrefillBubbleBandAdvisor
+
+![ChunkedPrefillBubbleBandAdvisor](assets/demo/chunked-prefill-bubble-band-advisor.gif)
+
+Offline HITL `bubble_ratio` bands. Gap vs vLLM/SGLang/TGI chunked-prefill bubble monitors. See `docs/guides/CHUNKED_PREFILL_BUBBLE_BAND_ADVISOR_GUIDE.md`.
 
 ### KvBlockStealStormBandAdvisor
 
