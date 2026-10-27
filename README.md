@@ -803,6 +803,13 @@ Select a strategy with `X-Router-Strategy`:
 | [Security](SECURITY.md) | Vulnerability reporting policy |
 | [Changelog](CHANGELOG.md) | Version history |
 
+### GuidedJsonSchemaThrashBandAdvisor
+
+![GuidedJsonSchemaThrashBandAdvisor](assets/demo/guided-json-schema-thrash-band-advisor.gif)
+
+Offline HITL `thrash_ratio` bands. Gap vs vLLM/SGLang/TGI guided JSON schema thrash monitors. Distinct from `SpeculativeAcceptanceEntropyBandAdvisor` / `RadixCacheCollisionBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+
+
 ## License
 
 Apache-2.0 © [Francis1998](https://github.com/Francis1998)
