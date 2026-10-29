@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1828%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1833%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -850,3 +850,9 @@ Offline HITL `bubble_ratio` bands. Gap vs vLLM/SGLang/TGI continuous-batch token
 Apache-2.0 © [Francis1998](https://github.com/Francis1998)
 
 *Last updated: 2026-08-01*
+
+### ExpertParallelImbalanceBandAdvisor
+
+![ExpertParallelImbalanceBandAdvisor](assets/demo/expert-parallel-imbalance-band-advisor.gif)
+
+Offline HITL `imbalance_ratio` bands. Gap vs vLLM/SGLang/TGI expert-parallel (MoE) imbalance monitors. Distinct from `TensorParallelSkewBandAdvisor` / `ContinuousBatchTokenBubbleBandAdvisor`.
