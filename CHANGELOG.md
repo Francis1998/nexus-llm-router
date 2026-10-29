@@ -5,6 +5,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- `KvCacheOffloadThrashBandAdvisor` (`safety/kv_cache_offload_thrash_band.py`): offline HITL `thrash_ratio` bands. Gap vs vLLM/SGLang/TGI KV-cache offload thrash monitors. Distinct from `KvCacheEvictionPressureAdvisor` / `PrefixCacheThrashAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/KV_CACHE_OFFLOAD_THRASH_BAND_ADVISOR_GUIDE.md`.
 - `ExpertParallelImbalanceBandAdvisor` (`safety/expert_parallel_imbalance_band.py`): offline HITL `imbalance_ratio` bands. Gap vs vLLM/SGLang/TGI expert-parallel (MoE) imbalance monitors. Distinct from `TensorParallelSkewBandAdvisor` / `ContinuousBatchTokenBubbleBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/EXPERT_PARALLEL_IMBALANCE_BAND_ADVISOR_GUIDE.md`.
 ### Changed
 - `PrefixCachePoisonAdvisor` (`src/safety/prefix_cache_poison.py`): advise poison_hit_rate vs soft/hard budgets (never network I/O). Gap vs vLLM/SGLang/TGI prefix-cache poison monitors. Distinct from `PrefixCacheThrashAdvisor` / `KvCacheHitRateAdvisor`. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_CACHE_POISON_ADVISOR_GUIDE.md`.
