@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1863%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1868%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -850,6 +850,12 @@ Offline HITL `bubble_ratio` bands. Gap vs vLLM/SGLang/TGI continuous-batch token
 ![CudaGraphCaptureStallBandAdvisor](assets/demo/cuda-graph-capture-stall-band-advisor.gif)
 
 Gap vs vLLM/SGLang/TGI CUDA-graph capture-stall monitors. Distinct from `LoraHotSwapStallBandAdvisor` / `SpeculativeVerifyBacklogBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/CUDA_GRAPH_CAPTURE_STALL_BAND_ADVISOR_GUIDE.md`.
+
+### SpeculativeAcceptanceCollapseBandAdvisor
+
+![SpeculativeAcceptanceCollapseBandAdvisor](assets/demo/speculative-acceptance-collapse-band-advisor.gif)
+
+Gap vs vLLM/SGLang/TGI speculative acceptance-collapse monitors. Distinct from `SpeculativeAcceptanceEntropyBandAdvisor` / `SpeculativeDraftStarveBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SPECULATIVE_ACCEPTANCE_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
 
 ## License
 
