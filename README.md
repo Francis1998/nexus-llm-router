@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1873%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1878%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -862,6 +862,12 @@ Gap vs vLLM/SGLang/TGI speculative acceptance-collapse monitors. Distinct from `
 ![MoeExpertHotspotBandAdvisor](assets/demo/moe-expert-hotspot-band-advisor.gif)
 
 Gap vs vLLM/SGLang/TGI MoE expert-hotspot monitors. Distinct from `MoeExpertLoadImbalanceAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MOE_EXPERT_HOTSPOT_BAND_ADVISOR_GUIDE.md`.
+
+### PrefixCacheEvictionResidualBandAdvisor
+
+![PrefixCacheEvictionResidualBandAdvisor](assets/demo/prefix-cache-eviction-residual-band-advisor.gif)
+
+`eviction_residual_ratio` band advisor. Gap vs vLLM/SGLang/TGI prefix-cache eviction residual monitors. Distinct from `RadixCacheCollisionBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_CACHE_EVICTION_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
 
 ## License
 
