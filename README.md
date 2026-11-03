@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1903%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1908%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -882,6 +882,13 @@ Gap vs vLLM/SGLang/TGI MoE expert-hotspot monitors. Distinct from `MoeExpertLoad
 `sink_residual_ratio` band advisor. Gap vs vLLM/SGLang/TGI attention-sink residual monitors. Distinct from `RopeScaleMismatchBandAdvisor` / `KvCacheQuantErrorBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/ATTENTION_SINK_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
 
 
+
+
+### TensorParallelAllreduceStallBandAdvisor
+
+![TensorParallelAllreduceStallBandAdvisor](assets/demo/tensor-parallel-allreduce-stall-band-advisor.gif)
+
+`stall_ratio` band advisor. Gap vs vLLM/SGLang/TGI tensor-parallel allreduce stall monitors. Distinct from `TensorParallelSkewBandAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TENSOR_PARALLEL_ALLREDUCE_STALL_BAND_ADVISOR_GUIDE.md`.
 
 ### ExpertRoutingEntropyBandAdvisor
 

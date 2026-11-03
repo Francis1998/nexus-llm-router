@@ -5,6 +5,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- `TensorParallelAllreduceStallBandAdvisor` (`safety/tensor_parallel_allreduce_stall_band.py`): `stall_ratio` band advisor. Gap vs vLLM/SGLang/TGI tensor-parallel allreduce stall monitors. Distinct from `TensorParallelSkewBandAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TENSOR_PARALLEL_ALLREDUCE_STALL_BAND_ADVISOR_GUIDE.md`.
+
 - `ExpertRoutingEntropyBandAdvisor` (`safety/expert_routing_entropy_band.py`): `entropy_ratio` band advisor. Gap vs vLLM/SGLang/TGI MoE expert-routing entropy monitors. Distinct from `MoeExpertHotspotBandAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/EXPERT_ROUTING_ENTROPY_BAND_ADVISOR_GUIDE.md`.
 - `DisaggScheduleBubbleBandAdvisor` (`safety/disagg_schedule_bubble_band.py`): `bubble_ratio` band advisor. Gap vs vLLM/SGLang/TGI disaggregated schedule-bubble monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `ChunkedPrefillBubbleBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/DISAGG_SCHEDULE_BUBBLE_BAND_ADVISOR_GUIDE.md`.
 - `TokenizerDecodeSkewResidualBandAdvisor` (`safety/tokenizer_decode_skew_residual_band.py`): `decode_skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI tokenizer decode-skew residual monitors. Distinct from `AttentionSinkResidualBandAdvisor` / `SpeculativeAcceptanceEntropyBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOKENIZER_DECODE_SKEW_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
