@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1913%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1918%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -896,6 +896,13 @@ Gap vs vLLM/SGLang/TGI MoE expert-hotspot monitors. Distinct from `MoeExpertLoad
 ![SlidingWindowAttentionBleedBandAdvisor](assets/demo/sliding-window-attention-bleed-band-advisor.gif)
 
 `bleed_ratio` band advisor. Gap vs vLLM/SGLang/TGI sliding-window attention bleed monitors. Distinct from `AttentionSinkResidualBandAdvisor` / `RopeScaleMismatchBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SLIDING_WINDOW_ATTENTION_BLEED_BAND_ADVISOR_GUIDE.md`.
+
+
+### FlashAttnWorkspaceThrashBandAdvisor
+
+![FlashAttnWorkspaceThrashBandAdvisor](assets/demo/flash-attn-workspace-thrash-band-advisor.gif)
+
+`thrash_ratio` band advisor. Gap vs vLLM/SGLang/TGI FlashAttention workspace thrash monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `GpuMemoryFragmentationBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FLASH_ATTN_WORKSPACE_THRASH_BAND_ADVISOR_GUIDE.md`.
 
 ### ExpertRoutingEntropyBandAdvisor
 
