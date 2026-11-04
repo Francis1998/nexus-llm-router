@@ -5,6 +5,8 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- `PrefixSharingDepthCollapseBandAdvisor` (`src/safety/prefix_sharing_depth_collapse_band.py`): HITL `collapse_ratio` band advisor (never auto-acts). Gap vs vLLM/SGLang/TGI prefix-sharing / radix-cache depth-collapse monitors. Distinct from `SystemPromptShareAdvisor` / `PagedKvSwapThrashAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_SHARING_DEPTH_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
+
 - `NvlinkPeerCopyStallBandAdvisor` (`src/safety/nvlink_peer_copy_stall_band.py`): HITL `stall_ratio` band advisor (never auto-acts). Gap vs vLLM/SGLang/TGI NVLink peer-copy stall monitors. Distinct from `TensorParallelAllreduceStallBandAdvisor` / `TensorParallelSkewBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/NVLINK_PEER_COPY_STALL_BAND_ADVISOR_GUIDE.md`.
 
 - `FlashAttnWorkspaceThrashBandAdvisor` (`safety/flash_attn_workspace_thrash_band.py`): `thrash_ratio` band advisor. Gap vs vLLM/SGLang/TGI FlashAttention workspace thrash monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `GpuMemoryFragmentationBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FLASH_ATTN_WORKSPACE_THRASH_BAND_ADVISOR_GUIDE.md`.
