@@ -5,6 +5,9 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- `PrefillQueueStallBandAdvisor` (`src/safety/prefill_queue_stall_band.py`): HITL `stall_ratio` bands. Gap vs vLLM/SGLang/TGI prefill-queue stall monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `DisaggScheduleBubbleBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFILL_QUEUE_STALL_BAND_ADVISOR_GUIDE.md`.
+
+
 - `ContinuousBatchPadWasteBandAdvisor` (`src/safety/continuous_batch_pad_waste_band.py`): HITL `pad_waste_ratio` bands. Gap vs vLLM/SGLang/TGI continuous-batch pad-waste monitors. Distinct from `ContinuousBatchTokenBubbleBandAdvisor` / `ContinuousBatchingTailLatencyBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/CONTINUOUS_BATCH_PAD_WASTE_BAND_ADVISOR_GUIDE.md`.
 
 

@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1943%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1948%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -949,6 +949,12 @@ HITL `cold_start_ratio` band. Gap vs vLLM/SGLang/TGI engine warmup cold-start mo
 ![ContinuousBatchPadWasteBandAdvisor](assets/demo/continuous-batch-pad-waste-band-advisor.gif)
 
 HITL `pad_waste_ratio` band. Gap vs vLLM/SGLang/TGI continuous-batch pad-waste monitors. Distinct from `ContinuousBatchTokenBubbleBandAdvisor` / `ContinuousBatchingTailLatencyBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/CONTINUOUS_BATCH_PAD_WASTE_BAND_ADVISOR_GUIDE.md`.
+
+### PrefillQueueStallBandAdvisor
+
+![PrefillQueueStallBandAdvisor](assets/demo/prefill-queue-stall-band-advisor.gif)
+
+HITL `stall_ratio` band. Gap vs vLLM/SGLang/TGI prefill-queue stall monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `DisaggScheduleBubbleBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFILL_QUEUE_STALL_BAND_ADVISOR_GUIDE.md`.
 
 ### PagedKvEvictionSkewBandAdvisor
 
