@@ -5,6 +5,9 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- `EngineWarmupColdStartBandAdvisor` (`src/safety/engine_warmup_cold_start_band.py`): HITL `cold_start_ratio` bands. Gap vs vLLM/SGLang/TGI engine warmup cold-start monitors. Distinct from `CudaGraphCaptureStallBandAdvisor` / `LoraHotSwapStallBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/ENGINE_WARMUP_COLD_START_BAND_ADVISOR_GUIDE.md`.
+
+
 - `PagedKvEvictionSkewBandAdvisor` (`src/safety/paged_kv_eviction_skew_band.py`): HITL `skew_ratio` band advisor (never auto-acts). Gap vs vLLM/SGLang/TGI paged-KV eviction skew monitors. Distinct from `PagedKvSwapThrashAdvisor` / `PagedAttentionFragmentationBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PAGED_KV_EVICTION_SKEW_BAND_ADVISOR_GUIDE.md`.
 
 - `PrefixSharingDepthCollapseBandAdvisor` (`src/safety/prefix_sharing_depth_collapse_band.py`): HITL `collapse_ratio` band advisor (never auto-acts). Gap vs vLLM/SGLang/TGI prefix-sharing / radix-cache depth-collapse monitors. Distinct from `SystemPromptShareAdvisor` / `PagedKvSwapThrashAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_SHARING_DEPTH_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
