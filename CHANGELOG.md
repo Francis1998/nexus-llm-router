@@ -5,6 +5,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- `SchedulerQueueSkewBandAdvisor` (`src/safety/scheduler_queue_skew_band.py`): offline `skew_ratio` bands. Gap vs vLLM/SGLang/TGI scheduler queue-skew monitors. Distinct from `PrefillQueueStallBandAdvisor` / `ContinuousBatchPadWasteBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SCHEDULER_QUEUE_SKEW_BAND_ADVISOR_GUIDE.md`.
 - `StreamingTtftSpikeBandAdvisor` (`src/safety/streaming_ttft_spike_band.py`): offline `spike_ratio` bands. Gap vs vLLM/SGLang/TGI streaming TTFT spike monitors. Distinct from `PrefillTtftRatioAdvisor` / `FirstTokenLatencySloAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/STREAMING_TTFT_SPIKE_BAND_ADVISOR_GUIDE.md`.
 - `PromptCacheHitCollapseBandAdvisor` (`src/safety/prompt_cache_hit_collapse_band.py`): offline `collapse_ratio` bands. Gap vs vLLM/SGLang/TGI prompt-cache hit-collapse monitors. Distinct from `PromptCacheHitRateAdvisor` / `PromptCacheHitRateFloorAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROMPT_CACHE_HIT_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
 - `PrefillQueueStallBandAdvisor` (`src/safety/prefill_queue_stall_band.py`): HITL `stall_ratio` bands. Gap vs vLLM/SGLang/TGI prefill-queue stall monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `DisaggScheduleBubbleBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFILL_QUEUE_STALL_BAND_ADVISOR_GUIDE.md`.
