@@ -37,6 +37,20 @@ pytest tests/ -v
 3. Update relevant documentation
 4. Open a PR with a clear description of the change
 
+## Adding an Advisor
+
+Offline advisor and guard modules live in `src/safety/`, each with a guide in
+`docs/guides/` and tests in `tests/`.
+
+- Add the advisor's catalog entry (`### <Name>Advisor` heading, demo GIF, and a
+  one-paragraph summary) to [docs/ADVISOR_CATALOG.md](docs/ADVISOR_CATALOG.md),
+  plus a row in its index table. Do not add advisor entries to `README.md`; the
+  README stays focused on the product overview.
+- Reference GIFs from `docs/` as `../assets/demo/<name>.gif`.
+- Describe the current model stack from the README's
+  [Current Model Stack](README.md#current-model-stack) table instead of
+  hard-coding older model names.
+
 ## Commit Message Format
 
 ```text
