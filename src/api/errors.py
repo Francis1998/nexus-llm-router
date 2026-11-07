@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from router.engine import RoutingFailedError
+from collections.abc import Sequence
+
+from router.engine import ProviderRejectedRequestError, RoutingFailedError
+from router.schemas import ChatMessage
 from safety.budget import BudgetExceededError
 from safety.rate_limiter import RateLimitExceededError
 
@@ -62,7 +65,8 @@ def routing_error(
         exception: Failure raised by ``NexusRouter``.
 
     Returns:
-        429 for rate limits, 402 for budget caps, 503 when every provider failed.
+        429 for rate limits, 402 for budget caps, the provider's 4xx when it
+        rejected the request itself, 503 when every provider failed.
     """
     if isinstance(exception, RateLimitExceededError):
         return GatewayError(
@@ -72,4 +76,39 @@ def routing_error(
         return GatewayError(
             402, str(exception), error_type="budget_exceeded", code="budget_exceeded"
         )
+    if isinstance(exception, ProviderRejectedRequestError):
+        return GatewayError(exception.status_code, str(exception), code="provider_rejected_request")
     return GatewayError(503, str(exception), error_type="routing_failed", code="routing_failed")
+
+
+def conversation_error(messages: Sequence[ChatMessage], param: str) -> GatewayError | None:
+    """Return a 400 for a conversation that not every provider can answer.
+
+    Every provider rejects an empty conversation, and Anthropic and Gemini also
+    reject one with only system instructions (they send system text apart from
+    the turns), so routing it would fail or succeed depending on the provider.
+
+    Args:
+        messages: Router messages built from the request.
+        param: Request parameter holding the conversation (``messages`` or ``input``).
+
+    Returns:
+        The OpenAI-style error to return, or ``None`` when the conversation is routable.
+    """
+    if not messages:
+        return GatewayError(
+            400,
+            f"Invalid '{param}': empty array. Expected an array with minimum length 1, "
+            "but got an empty array instead.",
+            code="empty_array",
+            param=param,
+        )
+    if all(message.role == "system" for message in messages):
+        return GatewayError(
+            400,
+            f"Invalid '{param}': expected at least one user or assistant message, "
+            "but got only system instructions.",
+            code="invalid_value",
+            param=param,
+        )
+    return None

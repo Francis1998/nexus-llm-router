@@ -63,7 +63,35 @@ incrementing `provider_error_rate`. This keeps a provider's circuit breaker a
 signal of provider health only: a user hitting their spend cap, or a circuit that
 is already open, can never accumulate spurious failures that would open (or keep
 open) a circuit for otherwise-healthy traffic. Only genuine dispatch errors
-(timeouts, adapter/HTTP errors) count toward the circuit breaker.
+(timeouts, network errors, and the provider HTTP errors listed below) count
+toward the circuit breaker.
+
+### Provider rejections of the request are not provider failures
+
+A provider that answers HTTP **400, 413, or 422** is rejecting the request
+itself (malformed input, a prompt too large for the model), not failing.
+Nexus returns that status to the caller (`provider_rejected_request` on
+`/v1/responses`, `invalid_request_error` in streams) and:
+
+- does **not** try the rest of the fallback chain, which would only repeat the
+  rejection;
+- does **not** record a circuit-breaker failure, success-rate or scoreboard
+  sample, or `provider_error_rate` increment (the rejection is logged as
+  `provider_request_rejected`).
+
+Without this, a few malformed requests from any client opened the circuit of
+every provider in the fallback chain and failed all tenants' traffic with 503
+for the recovery window. Conversations that not every provider can answer (an
+empty `messages` array, or only system instructions, which Anthropic and Gemini
+reject) are refused up front with an OpenAI-style 400 on both
+`/v1/chat/completions` and `/v1/responses`.
+
+Every other provider error still counts toward the circuit breaker and falls
+back: 5xx, timeouts, 408, 409, 429, and 401/403/404 (gateway credentials or a
+model the provider does not serve are deployment faults, not client errors).
+A provider that rejects *every* request with 400 (Anthropic, for example,
+reports an exhausted credit balance that way) therefore no longer fails over
+automatically; alert on `provider_request_rejected` log volume per provider.
 
 ## Prompt injection gateway
 

@@ -32,6 +32,11 @@ streaming output began: ...", "type": "routing_failed"}}` followed by
 `data: [DONE]`, and the provider failure still counts toward its circuit
 breaker.
 
+A provider that rejects the request itself (HTTP 400, 413, or 422) is not
+failing: the stream ends with `data: {"error": {"message": "provider <name>
+rejected the request (HTTP 400): ...", "type": "invalid_request_error"}}` and
+`data: [DONE]`, without trying fallbacks or counting toward the circuit breaker.
+
 ## Example
 
 ```bash

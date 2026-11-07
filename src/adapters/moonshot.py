@@ -55,7 +55,10 @@ class MoonshotAdapter(BaseProviderAdapter):
                 headers=headers,
             )
         if response.status_code >= 400:
-            raise ProviderError(f"moonshot request failed with status {response.status_code}")
+            raise ProviderError(
+                f"moonshot request failed with status {response.status_code}",
+                status_code=response.status_code,
+            )
         body = json_object(response)
         choices = body.get("choices", [])
         content = ""

@@ -89,7 +89,9 @@ A custom adapter whose stream yields text only falls back to estimates.
 Both endpoints share one ingress path: the `Authorization` header is reduced to
 a non-reversible key fingerprint, `X-Tenant-Id` hard limits and
 `Idempotency-Key` replay run before routing, and non-streaming requests use the
-exact-match response cache. Router failures map to 429 / 402 / 503. Responses
+exact-match response cache. Router failures map to 429 / 402 / 503; a provider's
+400 / 413 / 422 rejection of the request itself is returned with its status,
+without fallback or a circuit-breaker failure. Responses
 streams pull the first non-empty chunk before emitting the SSE lifecycle so
 failures before any output stay real HTTP errors; `NexusRouter.complete_stream`'s
 `on_complete` callback supplies the final usage for `response.completed`.

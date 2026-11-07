@@ -5,6 +5,7 @@ import time
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from types import MappingProxyType
 
+from adapters.base import ProviderError
 from adapters.registry import AdapterRegistry
 from observability.logging import get_logger
 from observability.metrics import (
@@ -61,9 +62,32 @@ from safety.pii import PiiScrubber
 from safety.rate_limiter import TokenBucketRateLimiter
 from safety.spend_ledger import SpendLedger
 
+# Provider HTTP statuses that reject the request itself (malformed input, a
+# prompt too large for the model). They are the caller's fault, unlike 401/403/404
+# (gateway credentials or model id), 408/409 (transient), 429 (quota), and 5xx.
+_CLIENT_ERROR_STATUS_CODES = frozenset({400, 413, 422})
+
 
 class RoutingFailedError(RuntimeError):
     """Raised when no provider in the fallback chain succeeds."""
+
+
+class ProviderRejectedRequestError(RoutingFailedError):
+    """Raised when a provider rejects the request itself (HTTP 400, 413, or 422).
+
+    The request, not the provider, is at fault, so the rejection is neither
+    recorded against provider health nor retried on another provider.
+    """
+
+    def __init__(self, message: str, *, status_code: int) -> None:
+        """Initialize the error.
+
+        Args:
+            message: Human-readable rejection description.
+            status_code: Provider HTTP status to return to the caller.
+        """
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class NexusRouter:
@@ -298,6 +322,8 @@ class NexusRouter:
             Router response.
 
         Raises:
+            ProviderRejectedRequestError: If a provider rejects the request itself
+                (HTTP 400, 413, or 422); no fallback is attempted.
             RoutingFailedError: If all provider attempts fail.
         """
         state_machine = RoutingStateMachine()
@@ -382,6 +408,11 @@ class NexusRouter:
                     attempt_started_at=attempt_started_at,
                 )
             except Exception as exception:
+                rejection = self._client_rejection(
+                    exception, request, candidate.provider, model_name, state_machine
+                )
+                if rejection is not None:
+                    raise rejection from exception
                 last_error = exception
                 attempt_latency_ms = (time.perf_counter() - attempt_started_at) * 1000.0
                 self._fallback_scoreboard.record_outcome(
@@ -445,6 +476,8 @@ class NexusRouter:
             send the SSE terminal frame themselves after the iterator ends.
 
         Raises:
+            ProviderRejectedRequestError: If a provider rejects the request itself
+                (HTTP 400, 413, or 422); no fallback is attempted.
             RoutingFailedError: If all provider attempts fail, or if a provider
                 fails after it already streamed text (falling back then would
                 splice a second answer onto the partial one).
@@ -549,6 +582,11 @@ class NexusRouter:
                     attempt_started_at=attempt_started_at,
                 )
             except Exception as exception:
+                rejection = self._client_rejection(
+                    exception, request, candidate.provider, model_name, state_machine
+                )
+                if rejection is not None:
+                    raise rejection from exception
                 last_error = exception
                 attempt_latency_ms = (time.perf_counter() - attempt_started_at) * 1000.0
                 self._fallback_scoreboard.record_outcome(
@@ -701,6 +739,51 @@ class NexusRouter:
             cost_usd=response.cost_usd,
         )
         return response
+
+    def _client_rejection(
+        self,
+        exception: Exception,
+        request: RouterRequest,
+        provider: str,
+        model_name: str,
+        state_machine: RoutingStateMachine,
+    ) -> ProviderRejectedRequestError | None:
+        """Return the error to raise when a provider rejected the request itself.
+
+        HTTP 400, 413, and 422 describe the request, not provider health. Counting
+        them as provider failures would let a few malformed requests from one
+        client open every provider's circuit breaker and fail all other traffic,
+        and retrying them on fallback providers would only repeat the rejection.
+        They are logged, but no circuit-breaker, success-rate, scoreboard, or
+        error-rate signal is recorded and the fallback chain stops.
+
+        Args:
+            exception: Failure raised by the provider attempt.
+            request: Router request.
+            provider: Provider that answered.
+            model_name: Model that was attempted.
+            state_machine: Request lifecycle state machine.
+
+        Returns:
+            The rejection to raise, or ``None`` when the failure is a provider fault.
+        """
+        status_code = exception.status_code if isinstance(exception, ProviderError) else None
+        if status_code is None or status_code not in _CLIENT_ERROR_STATUS_CODES:
+            return None
+        if state_machine.current_state is RequestState.DISPATCHED:
+            state_machine.transition(RequestState.FAILED)
+        self._logger.warning(
+            "provider_request_rejected",
+            request_id=request.request_id,
+            provider=provider,
+            model=model_name,
+            status_code=status_code,
+            error=str(exception),
+        )
+        return ProviderRejectedRequestError(
+            f"provider {provider} rejected the request (HTTP {status_code}): {exception}",
+            status_code=status_code,
+        )
 
     def _order_attempts(self, chosen_model: str, fallback_chain: Sequence[str]) -> list[str]:
         """Keep the strategy primary model, reorder fallbacks by provider health.
