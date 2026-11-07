@@ -5,6 +5,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- `TokenizerVocabChurnBandAdvisor` (`src/safety/tokenizer_vocab_churn_band.py`): offline tokenizer vocab churn_ratio bands. Gap vs vLLM/SGLang/TGI tokenizer vocabulary-churn monitors. Distinct from `TokenizerVocabSkewBandAdvisor` / `TokenizerBpeMergeDriftAdvisor`. Stack: GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3. See `docs/guides/TOKENIZER_VOCAB_CHURN_BAND_ADVISOR_GUIDE.md`.
 - `KvBlockFragmentationBandAdvisor` (`src/safety/kv_block_fragmentation_band.py`): offline KV-block fragmentation_ratio bands. Gap vs vLLM/SGLang/TGI KV-block fragmentation monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `GpuMemoryFragmentationBandAdvisor`. Stack: GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3. See `docs/guides/KV_BLOCK_FRAGMENTATION_BAND_ADVISOR_GUIDE.md`.
 - `LoraRankSkewBandAdvisor` (`src/safety/lora_rank_skew_band.py`): offline LoRA rank skew_ratio bands. Gap vs vLLM/SGLang/TGI LoRA adapter rank-skew monitors. Distinct from `LoraHotSwapStallBandAdvisor` / `AdapterWeightDriftAdvisor`. Stack: GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3. See `docs/guides/LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md`.
 ### Security
