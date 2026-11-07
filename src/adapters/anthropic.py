@@ -6,7 +6,8 @@ import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
 from adapters.http_utils import json_object, nested_int
-from router.schemas import ChatMessage, ProviderResponse
+from router.model_ids import HAIKU_5_5_LONG_PROMPT_THRESHOLD_TOKENS
+from router.schemas import ChatMessage, LongPromptPricing, ProviderResponse
 
 
 def _extract_anthropic_text(content_blocks: object) -> str:
@@ -84,9 +85,22 @@ class AnthropicAdapter(BaseProviderAdapter):
         """
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
+        # USD per 1K tokens (input, output); Claude 5.x list prices as of 2026-11-06.
         self._costs: dict[str, tuple[float, float]] = {
+            "claude-fable-5-1": (0.010, 0.050),
+            "claude-opus-5-5": (0.004, 0.020),
+            "claude-sonnet-5-5": (0.002, 0.010),
+            "claude-haiku-5-5": (0.0001, 0.0005),
             "claude-sonnet-4-6": (0.003, 0.015),
             "claude-haiku-4-5": (0.0008, 0.004),
+        }
+        # Haiku 5.5 bills the whole request at $0.50 / $2.50 per 1M above 100K prompt tokens.
+        self._long_prompt_pricing: dict[str, LongPromptPricing] = {
+            "claude-haiku-5-5": LongPromptPricing(
+                threshold_tokens=HAIKU_5_5_LONG_PROMPT_THRESHOLD_TOKENS,
+                input_cost_per_1k=0.0005,
+                output_cost_per_1k=0.0025,
+            ),
         }
 
     async def complete(
@@ -128,8 +142,13 @@ class AnthropicAdapter(BaseProviderAdapter):
         yield response.content
 
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        """Estimate Anthropic completion cost."""
+        """Estimate Anthropic completion cost, including Haiku 5.5 long-prompt pricing."""
         input_cost, output_cost = self._costs.get(model, (0.0, 0.0))
+        long_prompt_pricing = self._long_prompt_pricing.get(model)
+        if long_prompt_pricing is not None:
+            input_cost, output_cost = long_prompt_pricing.rates_for(
+                input_tokens, (input_cost, output_cost)
+            )
         return (input_tokens / 1000.0) * input_cost + (output_tokens / 1000.0) * output_cost
 
     async def health_check(self) -> bool:

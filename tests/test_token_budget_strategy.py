@@ -1,11 +1,19 @@
 """Tests for the token-budget routing strategy."""
 
-from router.config import default_model_catalog
+from pathlib import Path
+
+from adapters.mock import MockProviderAdapter
+from adapters.registry import AdapterRegistry
+from router.analyzer import RequestAnalyzer
+from router.config import RouterSettings, default_model_catalog
+from router.engine import NexusRouter
 from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_FLASH_MODEL,
     GEMINI_PRO_MODEL,
+    MOONSHOT_BALANCED_MODEL,
     OPENAI_BALANCED_MODEL,
+    OPENAI_FRONTIER_MODEL,
 )
 from router.schemas import (
     ChatMessage,
@@ -58,24 +66,26 @@ def test_token_budget_picks_highest_quality_when_all_fit() -> None:
 def test_token_budget_excludes_models_below_needed_capacity() -> None:
     """Models whose effective capacity is below tokens_needed are excluded.
 
-    With a 200k request budget and ~150k tokens needed, 128k-context models
-    (``min(128k, 200k) = 128k``) drop out while 200k+/1M-context models remain,
-    so the highest-quality remaining SKU (Claude Sonnet 4.6) wins.
+    With a 200k request budget and ~150k tokens needed, a 128k-context model
+    (``min(128k, 200k) = 128k``) drops out even though it has the highest
+    quality, so the best remaining 1M-context SKU wins.
     """
-    strategy = TokenBudgetStrategy(default_model_catalog())
+    catalog = default_model_catalog()
+    catalog[ANTHROPIC_SAFETY_MODEL] = catalog[ANTHROPIC_SAFETY_MODEL].model_copy(
+        update={"context_window": 128_000}
+    )
+    strategy = TokenBudgetStrategy(catalog)
     request = _request(token_budget=200_000, max_tokens=1_000)
     signals = _signals(prompt_tokens_estimate=149_000, token_budget=200_000)
 
     decision = strategy.choose(request, signals)
 
-    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
-    assert default_model_catalog()[decision.chosen_model].context_window >= 150_000
-    # Balanced OpenAI (128k) must not win when it cannot hold the estimate.
-    assert decision.chosen_model != OPENAI_BALANCED_MODEL
+    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
+    assert catalog[decision.chosen_model].context_window >= 150_000
 
 
 def test_token_budget_falls_back_to_largest_context_when_none_fit() -> None:
-    """When nothing fits the budget, route to the largest-context eligible model."""
+    """When nothing fits the budget, route to the eligible model accepting the largest prompt."""
     strategy = TokenBudgetStrategy(default_model_catalog())
     # tokens_needed far exceeds every catalog window and the request budget.
     request = _request(token_budget=1024, max_tokens=900)
@@ -83,6 +93,8 @@ def test_token_budget_falls_back_to_largest_context_when_none_fit() -> None:
 
     decision = strategy.choose(request, signals)
 
+    # GPT-6 caps input at 922,000 tokens, so the 1,048,576-token Gemini models
+    # accept the largest prompts.
     assert decision.chosen_model in {GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL}
     assert "no model fitting" in decision.rationale
 
@@ -125,3 +137,66 @@ def test_token_budget_prefers_quality_among_fitting_candidates() -> None:
     decision = strategy.choose(request, signals)
 
     assert decision.chosen_model == OPENAI_BALANCED_MODEL
+
+
+def test_token_budget_fallback_chain_only_contains_fitting_models() -> None:
+    """Fallbacks must also accept the prompt; non-fitting models only waste attempts."""
+    strategy = TokenBudgetStrategy(default_model_catalog())
+    request = _request(token_budget=1_050_000, max_tokens=1_000)
+    signals = _signals(prompt_tokens_estimate=1_020_000, token_budget=1_050_000)
+
+    decision = strategy.choose(request, signals)
+
+    # Opus 5.5 (1M window) and GPT-6 (922K max input) cannot accept the prompt.
+    assert decision.chosen_model == GEMINI_PRO_MODEL
+    assert decision.fallback_chain == [GEMINI_FLASH_MODEL, MOONSHOT_BALANCED_MODEL]
+
+
+def test_token_budget_no_fit_fallback_reserves_completion_tokens() -> None:
+    """The fail-soft pick must still hold the prompt plus the requested completion."""
+    strategy = TokenBudgetStrategy(default_model_catalog())
+    request = _request(token_budget=1_048_576, max_tokens=128_000)
+    signals = _signals(prompt_tokens_estimate=921_000, token_budget=1_048_576)
+
+    decision = strategy.choose(request, signals)
+
+    # 921,000 + 128,000 = 1,049,000 tokens overflow Gemini's 1,048,576-token window
+    # but fit GPT-6 Astra (1,050,000-token window, 922,000 max input).
+    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
+    assert "no model fitting" in decision.rationale
+
+
+async def test_token_budget_primary_failure_falls_back_to_a_fitting_model(
+    tmp_path: Path,
+) -> None:
+    """When the primary fails, the engine retries only models that accept the prompt."""
+
+    class HugePromptAnalyzer(RequestAnalyzer):
+        def analyze(self, request: RouterRequest) -> TaskSignals:
+            return _signals(prompt_tokens_estimate=1_020_000, token_budget=request.token_budget)
+
+    router = NexusRouter(
+        settings=RouterSettings(audit_log_path=str(tmp_path / "audit.jsonl")),
+        adapter_registry=AdapterRegistry(
+            {
+                "openai": MockProviderAdapter("openai"),
+                "anthropic": MockProviderAdapter("anthropic"),
+                "google": MockProviderAdapter("google", fail=True),
+                "moonshot": MockProviderAdapter("moonshot"),
+            },
+        ),
+        analyzer=HugePromptAnalyzer(),
+    )
+
+    response = await router.complete(
+        RouterRequest(
+            request_id="req-huge-prompt",
+            messages=[ChatMessage(content="Summarize the attached corpus.")],
+            strategy=RoutingStrategyName.TOKEN_BUDGET,
+            token_budget=1_050_000,
+            max_tokens=1_000,
+        ),
+    )
+
+    # Gemini 4 Argon and 3.8 Flash fail; Kimi K3.1 Pro is the remaining model that fits.
+    assert response.model_used == MOONSHOT_BALANCED_MODEL

@@ -152,8 +152,8 @@ def test_region_tier_affinity_falls_back_to_region_when_tier_missing() -> None:
 def test_region_tier_affinity_falls_back_to_quality() -> None:
     """When neither region nor tier matches, fall back to top quality."""
     catalog = {
-        "gpt-5.5": ModelCandidate(
-            model="gpt-5.5",
+        OPENAI_FRONTIER_MODEL: ModelCandidate(
+            model=OPENAI_FRONTIER_MODEL,
             provider="openai",
             quality_score=0.97,
             input_cost_per_1k=0.006,

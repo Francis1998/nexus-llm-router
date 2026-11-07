@@ -83,9 +83,11 @@ def test_long_context_prefer_falsy_long_context_stays_quality_first() -> None:
 def test_long_context_prefer_min_context_tokens_prefers_largest() -> None:
     decision = _strategy().choose(_request({"min_context_tokens": 500_000}), _signals())
 
+    # GPT-6's 1,050,000-token window caps input at 922,000 tokens, so Gemini 4
+    # Argon's 1,048,576-token window is the largest usable one.
     assert decision.chosen_model == GEMINI_PRO_MODEL
     assert "long-context-capable" in decision.rationale
-    assert "context 1000000" in decision.rationale
+    assert "context 1048576" in decision.rationale
 
 
 def test_long_context_prefer_long_context_default_threshold() -> None:

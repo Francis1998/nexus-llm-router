@@ -192,6 +192,36 @@ class TaskSignals(BaseModel):
     prompt_tokens_estimate: int = Field(ge=0)
 
 
+class LongPromptPricing(BaseModel):
+    """Whole-request rates a provider bills once a prompt exceeds a token threshold.
+
+    GPT-6 models bill 2x input and 1.5x output above 272K input tokens, and Claude
+    Haiku 5.5 bills $0.50/$2.50 per 1M above 100K prompt tokens. In both cases the
+    higher rates apply to the entire request, not only to the tokens past the
+    threshold.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    threshold_tokens: int = Field(ge=1)
+    input_cost_per_1k: float = Field(ge=0.0)
+    output_cost_per_1k: float = Field(ge=0.0)
+
+    def rates_for(self, input_tokens: int, base_rates: tuple[float, float]) -> tuple[float, float]:
+        """Return the per-1K ``(input, output)`` rates billed for ``input_tokens``.
+
+        Args:
+            input_tokens: Prompt tokens of the request.
+            base_rates: Standard per-1K ``(input, output)`` rates.
+
+        Returns:
+            The long-prompt rates above the threshold, otherwise ``base_rates``.
+        """
+        if input_tokens > self.threshold_tokens:
+            return self.input_cost_per_1k, self.output_cost_per_1k
+        return base_rates
+
+
 class ModelCandidate(BaseModel):
     """A routable model and its operating characteristics."""
 
@@ -203,10 +233,27 @@ class ModelCandidate(BaseModel):
     supports_domains: set[DomainTag]
     supports_realtime: bool = True
     context_window: int = Field(default=128_000, ge=1)
+    max_input_tokens: int | None = Field(default=None, ge=1)
+    long_prompt_pricing: LongPromptPricing | None = None
     supported_regions: set[str] = Field(default_factory=lambda: {"global"})
+
+    @property
+    def input_token_limit(self) -> int:
+        """Return the largest prompt this model accepts.
+
+        Some models cap input below their total window (GPT-6 accepts at most
+        922K input tokens of its 1.05M window); others accept prompts up to the
+        full ``context_window``.
+        """
+        if self.max_input_tokens is None:
+            return self.context_window
+        return min(self.context_window, self.max_input_tokens)
 
     def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """Estimate request cost in USD for this candidate.
+
+        Long prompts are billed at ``long_prompt_pricing`` rates for the whole
+        request when the candidate defines a prompt-length pricing tier.
 
         Args:
             input_tokens: Estimated input tokens.
@@ -215,8 +262,13 @@ class ModelCandidate(BaseModel):
         Returns:
             Estimated cost in USD.
         """
-        input_cost = (input_tokens / 1000.0) * self.input_cost_per_1k
-        output_cost = (output_tokens / 1000.0) * self.output_cost_per_1k
+        input_rate, output_rate = self.input_cost_per_1k, self.output_cost_per_1k
+        if self.long_prompt_pricing is not None:
+            input_rate, output_rate = self.long_prompt_pricing.rates_for(
+                input_tokens, (input_rate, output_rate)
+            )
+        input_cost = (input_tokens / 1000.0) * input_rate
+        output_cost = (output_tokens / 1000.0) * output_rate
         return input_cost + output_cost
 
 

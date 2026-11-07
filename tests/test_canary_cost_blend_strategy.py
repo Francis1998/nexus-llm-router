@@ -5,7 +5,7 @@ from hashlib import sha256
 import pytest
 
 from router.config import RouterSettings, default_model_catalog
-from router.model_ids import MOONSHOT_BALANCED_MODEL, OPENAI_BALANCED_MODEL
+from router.model_ids import ANTHROPIC_FAST_MODEL, OPENAI_BALANCED_MODEL
 from router.schemas import (
     ChatMessage,
     DomainTag,
@@ -93,7 +93,7 @@ def test_canary_cost_blend_explores_next_cheaper_tier_on_slice() -> None:
 
     decision = strategy.choose(_request("req-explore-cost"), _signals())
 
-    assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
+    assert decision.chosen_model == ANTHROPIC_FAST_MODEL
     assert "next-cheaper healthy tier" in decision.rationale
     assert "explore slice" in decision.rationale
 
@@ -104,7 +104,7 @@ def test_canary_cost_blend_skips_unhealthy_when_picking_cheapest() -> None:
 
     decision = strategy.choose(_request(), _signals())
 
-    assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
+    assert decision.chosen_model == ANTHROPIC_FAST_MODEL
     assert "cheapest healthy model" in decision.rationale
 
 

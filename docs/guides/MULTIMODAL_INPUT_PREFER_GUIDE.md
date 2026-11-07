@@ -2,8 +2,8 @@
 
 Use `multimodal-input-prefer` to bias selection toward vision /
 multimodal-capable models when a request declares `metadata.has_images`
-or `metadata.has_audio`, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2.
+or `metadata.has_audio`, for GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1.
 
 ![Multimodal input prefer demo](../../assets/multimodal-input-prefer.gif)
 
@@ -27,7 +27,7 @@ Kimi K2.
    `metadata.multimodal_models`, then `metadata.model_capabilities` /
    the built-in known-model map (`vision`, `audio`, or `multimodal`).
    When neither is present for a model, treat names containing `gpt-5`,
-   `claude`, `gemini`, or `vision` as multimodal-capable.
+   `gpt-6`, `claude`, `gemini`, `kimi-k3`, or `vision` as multimodal-capable.
 4. Rank by `(supports_multimodal desc, quality desc, cost asc)`.
 5. When the multimodal signal is absent, route quality-first among
    healthy domain-eligible candidates.
@@ -48,9 +48,9 @@ X-Router-Strategy: multimodal-input-prefer
 {
   "metadata": {
     "has_images": true,
-    "multimodal_models": ["gemini-3.5-flash"],
+    "multimodal_models": ["gemini-3.8-flash"],
     "model_capabilities": {
-      "gemini-3.5-flash": "vision"
+      "gemini-3.8-flash": "vision"
     }
   }
 }

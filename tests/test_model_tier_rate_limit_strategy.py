@@ -9,6 +9,7 @@ from router.model_ids import (
     ANTHROPIC_FAST_MODEL,
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_FLASH_MODEL,
+    GEMINI_PRO_MODEL,
     OPENAI_BALANCED_MODEL,
     OPENAI_FRONTIER_MODEL,
 )
@@ -138,7 +139,7 @@ def test_model_tier_rate_limit_all_saturated_falls_back_to_least_saturated() -> 
     catalog = {
         OPENAI_FRONTIER_MODEL: default_model_catalog()[OPENAI_FRONTIER_MODEL],
         ANTHROPIC_SAFETY_MODEL: default_model_catalog()[ANTHROPIC_SAFETY_MODEL],
-        "gemini-3.1-pro-preview": default_model_catalog()["gemini-3.1-pro-preview"],
+        GEMINI_PRO_MODEL: default_model_catalog()[GEMINI_PRO_MODEL],
     }
     stats = TierRequestStats()
     with patch("router.strategies.time.monotonic", return_value=0.0):

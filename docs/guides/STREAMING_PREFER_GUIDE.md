@@ -2,7 +2,7 @@
 
 Use `streaming-prefer` to bias selection toward streaming-capable models when
 a request declares `metadata.stream` or `metadata.requires_streaming`, for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ![Streaming prefer demo](../../assets/streaming-prefer.gif)
 
@@ -25,8 +25,8 @@ GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 3. When streaming is requested, resolve capability from
    `metadata.streaming_models`, then `metadata.model_capabilities` /
    the built-in known-model map (`streaming`). When neither is present for a
-   model, treat names containing `gpt-5`, `claude`, `gemini`, or `kimi` as
-   streaming-capable.
+   model, treat names containing `gpt-5`, `gpt-6`, `claude`, `gemini`, or
+   `kimi` as streaming-capable.
 4. Rank by `(supports_streaming desc, quality desc, cost asc)`.
 5. When the streaming signal is absent, route quality-first among healthy
    domain-eligible candidates.
@@ -47,9 +47,9 @@ X-Router-Strategy: streaming-prefer
 {
   "metadata": {
     "stream": true,
-    "streaming_models": ["gemini-3.5-flash"],
+    "streaming_models": ["gemini-3.8-flash"],
     "model_capabilities": {
-      "gemini-3.5-flash": "streaming"
+      "gemini-3.8-flash": "streaming"
     }
   }
 }

@@ -6,8 +6,8 @@ found.
 
 ## When to use it
 
-- Operators define a hard preference order (for example GPT-5.5 → Claude Sonnet
-  4.6 → Gemini 3.x → Kimi K2) rather than optimizing for cost or quality.
+- Operators define a hard preference order (for example GPT-6 Astra → Claude Opus
+  5.5 → Gemini 4 Argon → Kimi K3.1 Pro) rather than optimizing for cost or quality.
 - Open circuit breakers should skip a preference without changing the ordered
   intent of the remaining list.
 - You need a deterministic fallback chain that preserves that same order.
@@ -26,7 +26,7 @@ found.
 
 ```bash
 export NEXUS_DEFAULT_STRATEGY=failover-priority
-export NEXUS_FAILOVER_PRIORITY='["gpt-5.5","claude-sonnet-4-6","gemini-3.1-pro-preview","kimi-k2"]'
+export NEXUS_FAILOVER_PRIORITY='["gpt-6-astra","claude-opus-5-5","gemini-4-argon","kimi-k3.1-pro"]'
 ```
 
 Or per request:

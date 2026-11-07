@@ -2,7 +2,7 @@
 
 Use the `model-tier-rate-limit` strategy when provider gateways enforce different
 soft RPM ceilings for frontier, mid-tier, and economy SKUs and you want Nexus to
-steer GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 traffic away from
+steer GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1 traffic away from
 saturated providers before hard rate limits or circuit breakers trip.
 
 ## When to use it
@@ -19,10 +19,11 @@ saturated providers before hard rate limits or circuit breakers trip.
 
 1. Filter to domain-eligible catalog candidates.
 2. Infer each candidate's tier from its model name:
-   - **Frontier**: `gpt-5`, `claude-sonnet-4`, `claude-opus`, `gemini-3`,
-     `kimi-k2`, `o3`, etc.
-   - **Mid**: `gpt-4.1`, `claude-haiku`, `gemini-2`, etc.
-   - **Economy**: `-mini`, `nano`, `flash`, `haiku-light`, `-lite`, etc.
+   - **Frontier**: `gpt-6-astra`, `gpt-6(.1)-sol`, `gpt-5`, `claude-fable`,
+     `claude-opus`, `claude-sonnet-5` / `-4`, `gemini-4`, `gemini-3`,
+     `kimi-k3`, `kimi-k2`, `o3`, etc.
+   - **Mid**: `gpt-6.1-terra`, `gpt-4.1`, `claude-haiku`, `gemini-2`, etc.
+   - **Economy**: `-mini`, `nano`, `flash`, `-luna`, `haiku-light`, `-lite`, etc.
 3. Read each provider's rolling request timestamps from shared `TierRequestStats`.
 4. Prefer candidates whose provider is under the tier RPM limit
    (`NEXUS_TIER_FRONTIER_RPM`, `NEXUS_TIER_MID_RPM`, `NEXUS_TIER_ECONOMY_RPM`).

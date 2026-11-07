@@ -5,18 +5,18 @@ Use the `token-budget` strategy when prompts (or completion caps) can approach a
 ## When to use it
 
 - Long documents, RAG contexts, or large `max_tokens` risk exceeding smaller windows.
-- You want quality first among GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 — but only models that can hold the estimate.
-- You need a hard fail-soft path: if nothing fits, Nexus still routes to the largest-context eligible model.
+- You want quality first among GPT-6, Claude 5.5, Gemini 4 / 3.8, and Kimi K3.1 — but only models that can hold the estimate.
+- You need a hard fail-soft path: if nothing fits, Nexus still routes to the eligible model with the most prompt room after reserving the completion.
 
 ## How it works
 
 1. Estimate tokens needed as `prompt_tokens_estimate + max_tokens`.
 2. For each domain-eligible candidate, compute effective capacity as `min(context_window, request.token_budget)`.
-3. Keep candidates where `tokens_needed <= effective capacity`.
-4. Among those, pick the highest `quality_score` (ties break toward larger context).
-5. If none fit, fall back to the largest-context eligible model.
+3. Keep candidates where `tokens_needed <= effective capacity` and the prompt alone fits the model's maximum input (`ModelCandidate.input_token_limit`).
+4. Among those, pick the highest `quality_score` (ties break toward larger context). The next three fitting candidates form the fallback chain, so a failed primary is only retried on models that can accept the prompt.
+5. If none fit, fall back to the eligible model with the largest prompt capacity after reserving `max_tokens`, i.e. `min(max input, context_window - max_tokens)` (ties break toward larger context, then quality).
 
-Catalog priors include context windows (for example Claude Sonnet 4.6 / GPT-5.5 at 200k, Gemini 3.x-class at 1M, Kimi K2 at 128k).
+Catalog priors include context windows: GPT-6 Astra / Luna 1,050,000 with at most 922,000 input tokens (`max_input_tokens`), Claude Opus / Haiku 5.5 1,000,000, and Gemini 4 Argon / 3.8 Flash / Kimi K3.1 Pro 1,048,576. A 1,020,000-token prompt therefore routes to Gemini 4 Argon, not GPT-6 Astra.
 
 ## Quick start
 

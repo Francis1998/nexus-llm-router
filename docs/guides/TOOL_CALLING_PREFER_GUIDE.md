@@ -2,8 +2,8 @@
 
 Use `tool-calling-prefer` to bias selection toward models that support
 tool / function calling when a request declares `metadata.requires_tools`
-or supplies a non-empty `metadata.tools` list, for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+or supplies a non-empty `metadata.tools` list, for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ![Tool calling prefer demo](../../assets/tool-calling-prefer.gif)
 
@@ -27,7 +27,7 @@ Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 3. When tools are required, resolve tool support from
    `metadata.tool_capable_models`, then `metadata.model_capabilities` /
    the built-in known-model map (`tools` capability). When neither is
-   present for a model, treat names containing `gpt-5`, `claude`,
+   present for a model, treat names containing `gpt-5`, `gpt-6`, `claude`,
    `gemini`, or `kimi` as tool-capable.
 4. Rank by `(supports_tools desc, quality desc, cost asc)`.
 5. When the tool-calling signal is absent, route quality-first among
@@ -49,9 +49,9 @@ X-Router-Strategy: tool-calling-prefer
 {
   "metadata": {
     "requires_tools": true,
-    "tool_capable_models": ["kimi-k2"],
+    "tool_capable_models": ["kimi-k3.1-pro"],
     "model_capabilities": {
-      "kimi-k2": "tools"
+      "kimi-k3.1-pro": "tools"
     }
   }
 }

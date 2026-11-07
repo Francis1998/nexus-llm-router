@@ -2,8 +2,8 @@
 
 Use `structured-output-prefer` to bias selection toward models that advertise
 JSON / structured-output support when a request declares
-`metadata.requires_json` or `metadata.structured_output`, for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+`metadata.requires_json` or `metadata.structured_output`, for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ![Structured output prefer demo](../../assets/structured-output-prefer.gif)
 
@@ -29,7 +29,7 @@ Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
    `metadata.structured_models`, then `metadata.model_capabilities` /
    the built-in known-model map (`json`, `structured`, or `json_mode`).
    When neither is present for a model, treat names containing `gpt-5`,
-   `claude`, `gemini`, or `kimi` as structured-capable.
+   `gpt-6`, `claude`, `gemini`, or `kimi` as structured-capable.
 4. Rank by `(supports_structured desc, quality desc, cost asc)`.
 5. When the structured-output signal is absent, route quality-first among
    healthy domain-eligible candidates.
@@ -50,9 +50,9 @@ X-Router-Strategy: structured-output-prefer
 {
   "metadata": {
     "requires_json": true,
-    "structured_models": ["kimi-k2"],
+    "structured_models": ["kimi-k3.1-pro"],
     "model_capabilities": {
-      "kimi-k2": "json"
+      "kimi-k3.1-pro": "json"
     }
   }
 }

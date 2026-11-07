@@ -1,8 +1,8 @@
 # Audio-Input-Prefer Routing Guide
 
 Use `audio-input-prefer` to bias selection toward `audio`-capable
-models when a request declares `metadata.requires_audio` / `metadata.audio_input` / `metadata.audio`, for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2.
+models when a request declares `metadata.requires_audio` / `metadata.audio_input` / `metadata.audio`, for GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1.
 
 ![audio-input-prefer demo](../../assets/audio-input-prefer.gif)
 
@@ -46,9 +46,9 @@ X-Router-Strategy: audio-input-prefer
 {
   "metadata": {
     "requires_audio": true,
-    "audio_models": ["gemini-3.5-flash"],
+    "audio_models": ["gemini-3.8-flash"],
     "model_capabilities": {
-      "gemini-3.5-flash": "audio"
+      "gemini-3.8-flash": "audio"
     }
   }
 }

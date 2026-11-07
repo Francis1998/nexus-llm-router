@@ -122,7 +122,7 @@ class RuleBasedStrategy(RoutingStrategy):
             )
         if signals.domain_tag is DomainTag.CODE and signals.complexity_score >= 0.55:
             return self._decision(
-                OPENAI_FRONTIER_MODEL, "complex code prompt favors GPT-5.5 quality"
+                OPENAI_FRONTIER_MODEL, "complex code prompt favors GPT-6 Astra quality"
             )
         if (
             signals.complexity_score <= 0.35
@@ -461,18 +461,26 @@ class ModelTier(StrEnum):
 def infer_model_tier(model_name: str) -> ModelTier:
     """Infer a model's capability tier from its name using catalog heuristics.
 
-    Economy markers (mini, nano, flash, etc.) are checked first so names such as
-    ``gemini-3.5-flash`` classify as economy rather than frontier.
+    Economy markers (mini, nano, flash, luna, etc.) are checked first so names
+    such as ``gemini-3.8-flash`` or ``gpt-6-luna`` classify as economy rather
+    than frontier.
     """
     normalized = model_name.lower()
-    economy_markers = ("-mini", "nano", "flash", "haiku-light", "-lite", "lite-")
+    economy_markers = ("-mini", "nano", "flash", "haiku-light", "-lite", "lite-", "-luna")
     if any(marker in normalized for marker in economy_markers):
         return ModelTier.ECONOMY
     frontier_markers = (
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6.1-sol",
         "gpt-5",
-        "claude-sonnet-4",
+        "claude-fable",
         "claude-opus",
+        "claude-sonnet-5",
+        "claude-sonnet-4",
+        "gemini-4",
         "gemini-3",
+        "kimi-k3",
         "kimi-k2",
         "o3",
     )
@@ -487,9 +495,9 @@ def infer_model_tier(model_name: str) -> ModelTier:
 def infer_target_tier(complexity_score: float) -> ModelTier:
     """Map a classifier complexity score onto a target capability tier.
 
-    High-complexity prompts prefer frontier SKUs (GPT-5.5, Claude Sonnet 4.6,
-    Gemini 3.x, Kimi K2); medium prompts prefer mid-tier; low-complexity prompts
-    prefer economy SKUs. Thresholds are fixed so routing stays deterministic and
+    High-complexity prompts prefer frontier SKUs (GPT-6 Astra, Claude Opus 5.5,
+    Gemini 4 Argon, Kimi K3.1 Pro); medium prompts prefer mid-tier; low-complexity
+    prompts prefer economy SKUs. Thresholds are fixed so routing stays deterministic and
     needs no extra ``NEXUS_*`` knobs.
     """
     if complexity_score >= 0.7:
@@ -2455,9 +2463,13 @@ class TokenBudgetStrategy(RoutingStrategy):
 
     The effective capacity for a candidate is
     ``min(candidate.context_window, request.token_budget)``. A candidate fits when
-    ``prompt_tokens_estimate + max_tokens <=`` that capacity. When no candidate
-    fits (for example an oversized prompt against a tight budget), it falls back
-    to the largest-context eligible model so the request still routes
+    ``prompt_tokens_estimate + max_tokens <=`` that capacity and the prompt alone
+    stays within the model's maximum input (``ModelCandidate.input_token_limit``;
+    GPT-6 accepts at most 922K input tokens of its 1.05M window). The fallback
+    chain only contains other fitting candidates. When no candidate fits (for
+    example an oversized prompt against a tight budget), it falls back to the
+    eligible model with the largest prompt capacity after reserving
+    ``max_tokens`` for the completion, so the request still routes
     deterministically rather than failing at decide time.
     """
 
@@ -2476,37 +2488,59 @@ class TokenBudgetStrategy(RoutingStrategy):
         def effective_capacity(candidate: ModelCandidate) -> int:
             return min(candidate.context_window, request.token_budget)
 
+        def prompt_capacity(candidate: ModelCandidate) -> int:
+            # Largest prompt the model accepts while reserving ``max_tokens`` of output.
+            return min(candidate.input_token_limit, candidate.context_window - request.max_tokens)
+
         fitting_candidates = [
             candidate
             for candidate in eligible_candidates
             if tokens_needed <= effective_capacity(candidate)
+            and signals.prompt_tokens_estimate <= candidate.input_token_limit
         ]
         if fitting_candidates:
-            selected_candidate = max(
+            ranked = sorted(
                 fitting_candidates,
-                key=lambda candidate: (
-                    candidate.quality_score,
-                    candidate.context_window,
-                ),
+                key=lambda candidate: (candidate.quality_score, candidate.context_window),
+                reverse=True,
             )
+            selected_candidate = ranked[0]
             rationale = (
                 f"token-budget selected highest quality {selected_candidate.quality_score:.2f} "
                 f"fitting {tokens_needed} tokens within "
                 f"min(context={selected_candidate.context_window}, "
                 f"budget={request.token_budget})"
             )
-            return self._decision(selected_candidate.model, rationale)
+            return self._ranked_decision(ranked, rationale)
 
-        selected_candidate = max(
+        ranked = sorted(
             eligible_candidates,
-            key=lambda candidate: (candidate.context_window, candidate.quality_score),
+            key=lambda candidate: (
+                prompt_capacity(candidate),
+                candidate.context_window,
+                candidate.quality_score,
+            ),
+            reverse=True,
         )
+        selected_candidate = ranked[0]
         rationale = (
             f"token-budget found no model fitting {tokens_needed} tokens within "
-            f"budget {request.token_budget}; routed to largest-context model "
-            f"(context {selected_candidate.context_window})"
+            f"budget {request.token_budget}; routed to largest prompt capacity "
+            f"{prompt_capacity(selected_candidate)} after reserving {request.max_tokens} "
+            f"completion tokens (context {selected_candidate.context_window})"
         )
-        return self._decision(selected_candidate.model, rationale)
+        return self._ranked_decision(ranked, rationale)
+
+    def _ranked_decision(self, ranked: list[ModelCandidate], rationale: str) -> RoutingDecision:
+        """Route to the first ranked candidate and fall back through the next three."""
+        selected = ranked[0]
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in ranked[1:4]],
+        )
 
 
 class ABRoutingStrategy(RoutingStrategy):
@@ -10436,26 +10470,27 @@ class ProviderSuccessFloorStrategy(RoutingStrategy):
 
 
 _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
+    # GPT-6 Astra: text + image input only, no Realtime API, and no logprobs
+    # (it cannot run with reasoning effort ``none``).
     OPENAI_FRONTIER_MODEL: frozenset(
         {
             "agents_api",
-            "audio",
             "background_mode",
             "deep_research",
             "json",
-            "logprobs",
             "long_context",
             "mcp",
             "memory_tool",
             "parallel_tool_calls",
-            "realtime_api",
             "streaming",
             "tools",
             "vision",
             "webhook",
         }
     ),
-    OPENAI_BALANCED_MODEL: frozenset({"logprobs", "parallel_tool_calls", "streaming", "tools"}),
+    OPENAI_BALANCED_MODEL: frozenset(
+        {"json", "logprobs", "long_context", "parallel_tool_calls", "streaming", "tools", "vision"}
+    ),
     ANTHROPIC_SAFETY_MODEL: frozenset(
         {
             "deep_research",
@@ -10470,20 +10505,22 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
             "webhook",
         }
     ),
-    ANTHROPIC_FAST_MODEL: frozenset({"tools", "streaming"}),
+    ANTHROPIC_FAST_MODEL: frozenset({"tools", "streaming", "long_context"}),
     GEMINI_PRO_MODEL: frozenset({"vision", "tools", "long_context", "json", "streaming", "audio"}),
-    GEMINI_FLASH_MODEL: frozenset({"vision", "tools", "json", "streaming", "audio"}),
-    MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context", "json", "streaming"}),
+    GEMINI_FLASH_MODEL: frozenset(
+        {"vision", "tools", "json", "streaming", "audio", "long_context"}
+    ),
+    MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context", "json", "streaming", "vision"}),
 }
 
 _KNOWN_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
-    OPENAI_FRONTIER_MODEL: 200_000,
-    OPENAI_BALANCED_MODEL: 128_000,
-    ANTHROPIC_SAFETY_MODEL: 200_000,
-    ANTHROPIC_FAST_MODEL: 200_000,
-    GEMINI_PRO_MODEL: 1_000_000,
-    GEMINI_FLASH_MODEL: 1_000_000,
-    MOONSHOT_BALANCED_MODEL: 128_000,
+    OPENAI_FRONTIER_MODEL: 1_050_000,
+    OPENAI_BALANCED_MODEL: 1_050_000,
+    ANTHROPIC_SAFETY_MODEL: 1_000_000,
+    ANTHROPIC_FAST_MODEL: 1_000_000,
+    GEMINI_PRO_MODEL: 1_048_576,
+    GEMINI_FLASH_MODEL: 1_048_576,
+    MOONSHOT_BALANCED_MODEL: 1_048_576,
 }
 
 
@@ -10905,7 +10942,7 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _JSON_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _JSON_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi")
     _STRUCTURED_CAPABILITIES = frozenset({"json", "structured", "json_mode"})
 
     def __init__(
@@ -11489,7 +11526,7 @@ class ToolCallingPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _TOOL_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _TOOL_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi")
 
     def __init__(
         self,
@@ -11672,7 +11709,7 @@ class MultimodalInputPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _VISION_NAME_TOKENS = ("gpt-5", "claude", "gemini", "vision")
+    _VISION_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi-k3", "vision")
 
     def __init__(
         self,
@@ -11856,7 +11893,7 @@ class StreamingPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _STREAMING_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _STREAMING_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi")
 
     def __init__(
         self,
@@ -12039,7 +12076,7 @@ class LongContextPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _LONG_CONTEXT_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _LONG_CONTEXT_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi")
     _DEFAULT_LONG_CONTEXT_THRESHOLD = 100_000
     _HEURISTIC_CONTEXT_WINDOW = 200_000
 
@@ -12088,17 +12125,25 @@ class LongContextPreferStrategy(RoutingStrategy):
         return None
 
     def _context_window(self, candidate: ModelCandidate, request: RouterRequest) -> int:
-        """Resolve a model's context window from overrides, known map, or heuristic."""
+        """Resolve a model's usable context window from overrides, known map, or heuristic.
+
+        Known and catalog windows are capped at ``candidate.max_input_tokens``
+        because long-context requests are dominated by input (GPT-6 accepts at
+        most 922K input tokens of its 1.05M window). Explicit per-request
+        ``model_context_windows`` overrides are used as given.
+        """
         overrides = request.metadata.get("model_context_windows")
         if isinstance(overrides, Mapping) and candidate.model in overrides:
             try:
                 return int(overrides[candidate.model])
             except (TypeError, ValueError):
                 pass
+        input_cap = candidate.max_input_tokens
         if candidate.model in self._context_map:
-            return int(self._context_map[candidate.model])
+            window = int(self._context_map[candidate.model])
+            return window if input_cap is None else min(window, input_cap)
         if candidate.context_window > 0:
-            return int(candidate.context_window)
+            return candidate.input_token_limit
         lower = candidate.model.lower()
         if any(token in lower for token in self._LONG_CONTEXT_NAME_TOKENS):
             return self._HEURISTIC_CONTEXT_WINDOW

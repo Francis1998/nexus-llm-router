@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1997%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-2012%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -9,19 +9,19 @@
 
 ![GuidedDecodeFsmBlowupAdvisor](assets/demo/guided-decode-fsm-blowup-advisor.gif)
 
-Offline HITL `fsm_blowup_ratio` bands. Gap vs vLLM/Outlines/Guidance guided-decode FSM blowup monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/GUIDED_DECODE_FSM_BLOWUP_ADVISOR_GUIDE.md`.
+Offline HITL `fsm_blowup_ratio` bands. Gap vs vLLM/Outlines/Guidance guided-decode FSM blowup monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/GUIDED_DECODE_FSM_BLOWUP_ADVISOR_GUIDE.md`.
 
 ### MoeExpertDropoutStormAdvisor
 
 ![MoeExpertDropoutStormAdvisor](assets/demo/moe-expert-dropout-storm-advisor.gif)
 
-Offline HITL `dropout_storm_ratio` bands. Gap vs vLLM/SGLang/TGI MoE expert-dropout storm monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MOE_EXPERT_DROPOUT_STORM_ADVISOR_GUIDE.md`.
+Offline HITL `dropout_storm_ratio` bands. Gap vs vLLM/SGLang/TGI MoE expert-dropout storm monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/MOE_EXPERT_DROPOUT_STORM_ADVISOR_GUIDE.md`.
 
 ### SpeculativeDecodeRejectionHysteresisAdvisor
 
 ![SpeculativeDecodeRejectionHysteresisAdvisor](assets/demo/speculative-decode-rejection-hysteresis-advisor.gif)
 
-Offline HITL `hysteresis_ratio` bands. Gap vs vLLM/SGLang/TGI speculative-decode rejection-hysteresis monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SPECULATIVE_DECODE_REJECTION_HYSTERESIS_ADVISOR_GUIDE.md`.
+Offline HITL `hysteresis_ratio` bands. Gap vs vLLM/SGLang/TGI speculative-decode rejection-hysteresis monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SPECULATIVE_DECODE_REJECTION_HYSTERESIS_ADVISOR_GUIDE.md`.
 
 
 
@@ -31,14 +31,14 @@ Offline HITL `hysteresis_ratio` bands. Gap vs vLLM/SGLang/TGI speculative-decode
 
 ![SamplingSeedCollisionBandAdvisor](assets/demo/sampling-seed-collision-band-advisor.gif)
 
-Offline HITL `collision_ratio` bands. Gap vs vLLM/SGLang/TGI sampling-seed collision monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SAMPLING_SEED_COLLISION_BAND_ADVISOR_GUIDE.md`.
+Offline HITL `collision_ratio` bands. Gap vs vLLM/SGLang/TGI sampling-seed collision monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SAMPLING_SEED_COLLISION_BAND_ADVISOR_GUIDE.md`.
 
 
 ### TokenizerVocabSkewBandAdvisor
 
 ![TokenizerVocabSkewBandAdvisor](assets/demo/tokenizer-vocab-skew-band-advisor.gif)
 
-Offline HITL `vocab_skew_ratio` bands. Gap vs vLLM/SGLang/TGI tokenizer vocab-skew monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOKENIZER_VOCAB_SKEW_BAND_ADVISOR_GUIDE.md`.
+Offline HITL `vocab_skew_ratio` bands. Gap vs vLLM/SGLang/TGI tokenizer vocab-skew monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOKENIZER_VOCAB_SKEW_BAND_ADVISOR_GUIDE.md`.
 
 
 
@@ -87,43 +87,43 @@ Offline HITL `steal_ratio` bands. Gap vs vLLM/SGLang/TGI KV block steal-storm mo
 
 ![SpeculativeTreeDepthBlowupAdvisor](assets/demo/speculative-tree-depth-blowup-advisor.gif)
 
-Offline HITL `depth_blowup_ratio` bands. Gap vs vLLM/SGLang/TGI speculative tree-depth blowup monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SPECULATIVE_TREE_DEPTH_BLOWUP_ADVISOR_GUIDE.md`.
+Offline HITL `depth_blowup_ratio` bands. Gap vs vLLM/SGLang/TGI speculative tree-depth blowup monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SPECULATIVE_TREE_DEPTH_BLOWUP_ADVISOR_GUIDE.md`.
 
 ### ContinuousBatchStarveBandAdvisor
 
 ![ContinuousBatchStarveBandAdvisor](assets/demo/continuous-batch-starve-band-advisor.gif)
 
-Offline HITL `starve_ratio` bands. Gap vs vLLM/SGLang/TGI continuous-batch starve monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/CONTINUOUS_BATCH_STARVE_BAND_ADVISOR_GUIDE.md`.
+Offline HITL `starve_ratio` bands. Gap vs vLLM/SGLang/TGI continuous-batch starve monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/CONTINUOUS_BATCH_STARVE_BAND_ADVISOR_GUIDE.md`.
 
 ### DraftVerifyMismatchBandAdvisor
 
 ![DraftVerifyMismatchBandAdvisor](assets/demo/draft-verify-mismatch-band-advisor.gif)
 
-Offline HITL `mismatch_ratio` bands. Gap vs vLLM/SGLang/TGI speculative draft-verify mismatch monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/DRAFT_VERIFY_MISMATCH_BAND_ADVISOR_GUIDE.md`.
+Offline HITL `mismatch_ratio` bands. Gap vs vLLM/SGLang/TGI speculative draft-verify mismatch monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/DRAFT_VERIFY_MISMATCH_BAND_ADVISOR_GUIDE.md`.
 
 ### PrefixCacheEvictionStormAdvisor
 
 ![PrefixCacheEvictionStormAdvisor](assets/demo/prefix-cache-eviction-storm-advisor.gif)
 
-Offline HITL `eviction_storm_ratio` bands. Gap vs vLLM/SGLang/TGI prefix-cache eviction-storm monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_CACHE_EVICTION_STORM_ADVISOR_GUIDE.md`.
+Offline HITL `eviction_storm_ratio` bands. Gap vs vLLM/SGLang/TGI prefix-cache eviction-storm monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFIX_CACHE_EVICTION_STORM_ADVISOR_GUIDE.md`.
 
 ### PagedKvSwapThrashAdvisor
 
 ![PagedKvSwapThrashAdvisor](assets/demo/paged-kv-swap-thrash-advisor.gif)
 
-Offline HITL `swap_thrash_ratio` bands. Gap vs vLLM/SGLang/TGI paged-KV swap-thrash monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PAGED_KV_SWAP_THRASH_ADVISOR_GUIDE.md`.
+Offline HITL `swap_thrash_ratio` bands. Gap vs vLLM/SGLang/TGI paged-KV swap-thrash monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PAGED_KV_SWAP_THRASH_ADVISOR_GUIDE.md`.
 
 ### RopeScaleMismatchBandAdvisor
 
 ![RopeScaleMismatchBandAdvisor](assets/demo/rope-scale-mismatch-band-advisor.gif)
 
-Offline HITL `rope_mismatch_ratio` bands. Gap vs vLLM/SGLang/TGI RoPE-scale mismatch monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/ROPE_SCALE_MISMATCH_BAND_ADVISOR_GUIDE.md`.
+Offline HITL `rope_mismatch_ratio` bands. Gap vs vLLM/SGLang/TGI RoPE-scale mismatch monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/ROPE_SCALE_MISMATCH_BAND_ADVISOR_GUIDE.md`.
 
 ### QuantCalibrationDriftBandAdvisor
 
 ![QuantCalibrationDriftBandAdvisor](assets/demo/quant-calibration-drift-band-advisor.gif)
 
-Offline HITL `calib_drift_ratio` bands. Gap vs vLLM/TGI/TensorRT-LLM AWQ/GPTQ quant-calibration drift monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/QUANT_CALIBRATION_DRIFT_BAND_ADVISOR_GUIDE.md`.
+Offline HITL `calib_drift_ratio` bands. Gap vs vLLM/TGI/TensorRT-LLM AWQ/GPTQ quant-calibration drift monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/QUANT_CALIBRATION_DRIFT_BAND_ADVISOR_GUIDE.md`.
 
 ![Nexus use cases](assets/use-cases.gif)
 
@@ -131,55 +131,55 @@ Offline HITL `calib_drift_ratio` bands. Gap vs vLLM/TGI/TensorRT-LLM AWQ/GPTQ qu
 
 ![DecodeSlotFragmentationBandAdvisor](assets/demo/decode-slot-fragmentation-band-advisor.gif)
 
-Offline HITL `slot_frag_ratio` bands. Gap vs vLLM/SGLang/TGI decode-slot fragmentation monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/DECODE_SLOT_FRAGMENTATION_BAND_ADVISOR_GUIDE.md`.
+Offline HITL `slot_frag_ratio` bands. Gap vs vLLM/SGLang/TGI decode-slot fragmentation monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/DECODE_SLOT_FRAGMENTATION_BAND_ADVISOR_GUIDE.md`.
 
 ![EmbeddingCachePoisonAdvisor](assets/demo/embedding-cache-poison-advisor.gif)
 ### EmbeddingCachePoisonAdvisor
 
 ![EmbeddingCachePoisonAdvisor](assets/demo/embedding-cache-poison-advisor.gif)
 
-Offline HITL `poison_ratio` bands. Gap vs vLLM/TGI/TEI embedding-cache poison monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/EMBEDDING_CACHE_POISON_ADVISOR_GUIDE.md`.
+Offline HITL `poison_ratio` bands. Gap vs vLLM/TGI/TEI embedding-cache poison monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/EMBEDDING_CACHE_POISON_ADVISOR_GUIDE.md`.
 ![ContinuousBatchPreemptionChurnAdvisor](assets/demo/continuous-batch-preemption-churn-advisor.gif)
 ### ContinuousBatchPreemptionChurnAdvisor
 
 ![ContinuousBatchPreemptionChurnAdvisor](assets/demo/continuous-batch-preemption-churn-advisor.gif)
 
-Offline HITL `preemption_churn_rate` bands. Gap vs vLLM/SGLang/TGI continuous-batch preemption-churn monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/CONTINUOUS_BATCH_PREEMPTION_CHURN_ADVISOR_GUIDE.md`.
+Offline HITL `preemption_churn_rate` bands. Gap vs vLLM/SGLang/TGI continuous-batch preemption-churn monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/CONTINUOUS_BATCH_PREEMPTION_CHURN_ADVISOR_GUIDE.md`.
 ### ToolSchemaVersionSkewAdvisor
 
 ![ToolSchemaVersionSkewAdvisor](assets/demo/tool-schema-version-skew-advisor.gif)
 
-Offline HITL skew_score bands. Gap vs LiteLLM/OpenAI/Anthropic tool-schema version-skew monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOOL_SCHEMA_VERSION_SKEW_ADVISOR_GUIDE.md`.
+Offline HITL skew_score bands. Gap vs LiteLLM/OpenAI/Anthropic tool-schema version-skew monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOOL_SCHEMA_VERSION_SKEW_ADVISOR_GUIDE.md`.
 
 ### GpuMemoryFragmentationBandAdvisor
 
 ![GpuMemoryFragmentationBandAdvisor](assets/demo/gpu-memory-fragmentation-advisor.gif)
 
-Offline HITL frag_ratio bands. Gap vs vLLM/TGI/TensorRT-LLM GPU memory fragmentation monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/GPU_MEMORY_FRAGMENTATION_ADVISOR_GUIDE.md`.
+Offline HITL frag_ratio bands. Gap vs vLLM/TGI/TensorRT-LLM GPU memory fragmentation monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/GPU_MEMORY_FRAGMENTATION_ADVISOR_GUIDE.md`.
 
 ### KvBlockStealAdvisor
 
 ![KvBlockStealAdvisor](assets/demo/kv-block-steal-advisor.gif)
 
-Offline advisor for `steal_rate` bands. Gap vs vLLM/SGLang/TGI KV-block steal monitors. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline advisor for `steal_rate` bands. Gap vs vLLM/SGLang/TGI KV-block steal monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ### EmbeddingIndexSkewAdvisor
 
 ![EmbeddingIndexSkewAdvisor](assets/demo/embedding-index-skew-advisor.gif)
 
-Offline advisor for `index_skew_ratio` bands. Gap vs vLLM/SGLang/embedding-serving index-skew monitors. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline advisor for `index_skew_ratio` bands. Gap vs vLLM/SGLang/embedding-serving index-skew monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ### KvCacheQuantErrorBandAdvisor
 
 ![KvCacheQuantErrorBandAdvisor](assets/demo/kv-cache-quant-error-band-advisor.gif)
 
-Offline advisor for `error_rate` bands. Gap vs vLLM/SGLang KV-cache quantization error-band monitors. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline advisor for `error_rate` bands. Gap vs vLLM/SGLang KV-cache quantization error-band monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ### LoraAdapterHotSwapStallAdvisor
 
 ![LoraAdapterHotSwapStallAdvisor](assets/demo/lora-adapter-hot-swap-stall-advisor.gif)
 
-Offline advisor for `stall_ratio` bands. Gap vs vLLM/SGLang LoRA adapter hot-swap stall monitors. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline advisor for `stall_ratio` bands. Gap vs vLLM/SGLang LoRA adapter hot-swap stall monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ### GrammarConstrainedDecodeRejectAdvisor
 
@@ -233,101 +233,101 @@ Offline HITL `canary_miss_ratio` bands. Gap vs vLLM/SGLang/LiteLLM tool-schema c
 
 ![PrefillQueueStarvationAdvisor](assets/demo/prefill-queue-starvation-advisor.gif)
 
-Offline advisor for `starvation_rate` bands. Gap vs vLLM/SGLang/TensorRT-LLM prefill queue-starvation monitors. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline advisor for `starvation_rate` bands. Gap vs vLLM/SGLang/TensorRT-LLM prefill queue-starvation monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ### MoeRoutingCollapseAdvisor
 
 ![MoeRoutingCollapseAdvisor](assets/demo/moe-routing-collapse-advisor.gif)
 
-Offline advisor for `collapse_rate` bands. Gap vs vLLM/SGLang/DeepSeek MoE routing-collapse monitors. Optional polish via GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline advisor for `collapse_rate` bands. Gap vs vLLM/SGLang/DeepSeek MoE routing-collapse monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ### PrefixCachePoisonAdvisor
 
 ![PrefixCachePoisonAdvisor](assets/demo/prefix-cache-poison-advisor.gif)
 
-Offline HITL poison_hit_rate bands. Gap vs vLLM/SGLang/TGI prefix-cache poison monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_CACHE_POISON_ADVISOR_GUIDE.md`.
+Offline HITL poison_hit_rate bands. Gap vs vLLM/SGLang/TGI prefix-cache poison monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFIX_CACHE_POISON_ADVISOR_GUIDE.md`.
 ### PagedAttentionSlotFragmentationAdvisor
 
 ![PagedAttentionSlotFragmentationAdvisor](assets/demo/paged-attention-slot-fragmentation-advisor.gif)
 
-Offline HITL slot_fragmentation_ratio bands. Gap vs vLLM/SGLang paged-attention slot-fragmentation monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PAGED_ATTENTION_SLOT_FRAGMENTATION_ADVISOR_GUIDE.md`.
+Offline HITL slot_fragmentation_ratio bands. Gap vs vLLM/SGLang paged-attention slot-fragmentation monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PAGED_ATTENTION_SLOT_FRAGMENTATION_ADVISOR_GUIDE.md`.
 ### TokenizerBpeMergeDriftAdvisor
 
 ![TokenizerBpeMergeDriftAdvisor](assets/demo/tokenizer-bpe-merge-drift-advisor.gif)
 
-Offline HITL bpe_merge_drift_score bands. Gap vs vLLM/TGI/HuggingFace tokenizer BPE merge-drift monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOKENIZER_BPE_MERGE_DRIFT_ADVISOR_GUIDE.md`.
+Offline HITL bpe_merge_drift_score bands. Gap vs vLLM/TGI/HuggingFace tokenizer BPE merge-drift monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOKENIZER_BPE_MERGE_DRIFT_ADVISOR_GUIDE.md`.
 
 ### AdapterWeightDriftAdvisor
 
 ![AdapterWeightDriftAdvisor](assets/demo/adapter-weight-drift-advisor.gif)
 
-Offline HITL weight_drift_score bands. Gap vs vLLM/TGI LoRA adapter-weight drift monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/ADAPTER_WEIGHT_DRIFT_ADVISOR_GUIDE.md`.
+Offline HITL weight_drift_score bands. Gap vs vLLM/TGI LoRA adapter-weight drift monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/ADAPTER_WEIGHT_DRIFT_ADVISOR_GUIDE.md`.
 
 ### BatchPaddingWasteAdvisor
 
 ![BatchPaddingWasteAdvisor](assets/demo/batch-padding-waste-advisor.gif)
 
-Offline HITL padding_waste_ratio bands. Gap vs vLLM/TGI/SGLang batch-padding waste monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/BATCH_PADDING_WASTE_ADVISOR_GUIDE.md`.
+Offline HITL padding_waste_ratio bands. Gap vs vLLM/TGI/SGLang batch-padding waste monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/BATCH_PADDING_WASTE_ADVISOR_GUIDE.md`.
 
 ### PromptInjectionCanaryFloorAdvisor
 
 ![PromptInjectionCanaryFloorAdvisor](assets/demo/prompt-injection-canary-floor-advisor.gif)
 
-Offline HITL canary_hit_rate bands. Gap vs LiteLLM/vLLM/Guardrails prompt-injection canary-floor monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROMPT_INJECTION_CANARY_FLOOR_ADVISOR_GUIDE.md`.
+Offline HITL canary_hit_rate bands. Gap vs LiteLLM/vLLM/Guardrails prompt-injection canary-floor monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PROMPT_INJECTION_CANARY_FLOOR_ADVISOR_GUIDE.md`.
 
 ### PrefillDecodeSkewAdvisor
 
 ![PrefillDecodeSkewAdvisor](assets/demo/prefill-decode-skew-advisor.gif)
 
-Offline HITL skew_ratio bands. Gap vs vLLM/TGI/SGLang prefill/decode skew monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFILL_DECODE_SKEW_ADVISOR_GUIDE.md`.
+Offline HITL skew_ratio bands. Gap vs vLLM/TGI/SGLang prefill/decode skew monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFILL_DECODE_SKEW_ADVISOR_GUIDE.md`.
 
 ### ToolLoopDepthGateAdvisor
 
 ![ToolLoopDepthGateAdvisor](assets/demo/tool-loop-depth-gate-advisor.gif)
 
-Offline HITL loop_depth bands. Gap vs LiteLLM/vLLM/OpenAI-compatible tool-loop depth gates. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOOL_LOOP_DEPTH_GATE_ADVISOR_GUIDE.md`.
+Offline HITL loop_depth bands. Gap vs LiteLLM/vLLM/OpenAI-compatible tool-loop depth gates. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOOL_LOOP_DEPTH_GATE_ADVISOR_GUIDE.md`.
 ### WebGroundingInjectionGateAdvisor
 
 ![WebGroundingInjectionGateAdvisor](assets/demo/web-grounding-injection-gate-advisor.gif)
 
-Offline HITL injection_score bands. Gap vs Perplexity/Bing/OpenAI web-grounding injection gates. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/WEB_GROUNDING_INJECTION_GATE_ADVISOR_GUIDE.md`.
+Offline HITL injection_score bands. Gap vs Perplexity/Bing/OpenAI web-grounding injection gates. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/WEB_GROUNDING_INJECTION_GATE_ADVISOR_GUIDE.md`.
 
 ### EmbeddingCacheThrashAdvisor
 
 ![EmbeddingCacheThrashAdvisor](assets/demo/embedding-cache-thrash-advisor.gif)
 
-Offline HITL thrash_ratio bands. Gap vs Redis/vLLM/embedding-cache thrash monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/EMBEDDING_CACHE_THRASH_ADVISOR_GUIDE.md`.
+Offline HITL thrash_ratio bands. Gap vs Redis/vLLM/embedding-cache thrash monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/EMBEDDING_CACHE_THRASH_ADVISOR_GUIDE.md`.
 
 
 ### ModalityMixBudgetAdvisor
 
 ![ModalityMixBudgetAdvisor](assets/demo/modality-mix-budget-advisor.gif)
 
-Offline HITL mix_ratio bands. Gap vs LiteLLM/OpenRouter multimodal modality-mix budget monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MODALITY_MIX_BUDGET_ADVISOR_GUIDE.md`.
+Offline HITL mix_ratio bands. Gap vs LiteLLM/OpenRouter multimodal modality-mix budget monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/MODALITY_MIX_BUDGET_ADVISOR_GUIDE.md`.
 
 ### ProviderCircuitBreakerCooldownAdvisor
 
 ![ProviderCircuitBreakerCooldownAdvisor](assets/demo/provider-circuit-breaker-cooldown-advisor.gif)
 
-Offline HITL cooldown_ratio bands. Gap vs LiteLLM/Portkey/Helicone provider circuit-breaker cooldown monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROVIDER_CIRCUIT_BREAKER_COOLDOWN_ADVISOR_GUIDE.md`.
+Offline HITL cooldown_ratio bands. Gap vs LiteLLM/Portkey/Helicone provider circuit-breaker cooldown monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PROVIDER_CIRCUIT_BREAKER_COOLDOWN_ADVISOR_GUIDE.md`.
 
 ### RegionFailoverHysteresisAdvisor
 
 ![RegionFailoverHysteresisAdvisor](assets/demo/region-failover-hysteresis-advisor.gif)
 
-Offline HITL failover_score bands. Gap vs LiteLLM/OpenRouter region-failover hysteresis monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/REGION_FAILOVER_HYSTERESIS_ADVISOR_GUIDE.md`.
+Offline HITL failover_score bands. Gap vs LiteLLM/OpenRouter region-failover hysteresis monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/REGION_FAILOVER_HYSTERESIS_ADVISOR_GUIDE.md`.
 
 ### SpeculativeDecodeQueueStallAdvisor
 
 ![SpeculativeDecodeQueueStallAdvisor](assets/demo/speculative-decode-queue-stall-advisor.gif)
 
-Offline HITL stall_ratio bands. Gap vs vLLM/TGI/OpenAI-compatible speculative-decode queue-stall monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SPECULATIVE_DECODE_QUEUE_STALL_ADVISOR_GUIDE.md`.
+Offline HITL stall_ratio bands. Gap vs vLLM/TGI/OpenAI-compatible speculative-decode queue-stall monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SPECULATIVE_DECODE_QUEUE_STALL_ADVISOR_GUIDE.md`.
 
 ### PromptCacheHitRateFloorAdvisor
 
 ![PromptCacheHitRateFloorAdvisor](assets/demo/prompt-cache-hit-rate-floor-advisor.gif)
 
-Offline HITL hit_rate floor bands. Gap vs Anthropic/OpenAI prompt-cache hit-rate floor monitors. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROMPT_CACHE_HIT_RATE_FLOOR_ADVISOR_GUIDE.md`.
+Offline HITL hit_rate floor bands. Gap vs Anthropic/OpenAI prompt-cache hit-rate floor monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PROMPT_CACHE_HIT_RATE_FLOOR_ADVISOR_GUIDE.md`.
 
 ## Why Nexus
 
@@ -341,10 +341,10 @@ Nexus is designed for AI infrastructure engineers running multi-model production
   Nexus solves this by classifying prompt complexity and routing simple tasks to cheaper low-latency models while reserving premium models for hard prompts.
 
 - Issue: spend grows faster than product usage.
-  Nexus solves this with cost-aware routing, model cost estimates, per-user budget guardrails, and Prometheus cost metrics.
+  Nexus solves this with cost-aware routing, model cost estimates (including GPT-6 and Claude Haiku 5.5 long-prompt pricing tiers), per-user budget guardrails, and Prometheus cost metrics.
 
 - Issue: code, medical, legal, and general prompts need different quality defaults.
-  Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude Sonnet 4.6 and complex code to GPT-5.5.
+  Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude Opus 5.5 and complex code to GPT-6 Astra.
 
 - Issue: one provider has an incident and the app fails hard.
   Nexus solves this with per-provider circuit breakers and automatic fallback chains.
@@ -369,6 +369,9 @@ Nexus is designed for AI infrastructure engineers running multi-model production
 
 - Issue: teams need OpenAI compatibility without giving up provider choice.
   Nexus solves this by exposing `/v1/chat/completions` and the OpenAI Responses API (`/v1/responses`) while normalizing OpenAI, Anthropic, Gemini, and Moonshot adapters behind one interface.
+
+- Issue: current models reject sampling parameters (Claude 5.5 returns HTTP 400 for non-default `temperature` / `top_p` / `top_k`, GPT-6 allows them only with reasoning effort `none`, Kimi K3.x fixes `temperature` at 1.0, and Gemini 3.x/4 ignores them).
+  Nexus solves this by never forwarding `temperature`, `top_p`, `top_k`, or logprobs upstream; each adapter sends only the fields the current models accept (see [Provider parameter compatibility](CONFIGURATION.md#provider-parameter-compatibility)).
 
 - Issue: model routing becomes a hidden product decision.
   Nexus solves this by making routing policy explicit, testable, observable, and owned in infra.
@@ -634,121 +637,121 @@ Select a strategy with `X-Router-Strategy`:
 - `reliability-aware`: routes to the highest-quality model whose provider circuit is closed, and orders the fallback chain healthy-providers-first
 - `weighted-blend`: selects the model with the highest tunable composite of normalized quality, cost, and latency (weights via `NEXUS_BLEND_*`)
 - `budget-aware`: selects the highest-quality model whose estimated per-request cost stays within a hard ceiling (`NEXUS_REQUEST_COST_CEILING_USD`); the dual of `cost-optimal`
-- `provider-family-cost-ceiling`: selects the highest-quality domain-eligible model whose estimated cost stays within the ceiling for its provider family (`openai` / `anthropic` / `google` / `moonshot`); default via `NEXUS_PROVIDER_FAMILY_COST_CEILING_USD`, with cross-family fallback when nothing fits — OpenRouter/LiteLLM-style family budgets for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `provider-family-cost-ceiling`: selects the highest-quality domain-eligible model whose estimated cost stays within the ceiling for its provider family (`openai` / `anthropic` / `google` / `moonshot`); default via `NEXUS_PROVIDER_FAMILY_COST_CEILING_USD`, with cross-family fallback when nothing fits — OpenRouter/LiteLLM-style family budgets for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 - `sticky-session`: consistent-hashes `session_id` onto one domain-eligible model, so every turn in a session routes to the same model (context/prompt-cache affinity) while distinct sessions spread across the pool
-- `sticky-tenant-hash`: consistent-hashes `metadata.tenant_id` (then `user_id` / `sticky_key` fallbacks) onto one domain-eligible model per tenant with healthy ring failover — distinct from `sticky-session`, which pins only `session_id` for conversational affinity across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
+- `sticky-tenant-hash`: consistent-hashes `metadata.tenant_id` (then `user_id` / `sticky_key` fallbacks) onto one domain-eligible model per tenant with healthy ring failover — distinct from `sticky-session`, which pins only `session_id` for conversational affinity across GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic
 - `value`: selects the model with the best quality-per-dollar ratio, maximizing spend efficiency with no threshold to tune
 - `canary`: rolls a configurable traffic fraction (`NEXUS_CANARY_WEIGHT`) onto a canary model (`NEXUS_CANARY_MODEL`) while the rest stays on a stable model (`NEXUS_CANARY_STABLE_MODEL`); health-gated, so a canary whose provider circuit is open is paused and all traffic falls back to the stable model
 - `canary-tier-blend`: blends canary traffic with complexity-tier affinity — on the canary slice prefer the canary when it matches the inferred tier, else canary; off-slice or when unhealthy prefer tier match, else highest quality (`NEXUS_CANARY_*`)
 - `shadow-traffic-mirror`: cost-optimal primary routing (`NEXUS_QUALITY_FLOOR`) with a deterministic `request_id` slice (`NEXUS_SHADOW_TRAFFIC_PERCENT`, default `5`) that annotates a shadow mirror model from a different provider for dual-run telemetry — LiteLLM/OpenRouter-style shadow comparison without changing the returned primary
 - `canary-cost-blend`: blends cost exploration with healthy-provider minimization — default picks the cheapest healthy model, while `NEXUS_CANARY_COST_BLEND_PERCENT` (default `10`) explores the next-cheaper healthy tier via deterministic `request_id` hashing; distinct from `canary-tier-blend`
-- `token-cost-anomaly-shed`: sheds to cheaper healthy models when the top quality pick's projected cost/1k exceeds the rolling mean times `NEXUS_TOKEN_COST_ANOMALY_RATIO` (default `2.0`); falls back to quality ranking when no cheaper healthy option exists — LiteLLM/OpenRouter-style spend spike guardrails for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `multi-region-latency-hedge`: stays on highest-quality primary-region models but hedges to the lowest-p50 secondary-region candidate when the primary provider p50 exceeds `NEXUS_LATENCY_HEDGE_MS` (default `500`) — regional latency escape hatch for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `adaptive-timeout-hedge`: keeps the highest-quality eligible model unless its rolling provider p95 exceeds the fastest observed eligible p95 by `NEXUS_ADAPTIVE_TIMEOUT_HEDGE_RATIO` (default `1.5`), then hedges to the fastest observed alternative for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `token-bucket-tenant`: maintains independent tenant request-token buckets (`NEXUS_TOKEN_BUCKET_TENANT_RATE`, default `5`/s); in-budget requests keep quality-first routing while over-budget requests shed to the cheapest domain-eligible GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 model
-- `region-carbon-blend`: blends regional carbon intensity with rolling provider p95 latency via `NEXUS_REGION_CARBON_BLEND_WEIGHT` (default `0.5`; `0` = latency only, `1` = carbon only) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-weight-decay`: exponentially decays provider selection weight after failures (`NEXUS_PROVIDER_WEIGHT_DECAY_FACTOR`, default `0.5`) and recovers slowly on success (`NEXUS_PROVIDER_WEIGHT_RECOVER`, default `0.1`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `retry-after-respect`: skips providers still inside a Retry-After cooldown (`NEXUS_RETRY_AFTER_DEFAULT_SECONDS`, default `30`) and falls back to the next healthy provider for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `latency-slope-shed`: sheds the quality leader when its EWMA latency slope exceeds `NEXUS_LATENCY_SLOPE_THRESHOLD_MS` (default `25` ms/step; window via `NEXUS_LATENCY_SLOPE_WINDOW`, default `10`) to a lower-latency / cheaper healthy model for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `token-cost-anomaly-shed`: sheds to cheaper healthy models when the top quality pick's projected cost/1k exceeds the rolling mean times `NEXUS_TOKEN_COST_ANOMALY_RATIO` (default `2.0`); falls back to quality ranking when no cheaper healthy option exists — LiteLLM/OpenRouter-style spend spike guardrails for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `multi-region-latency-hedge`: stays on highest-quality primary-region models but hedges to the lowest-p50 secondary-region candidate when the primary provider p50 exceeds `NEXUS_LATENCY_HEDGE_MS` (default `500`) — regional latency escape hatch for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `adaptive-timeout-hedge`: keeps the highest-quality eligible model unless its rolling provider p95 exceeds the fastest observed eligible p95 by `NEXUS_ADAPTIVE_TIMEOUT_HEDGE_RATIO` (default `1.5`), then hedges to the fastest observed alternative for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `token-bucket-tenant`: maintains independent tenant request-token buckets (`NEXUS_TOKEN_BUCKET_TENANT_RATE`, default `5`/s); in-budget requests keep quality-first routing while over-budget requests shed to the cheapest domain-eligible GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 model
+- `region-carbon-blend`: blends regional carbon intensity with rolling provider p95 latency via `NEXUS_REGION_CARBON_BLEND_WEIGHT` (default `0.5`; `0` = latency only, `1` = carbon only) for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-weight-decay`: exponentially decays provider selection weight after failures (`NEXUS_PROVIDER_WEIGHT_DECAY_FACTOR`, default `0.5`) and recovers slowly on success (`NEXUS_PROVIDER_WEIGHT_RECOVER`, default `0.1`) for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `retry-after-respect`: skips providers still inside a Retry-After cooldown (`NEXUS_RETRY_AFTER_DEFAULT_SECONDS`, default `30`) and falls back to the next healthy provider for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `latency-slope-shed`: sheds the quality leader when its EWMA latency slope exceeds `NEXUS_LATENCY_SLOPE_THRESHOLD_MS` (default `25` ms/step; window via `NEXUS_LATENCY_SLOPE_WINDOW`, default `10`) to a lower-latency / cheaper healthy model for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 - `latency-budget`: selects the highest-quality model whose provider rolling p95 latency stays within a hard SLA (`NEXUS_LATENCY_SLA_MS`); the latency-domain dual of `budget-aware`, trading quality for speed only when the SLA requires it
-- `prompt-length-tier-shed`: sheds frontier-tier models when `prompt_tokens_estimate` exceeds `NEXUS_PROMPT_LENGTH_TIER_TOKENS` (default `8000`) and picks the best mid/economy alternative; short prompts keep pure quality ranking — LiteLLM/OpenRouter-style length tier shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `retry-budget-aware-failover`: prefers highest-quality healthy models while `metadata.retry_remaining` (or `NEXUS_RETRY_BUDGET_DEFAULT`, default `3`) is > 1, then failovers to lowest-latency healthy model on the last attempt — LiteLLM/OpenRouter-style retry-budget routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `cache-hit-sticky-warm-pool`: consistent-hashes a long prompt prefix (min `NEXUS_CACHE_HIT_STICKY_MIN_CHARS`, default `64`) onto one domain-eligible model with healthy ring failover so provider prompt caches stay warm across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
-- `embedding-cache-key-namespace`: consistent-hashes `{NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX}:{tenant}` (default prefix `embed`) onto one domain-eligible model with healthy ring failover so embedding/cache keys stay isolated across tenants for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
-- `carbon-aware-preference`: prefers lower carbon-intensity providers under `NEXUS_CARBON_AWARE_MAX_INTENSITY` (default `400`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `tenant-concurrency-lease`: prefers providers with remaining per-tenant in-flight headroom (`NEXUS_TENANT_CONCURRENCY_LEASE`, default `8`) using `InflightStats` keyed by tenant/session — LiteLLM/Portkey-style tenant fairness for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-error-budget-shed`: prefers healthy domain-eligible providers whose rolling `SuccessStats` error rate stays under `NEXUS_PROVIDER_ERROR_BUDGET_RATE` (default `0.15`); when every provider is over budget it falls back to lowest error rate, then quality, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
-- `region-latency-p99-shed`: prefers region-matching domain-eligible providers whose rolling `LatencyStats` p99 stays under `NEXUS_REGION_LATENCY_P99_MS` (default `3000`); when every regional provider is hot it falls back to lowest p99, then quality — LiteLLM/OpenRouter-style regional tail shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `sticky-canary-cost`: pins tenants via consistent hashing on `metadata.tenant_id` (with user/session fallbacks) and blends a deterministic `request_id` explore slice (`NEXUS_STICKY_CANARY_COST_PERCENT`, default `10`) toward cheaper healthy models while keeping sticky affinity off-slice — LiteLLM/Portkey-style sticky cost canaries for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `queue-depth-fairness`: prefers domain-eligible providers whose live `InflightStats` queue depth stays under `NEXUS_QUEUE_DEPTH_SOFT_CAP` (default `4`); when every provider is saturated it falls back to lowest depth, then quality — LiteLLM/Portkey-style queue fairness for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-quota-fair-share`: tracks the last `NEXUS_PROVIDER_QUOTA_LOOKBACK` selections (default `100`) and prefers eligible providers below equal request share, shedding over-share providers while preserving quality/cost tie-breaks for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-spend-telemetry`: prefers lower-spend providers once soft USD spend telemetry exceeds `NEXUS_PROVIDER_SPEND_SOFT_USD` (default `10`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 fleets
-- `semantic-cache-ttl-affinity`: pins cacheable requests to providers with warm TTL under `NEXUS_SEMANTIC_CACHE_TTL_SECONDS` (default `300`) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `circuit-breaker-half-open-probe`: prefers healthy closed providers and allows only limited concurrent probes into half-open/recovering providers (`NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET`, default `2`) — LiteLLM/Portkey-style half-open probe budgeting for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `latency-slo-shed`: sheds providers whose rolling p95 exceeds `NEXUS_LATENCY_SLO_MS` (default `2000`) when faster alternatives exist; prefers highest quality among under-SLO candidates and falls back to lowest latency when every provider is hot — LiteLLM/OpenRouter-style latency SLO shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `prompt-length-tier-shed`: sheds frontier-tier models when `prompt_tokens_estimate` exceeds `NEXUS_PROMPT_LENGTH_TIER_TOKENS` (default `8000`) and picks the best mid/economy alternative; short prompts keep pure quality ranking — LiteLLM/OpenRouter-style length tier shedding for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `retry-budget-aware-failover`: prefers highest-quality healthy models while `metadata.retry_remaining` (or `NEXUS_RETRY_BUDGET_DEFAULT`, default `3`) is > 1, then failovers to lowest-latency healthy model on the last attempt — LiteLLM/OpenRouter-style retry-budget routing for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `cache-hit-sticky-warm-pool`: consistent-hashes a long prompt prefix (min `NEXUS_CACHE_HIT_STICKY_MIN_CHARS`, default `64`) onto one domain-eligible model with healthy ring failover so provider prompt caches stay warm across GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic
+- `embedding-cache-key-namespace`: consistent-hashes `{NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX}:{tenant}` (default prefix `embed`) onto one domain-eligible model with healthy ring failover so embedding/cache keys stay isolated across tenants for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic
+- `carbon-aware-preference`: prefers lower carbon-intensity providers under `NEXUS_CARBON_AWARE_MAX_INTENSITY` (default `400`) for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `tenant-concurrency-lease`: prefers providers with remaining per-tenant in-flight headroom (`NEXUS_TENANT_CONCURRENCY_LEASE`, default `8`) using `InflightStats` keyed by tenant/session — LiteLLM/Portkey-style tenant fairness for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-error-budget-shed`: prefers healthy domain-eligible providers whose rolling `SuccessStats` error rate stays under `NEXUS_PROVIDER_ERROR_BUDGET_RATE` (default `0.15`); when every provider is over budget it falls back to lowest error rate, then quality, for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic
+- `region-latency-p99-shed`: prefers region-matching domain-eligible providers whose rolling `LatencyStats` p99 stays under `NEXUS_REGION_LATENCY_P99_MS` (default `3000`); when every regional provider is hot it falls back to lowest p99, then quality — LiteLLM/OpenRouter-style regional tail shedding for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `sticky-canary-cost`: pins tenants via consistent hashing on `metadata.tenant_id` (with user/session fallbacks) and blends a deterministic `request_id` explore slice (`NEXUS_STICKY_CANARY_COST_PERCENT`, default `10`) toward cheaper healthy models while keeping sticky affinity off-slice — LiteLLM/Portkey-style sticky cost canaries for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `queue-depth-fairness`: prefers domain-eligible providers whose live `InflightStats` queue depth stays under `NEXUS_QUEUE_DEPTH_SOFT_CAP` (default `4`); when every provider is saturated it falls back to lowest depth, then quality — LiteLLM/Portkey-style queue fairness for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-quota-fair-share`: tracks the last `NEXUS_PROVIDER_QUOTA_LOOKBACK` selections (default `100`) and prefers eligible providers below equal request share, shedding over-share providers while preserving quality/cost tie-breaks for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-spend-telemetry`: prefers lower-spend providers once soft USD spend telemetry exceeds `NEXUS_PROVIDER_SPEND_SOFT_USD` (default `10`) for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 fleets
+- `semantic-cache-ttl-affinity`: pins cacheable requests to providers with warm TTL under `NEXUS_SEMANTIC_CACHE_TTL_SECONDS` (default `300`) for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `circuit-breaker-half-open-probe`: prefers healthy closed providers and allows only limited concurrent probes into half-open/recovering providers (`NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET`, default `2`) — LiteLLM/Portkey-style half-open probe budgeting for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `latency-slo-shed`: sheds providers whose rolling p95 exceeds `NEXUS_LATENCY_SLO_MS` (default `2000`) when faster alternatives exist; prefers highest quality among under-SLO candidates and falls back to lowest latency when every provider is hot — LiteLLM/OpenRouter-style latency SLO shedding for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 - `adaptive-timeout`: selects the highest-quality model whose risk-adjusted provider p95 fits an adaptive timeout budget derived from request urgency, recent latency, and success/error signals; prefers faster models under realtime pressure and allows slower higher-quality models when comfortable
 - `complexity-tier`: treats the classifier complexity score as a required quality target and picks the cheapest model meeting it — a catalog-adaptive quality-for-cost escalation ladder with no thresholds to tune (falls back to the top-quality model when the target is unreachable)
 - `round-robin`: load-balances across every provider offering a domain-eligible model (routing each to that provider's best eligible model), spreading rate-limit pressure instead of converging on one provider; balanced by a stable `request_id` hash so routing stays deterministic and replayable
 - `cascade`: routes the primary attempt to the cheapest domain-eligible model and orders the fallback chain by ascending cost, so a failure escalates one price/capability rung at a time instead of jumping to the top-quality model — minimizing expected spend on the common first-attempt-succeeds path with no thresholds to tune
 - `epsilon-greedy`: with probability `NEXUS_EPSILON` explores by picking uniformly among domain-eligible models (stable second hash of `request_id`); otherwise exploits the highest-quality eligible model — a replayable bandit policy so under-prioritized catalog entries still get live traffic
-- `adaptive-exploration`: like `epsilon-greedy`, but epsilon decays from `NEXUS_ADAPTIVE_EXPLORATION_BASE` (default `0.2`) toward `NEXUS_ADAPTIVE_EXPLORATION_MIN` (default `0.02`) as `SuccessStats` total successes grow — explore more while cold, exploit more as GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic proves out
-- `geo-region`: prefers models whose `supported_regions` include the request region (GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog priors)
+- `adaptive-exploration`: like `epsilon-greedy`, but epsilon decays from `NEXUS_ADAPTIVE_EXPLORATION_BASE` (default `0.2`) toward `NEXUS_ADAPTIVE_EXPLORATION_MIN` (default `0.02`) as `SuccessStats` total successes grow — explore more while cold, exploit more as GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic proves out
+- `geo-region`: prefers models whose `supported_regions` include the request region (GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 catalog priors)
 - `region-tier-affinity`: prefers models matching both request geo region and complexity-mapped tier (frontier/mid/economy), then tier, then region, then quality — no extra `NEXUS_*` knobs
-- `soft-family-budget`: deprioritizes provider families whose rolling observed spend exceeds a soft budget (`NEXUS_SOFT_FAMILY_BUDGET_USD`, window via `NEXUS_SOFT_FAMILY_BUDGET_WINDOW_SECONDS`); prefers highest-quality models from under-budget families and falls back to the cheapest other family when every family is hot — OpenRouter/LiteLLM-style family spend steering for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `sticky-region-failover`: pins `session_id` to a model inside the first healthy preferred region (request `region` first, then `NEXUS_STICKY_REGION_FAILOVER_PREFERENCES`), failovers to the next region when the preferred pool is unhealthy, and keeps sticky affinity when healthy — geo-residency plus session stickiness for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `region-failover-hysteresis`: like sticky-region-failover but waits for `NEXUS_REGION_FAILOVER_HYSTERESIS_SUCCESSES` (default `3`) consecutive preferred-region successes before flapping back after a failover for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `token-budget`: selects the highest-quality domain-eligible model whose `context_window` fits `prompt_tokens_estimate + max_tokens` within the request `token_budget`; falls back to the largest-context model when nothing fits
+- `soft-family-budget`: deprioritizes provider families whose rolling observed spend exceeds a soft budget (`NEXUS_SOFT_FAMILY_BUDGET_USD`, window via `NEXUS_SOFT_FAMILY_BUDGET_WINDOW_SECONDS`); prefers highest-quality models from under-budget families and falls back to the cheapest other family when every family is hot — OpenRouter/LiteLLM-style family spend steering for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `sticky-region-failover`: pins `session_id` to a model inside the first healthy preferred region (request `region` first, then `NEXUS_STICKY_REGION_FAILOVER_PREFERENCES`), failovers to the next region when the preferred pool is unhealthy, and keeps sticky affinity when healthy — geo-residency plus session stickiness for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `region-failover-hysteresis`: like sticky-region-failover but waits for `NEXUS_REGION_FAILOVER_HYSTERESIS_SUCCESSES` (default `3`) consecutive preferred-region successes before flapping back after a failover for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `token-budget`: selects the highest-quality domain-eligible model whose `context_window` fits `prompt_tokens_estimate + max_tokens` within the request `token_budget` (and whose maximum input holds the prompt); fallbacks are other fitting models, and when nothing fits it routes to the model with the most prompt room after reserving `max_tokens`
 - `slo-aware`: selects the highest-quality domain-eligible model whose provider rolling success rate meets `NEXUS_AVAILABILITY_SLO`; falls back to the highest success-rate model when nothing meets the SLO
 - `semantic-cache`: on `metadata.cache_hit`, prefers the cheapest domain-eligible model; on miss, falls through to cost-optimal under the quality floor
 - `least-busy`: selects the highest-quality domain-eligible model on the provider with the lowest current in-flight load; load ties prefer higher quality, then lower estimated cost
-- `prompt-prefix-cache`: hashes long shared system-prompt prefixes to sticky provider/model buckets, improving OpenRouter/LiteLLM-style KV-cache affinity for GPT-5.5, Claude Sonnet 4.6, Gemini 2.5, and Kimi K2; short prefixes fall back to cost-optimal
-- `concurrency-cap`: skips providers whose live in-flight count is at or above `NEXUS_CONCURRENCY_CAP`, then selects the highest-quality remaining model for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
-- `prompt-prefix-cache`: hashes long shared system-prompt prefixes to sticky provider/model buckets, improving OpenRouter/LiteLLM-style KV-cache affinity for GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2; short prefixes fall back to cost-optimal
-- `soft-rate-limit`: prefers healthy providers with fewer recent 429/rate-limit observations, so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic backs away from quota pressure before hard circuit breakers trip
-- `cost-latency-pareto`: keeps non-dominated cost/latency candidates (Pareto front on estimated spend and rolling provider p95), then breaks ties by quality — LiteLLM/Portkey-style multi-objective routing across GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2
-- `token-bucket-burst`: maintains per-provider token buckets (`NEXUS_TOKEN_BUCKET_CAPACITY`, `NEXUS_TOKEN_BUCKET_REFILL_PER_SEC`) and prefers providers with burst quota for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic; when every bucket is empty it falls back to the highest remaining fraction, then cost
-- `model-tier-rate-limit`: infers frontier/mid/economy tiers from model names and applies tier-specific soft RPM ceilings per provider (`NEXUS_TIER_FRONTIER_RPM`, `NEXUS_TIER_MID_RPM`, `NEXUS_TIER_ECONOMY_RPM`); prefers providers under their tier limit for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic and falls back to the least-saturated provider
+- `prompt-prefix-cache`: hashes long shared system-prompt prefixes to sticky provider/model buckets, improving OpenRouter/LiteLLM-style KV-cache affinity for GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1; short prefixes fall back to cost-optimal
+- `concurrency-cap`: skips providers whose live in-flight count is at or above `NEXUS_CONCURRENCY_CAP`, then selects the highest-quality remaining model for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic
+- `prompt-prefix-cache`: hashes long shared system-prompt prefixes to sticky provider/model buckets, improving OpenRouter/LiteLLM-style KV-cache affinity for GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1; short prefixes fall back to cost-optimal
+- `soft-rate-limit`: prefers healthy providers with fewer recent 429/rate-limit observations, so GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic backs away from quota pressure before hard circuit breakers trip
+- `cost-latency-pareto`: keeps non-dominated cost/latency candidates (Pareto front on estimated spend and rolling provider p95), then breaks ties by quality — LiteLLM/Portkey-style multi-objective routing across GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1
+- `token-bucket-burst`: maintains per-provider token buckets (`NEXUS_TOKEN_BUCKET_CAPACITY`, `NEXUS_TOKEN_BUCKET_REFILL_PER_SEC`) and prefers providers with burst quota for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic; when every bucket is empty it falls back to the highest remaining fraction, then cost
+- `model-tier-rate-limit`: infers frontier/mid/economy tiers from model names and applies tier-specific soft RPM ceilings per provider (`NEXUS_TIER_FRONTIER_RPM`, `NEXUS_TIER_MID_RPM`, `NEXUS_TIER_ECONOMY_RPM`); prefers providers under their tier limit for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic and falls back to the least-saturated provider
 - `failover-priority`: walks an explicit ordered model preference list and picks the first healthy provider (LiteLLM-style ordered failover)
 - `provider-health-score-blend`: blends circuit availability, rolling success rate, inverse p95 latency, model quality, and inverse estimated cost; open circuits are skipped whenever a healthy provider exists (`NEXUS_HEALTH_BLEND_*`)
-- `health-cost-latency`: ternary blend of rolling provider success rate, inverse estimated cost, and inverse p95 latency for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic (`NEXUS_HCL_*`)
-- `provider-hourly-cost-ceiling`: skips providers whose rolling hourly estimated spend exceeds `NEXUS_PROVIDER_HOURLY_COST_CEILING_USD` (default `5.0`), preferring highest quality under ceiling — distinct from `provider-family-cost-ceiling` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `quality-weighted-sticky`: sticky-session hashing with hash-ring bucket weights proportional to `quality_score` (higher quality gets larger sticky share) — distinct from uniform `sticky-session` and `sticky-tenant-hash` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `token-rpm-ceiling`, `provider-circuit-probe`, `carbon-latency-blend`: tracks estimated prompt tokens per provider over a rolling 60-second window and sheds requests that would exceed `NEXUS_TOKEN_RPM_CEILING` (default `100000`) to the next eligible provider for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `adaptive-concurrency-cap`: scales per-provider in-flight caps by rolling success rate and inverse p95 latency (`NEXUS_ADAPTIVE_CONCURRENCY_BASE_CAP`, `NEXUS_ADAPTIVE_CONCURRENCY_MIN_CAP`, `NEXUS_ADAPTIVE_CONCURRENCY_LATENCY_MS`) so unhealthy backends shed load while quality-first routing continues for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-token-fair-share`: fair-share prompt-token budget per provider in a rolling 60-second window (`NEXUS_PROVIDER_TOKEN_FAIR_SHARE_CEILING`, default `100000`) with round-robin weighted by remaining quota for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `tenant-budget-cascade`: tracks per-tenant rolling spend, keeps quality-first choices while projected spend fits `NEXUS_TENANT_BUDGET_CASCADE_SOFT`, sheds to cheaper providers up to `NEXUS_TENANT_BUDGET_CASCADE_HARD`, then fails closed with a clear rationale for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-error-budget-reset`: temporarily sheds providers above `NEXUS_PROVIDER_ERROR_BUDGET_RESET_FRACTION` and automatically restores them after `NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS`, distinct from cumulative `provider-error-budget-shed`, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `sticky-region-warmup`: sends each new session's first `NEXUS_STICKY_REGION_WARMUP_REQUESTS` requests to a warmup region, then pins the session to its requested or hash-selected region to prevent cold-start flaps for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `tenant-quota-burst`: keeps tenant traffic quality-first below `NEXUS_TENANT_QUOTA_BURST_SOFT`, admits a bounded rolling burst on cheaper fallbacks up to `NEXUS_TENANT_QUOTA_BURST_HARD`, then sheds before dispatch for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-tail-latency-hedge`: keeps the quality leader until its rolling provider p95 exceeds `NEXUS_PROVIDER_TAIL_LATENCY_HEDGE_MS`, then hedges to the fastest observed healthy provider alternative — distinct from p50 region hedging for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `sticky-session-migrate`: preserves a session's model pin while its provider meets `NEXUS_STICKY_SESSION_MIGRATE_SUCCESS_THRESHOLD`, then performs one controlled migration to a healthier provider and keeps the new pin for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-cold-start-bias`: prefers the least-observed healthy provider until each reaches `NEXUS_PROVIDER_COLD_START_TARGET` selections inside `NEXUS_PROVIDER_COLD_START_LOOKBACK`, then returns to quality-first routing — LiteLLM/Portkey-style exploration-gap coverage for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `tenant-fair-queue`: computes per-tenant request-count deficits over `NEXUS_TENANT_FAIR_QUEUE_LOOKBACK`, preserving highest-quality healthy routes for at/below-share tenants and moving above-share tenants to a cost-efficient relief lane — distinct from provider queue-depth and provider-quota fairness for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `sticky-region-drain`: preserves healthy session region pins but evacuates pins listed in `NEXUS_STICKY_REGION_DRAIN_REGIONS` to the first healthy non-draining preferred region, keeping the alternate pin after the drain — Envoy/service-mesh-style operational drain for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-canary-shadow-split`: keeps primary traffic on `NEXUS_PROVIDER_CANARY_PRIMARY_PROVIDER` while a deterministic tenant/request slice (`NEXUS_PROVIDER_CANARY_SHADOW_PERCENT`) identifies a healthy different-provider shadow candidate and records comparison counts for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `sticky-model-pin-expire`: keeps each session on a healthy model for `NEXUS_STICKY_MODEL_PIN_TTL_SECONDS`, then expires the process-local pin and re-evaluates current provider health and quality before creating a fresh pin for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `tenant-priority-lanes`: maps configured or per-request tenants into high, normal, and low lanes, preserving quality when capacity is available while using fastest-healthy or cost-efficient relief routes under provider-health or lane-quota pressure for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `request-class-qos`: maps `metadata.request_class` or `metadata.qos_class` to interactive (lowest observed healthy latency + quality), batch (quality-first mid-cost), or bulk (cheapest healthy) policies for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `deadline-aware-pick`: reads `metadata.deadline_ms` or `metadata.remaining_ms` and picks the fastest healthy model when remaining budget is below `NEXUS_DEADLINE_AWARE_THRESHOLD_MS`, otherwise staying quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-success-floor`: skips providers whose rolling success rate is below `NEXUS_PROVIDER_SUCCESS_FLOOR`, preferring highest quality above the floor and emergency-retaining the highest-success provider when every candidate is below for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-warmup-weight`: blends quality with a per-request `metadata.provider_warmup` score (defaulting to `0.5` when omitted) using `NEXUS_PROVIDER_WARMUP_BLEND` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `tenant-soft-isolation`: tracks each tenant's rolling request rate and demotes tenants above `NEXUS_TENANT_SOFT_ISOLATION_RPM` to the cheapest healthy domain-compatible model instead of frontier routing, without rejecting the request, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `model-capability-gate`: filters candidates to those whose capability set covers every capability in `metadata.required_capabilities` (for example `vision`, `tools`, `long_context`), using a per-request `metadata.model_capabilities` override or the built-in known-model map, and emergency-retains the highest-quality healthy candidate when none match for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `structured-output-prefer`: when `metadata.requires_json` or `metadata.structured_output` is truthy, prefers candidates advertising json/structured capability (from `metadata.structured_models`, `metadata.model_capabilities` / the known-model map with `json`/`structured`/`json_mode`, or a `gpt-5`/`claude`/`gemini`/`kimi` name heuristic), ranking by structured support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `long-context-prefer`: when `metadata.min_context_tokens` is a positive int (or `metadata.long_context` is truthy with default threshold `100000`), prefers candidates whose context window meets the threshold (from `metadata.model_context_windows`, the known-model map / catalog, or a `gpt-5`/`claude`/`gemini`/`kimi` name heuristic), ranking by context then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `streaming-prefer`: when `metadata.stream` or `metadata.requires_streaming` is truthy, prefers candidates advertising streaming capability (from `metadata.streaming_models`, `metadata.model_capabilities` / the known-model map, or a `gpt-5`/`claude`/`gemini`/`kimi` name heuristic), ranking by streaming support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `provider-exclusion`: filters `metadata.excluded_providers` and `metadata.excluded_models` (comma-separated string or list) out of the healthy domain-eligible pool, then quality-first selects; emergency-retains the highest-quality eligible model when every candidate is excluded for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `prompt-injection-risk-shed`: reads `metadata.prompt_injection_risk` and demotes requests at or above `NEXUS_PROMPT_INJECTION_RISK_THRESHOLD` to the cheapest healthy domain-compatible model instead of frontier routing, without rejecting the request, for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `thinking-model-prefer`: when `signals.complexity_score` or `metadata.complexity_score` is at or above `NEXUS_THINKING_COMPLEXITY_THRESHOLD`, prefers thinking/reasoning models (from `metadata.thinking_models` or names containing `o1`/`o3`/`reasoning`/`thinking`/`sonnet`/`opus`), ranking by thinking membership then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `tool-calling-prefer`: when `metadata.requires_tools` is truthy or `metadata.tools` is non-empty, prefers candidates advertising tool/function calling (from `metadata.tool_capable_models`, `metadata.model_capabilities` / the known-model map, or a `gpt-5`/`claude`/`gemini`/`kimi` name heuristic), ranking by tool support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `multimodal-input-prefer`: when `metadata.has_images` or `metadata.has_audio` is truthy, prefers candidates advertising vision/multimodal capability (from `metadata.multimodal_models`, `metadata.model_capabilities` / the known-model map, or a `gpt-5`/`claude`/`gemini`/`vision` name heuristic), ranking by multimodal support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `audio-input-prefer`: when `metadata.requires_audio`, `metadata.audio_input`, or `metadata.audio` is truthy, prefers candidates advertising audio capability (from `metadata.audio_models`, `metadata.model_capabilities` / the known-model map, or an `audio`/`realtime`/`gpt-4o-audio`/`gemini` name heuristic), ranking by audio support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `web-search-prefer`: when `metadata.requires_web_search`, `metadata.web_search`, or `metadata.online` is truthy, prefers candidates advertising web_search capability (from `metadata.web_search_models`, `metadata.model_capabilities` / the known-model map, or a `search`/`online`/`browse` name heuristic), ranking by web-search support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `computer-use-prefer`: when `metadata.requires_computer_use`, `metadata.computer_use`, or `metadata.cua` is truthy, prefers candidates advertising computer_use capability (from `metadata.computer_use_models`, `metadata.model_capabilities` / the known-model map, or a `computer`/`cua`/`operator` name heuristic), ranking by computer-use support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `image-gen-prefer`: when `metadata.requires_image_gen`, `metadata.image_gen`, or `metadata.image_generation` is truthy, prefers candidates advertising `image_gen` capability (from `metadata.image_gen_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `code-execution-prefer`: when `metadata.requires_code_execution`, `metadata.code_execution`, or `metadata.code_interpreter` is truthy, prefers candidates advertising `code_execution` capability (from `metadata.code_execution_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `video-input-prefer`: when `metadata.requires_video`, `metadata.video_input`, or `metadata.has_video` is truthy, prefers candidates advertising `video` capability (from `metadata.video_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `pdf-input-prefer`: when `metadata.requires_pdf` / `metadata.pdf_input` / `metadata.has_pdf` is truthy, prefers candidates advertising `pdf` capability (from `metadata.pdf_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `batch-api-prefer`: when `metadata.requires_batch` / `metadata.batch_api` / `metadata.use_batch` is truthy, prefers candidates advertising `batch` capability (from `metadata.batch_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `reasoning-effort-prefer`: when `metadata.requires_reasoning_effort` / `metadata.reasoning_effort` / `metadata.effort_control` is truthy, prefers candidates advertising `reasoning_effort` capability (from `metadata.reasoning_effort_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `transcription-prefer`: when `metadata.requires_transcription` / `metadata.transcription` / `metadata.speech_to_text` / `metadata.stt` is truthy, prefers candidates advertising `transcription` capability (from `metadata.transcription_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `moderation-prefer`: when `metadata.requires_moderation` / `metadata.moderation` / `metadata.content_moderation` is truthy, prefers candidates advertising `moderation` capability (from `metadata.moderation_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `predicted-outputs-prefer`: when `metadata.requires_predicted_outputs` / `metadata.predicted_outputs` / `metadata.prediction` is truthy, prefers candidates advertising `predicted_outputs` capability (from `metadata.predicted_outputs_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `prompt-caching-prefer`: prefers `prompt_caching`-capable models when signaled via metadata (requires_prompt_caching, prompt_caching, cache_prompt); quality-first otherwise. GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
-- `fine-tune-prefer`: capability-prefer routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
-- `embeddings-prefer`: capability-prefer routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+- `health-cost-latency`: ternary blend of rolling provider success rate, inverse estimated cost, and inverse p95 latency for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic (`NEXUS_HCL_*`)
+- `provider-hourly-cost-ceiling`: skips providers whose rolling hourly estimated spend exceeds `NEXUS_PROVIDER_HOURLY_COST_CEILING_USD` (default `5.0`), preferring highest quality under ceiling — distinct from `provider-family-cost-ceiling` for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `quality-weighted-sticky`: sticky-session hashing with hash-ring bucket weights proportional to `quality_score` (higher quality gets larger sticky share) — distinct from uniform `sticky-session` and `sticky-tenant-hash` for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `token-rpm-ceiling`, `provider-circuit-probe`, `carbon-latency-blend`: tracks estimated prompt tokens per provider over a rolling 60-second window and sheds requests that would exceed `NEXUS_TOKEN_RPM_CEILING` (default `100000`) to the next eligible provider for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `adaptive-concurrency-cap`: scales per-provider in-flight caps by rolling success rate and inverse p95 latency (`NEXUS_ADAPTIVE_CONCURRENCY_BASE_CAP`, `NEXUS_ADAPTIVE_CONCURRENCY_MIN_CAP`, `NEXUS_ADAPTIVE_CONCURRENCY_LATENCY_MS`) so unhealthy backends shed load while quality-first routing continues for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-token-fair-share`: fair-share prompt-token budget per provider in a rolling 60-second window (`NEXUS_PROVIDER_TOKEN_FAIR_SHARE_CEILING`, default `100000`) with round-robin weighted by remaining quota for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `tenant-budget-cascade`: tracks per-tenant rolling spend, keeps quality-first choices while projected spend fits `NEXUS_TENANT_BUDGET_CASCADE_SOFT`, sheds to cheaper providers up to `NEXUS_TENANT_BUDGET_CASCADE_HARD`, then fails closed with a clear rationale for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-error-budget-reset`: temporarily sheds providers above `NEXUS_PROVIDER_ERROR_BUDGET_RESET_FRACTION` and automatically restores them after `NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS`, distinct from cumulative `provider-error-budget-shed`, for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `sticky-region-warmup`: sends each new session's first `NEXUS_STICKY_REGION_WARMUP_REQUESTS` requests to a warmup region, then pins the session to its requested or hash-selected region to prevent cold-start flaps for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `tenant-quota-burst`: keeps tenant traffic quality-first below `NEXUS_TENANT_QUOTA_BURST_SOFT`, admits a bounded rolling burst on cheaper fallbacks up to `NEXUS_TENANT_QUOTA_BURST_HARD`, then sheds before dispatch for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-tail-latency-hedge`: keeps the quality leader until its rolling provider p95 exceeds `NEXUS_PROVIDER_TAIL_LATENCY_HEDGE_MS`, then hedges to the fastest observed healthy provider alternative — distinct from p50 region hedging for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `sticky-session-migrate`: preserves a session's model pin while its provider meets `NEXUS_STICKY_SESSION_MIGRATE_SUCCESS_THRESHOLD`, then performs one controlled migration to a healthier provider and keeps the new pin for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-cold-start-bias`: prefers the least-observed healthy provider until each reaches `NEXUS_PROVIDER_COLD_START_TARGET` selections inside `NEXUS_PROVIDER_COLD_START_LOOKBACK`, then returns to quality-first routing — LiteLLM/Portkey-style exploration-gap coverage for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `tenant-fair-queue`: computes per-tenant request-count deficits over `NEXUS_TENANT_FAIR_QUEUE_LOOKBACK`, preserving highest-quality healthy routes for at/below-share tenants and moving above-share tenants to a cost-efficient relief lane — distinct from provider queue-depth and provider-quota fairness for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `sticky-region-drain`: preserves healthy session region pins but evacuates pins listed in `NEXUS_STICKY_REGION_DRAIN_REGIONS` to the first healthy non-draining preferred region, keeping the alternate pin after the drain — Envoy/service-mesh-style operational drain for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-canary-shadow-split`: keeps primary traffic on `NEXUS_PROVIDER_CANARY_PRIMARY_PROVIDER` while a deterministic tenant/request slice (`NEXUS_PROVIDER_CANARY_SHADOW_PERCENT`) identifies a healthy different-provider shadow candidate and records comparison counts for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `sticky-model-pin-expire`: keeps each session on a healthy model for `NEXUS_STICKY_MODEL_PIN_TTL_SECONDS`, then expires the process-local pin and re-evaluates current provider health and quality before creating a fresh pin for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `tenant-priority-lanes`: maps configured or per-request tenants into high, normal, and low lanes, preserving quality when capacity is available while using fastest-healthy or cost-efficient relief routes under provider-health or lane-quota pressure for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `request-class-qos`: maps `metadata.request_class` or `metadata.qos_class` to interactive (lowest observed healthy latency + quality), batch (quality-first mid-cost), or bulk (cheapest healthy) policies for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `deadline-aware-pick`: reads `metadata.deadline_ms` or `metadata.remaining_ms` and picks the fastest healthy model when remaining budget is below `NEXUS_DEADLINE_AWARE_THRESHOLD_MS`, otherwise staying quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-success-floor`: skips providers whose rolling success rate is below `NEXUS_PROVIDER_SUCCESS_FLOOR`, preferring highest quality above the floor and emergency-retaining the highest-success provider when every candidate is below for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-warmup-weight`: blends quality with a per-request `metadata.provider_warmup` score (defaulting to `0.5` when omitted) using `NEXUS_PROVIDER_WARMUP_BLEND` for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `tenant-soft-isolation`: tracks each tenant's rolling request rate and demotes tenants above `NEXUS_TENANT_SOFT_ISOLATION_RPM` to the cheapest healthy domain-compatible model instead of frontier routing, without rejecting the request, for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `model-capability-gate`: filters candidates to those whose capability set covers every capability in `metadata.required_capabilities` (for example `vision`, `tools`, `long_context`), using a per-request `metadata.model_capabilities` override or the built-in known-model map, and emergency-retains the highest-quality healthy candidate when none match for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `structured-output-prefer`: when `metadata.requires_json` or `metadata.structured_output` is truthy, prefers candidates advertising json/structured capability (from `metadata.structured_models`, `metadata.model_capabilities` / the known-model map with `json`/`structured`/`json_mode`, or a `gpt-5`/`gpt-6`/`claude`/`gemini`/`kimi` name heuristic), ranking by structured support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `long-context-prefer`: when `metadata.min_context_tokens` is a positive int (or `metadata.long_context` is truthy with default threshold `100000`), prefers candidates whose context window meets the threshold (from `metadata.model_context_windows`, the known-model map / catalog, or a `gpt-5`/`gpt-6`/`claude`/`gemini`/`kimi` name heuristic), ranking by context then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `streaming-prefer`: when `metadata.stream` or `metadata.requires_streaming` is truthy, prefers candidates advertising streaming capability (from `metadata.streaming_models`, `metadata.model_capabilities` / the known-model map, or a `gpt-5`/`gpt-6`/`claude`/`gemini`/`kimi` name heuristic), ranking by streaming support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `provider-exclusion`: filters `metadata.excluded_providers` and `metadata.excluded_models` (comma-separated string or list) out of the healthy domain-eligible pool, then quality-first selects; emergency-retains the highest-quality eligible model when every candidate is excluded for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `prompt-injection-risk-shed`: reads `metadata.prompt_injection_risk` and demotes requests at or above `NEXUS_PROMPT_INJECTION_RISK_THRESHOLD` to the cheapest healthy domain-compatible model instead of frontier routing, without rejecting the request, for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `thinking-model-prefer`: when `signals.complexity_score` or `metadata.complexity_score` is at or above `NEXUS_THINKING_COMPLEXITY_THRESHOLD`, prefers thinking/reasoning models (from `metadata.thinking_models` or names containing `o1`/`o3`/`reasoning`/`thinking`/`sonnet`/`opus`), ranking by thinking membership then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `tool-calling-prefer`: when `metadata.requires_tools` is truthy or `metadata.tools` is non-empty, prefers candidates advertising tool/function calling (from `metadata.tool_capable_models`, `metadata.model_capabilities` / the known-model map, or a `gpt-5`/`gpt-6`/`claude`/`gemini`/`kimi` name heuristic), ranking by tool support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `multimodal-input-prefer`: when `metadata.has_images` or `metadata.has_audio` is truthy, prefers candidates advertising vision/multimodal capability (from `metadata.multimodal_models`, `metadata.model_capabilities` / the known-model map, or a `gpt-5`/`gpt-6`/`claude`/`gemini`/`kimi-k3`/`vision` name heuristic), ranking by multimodal support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `audio-input-prefer`: when `metadata.requires_audio`, `metadata.audio_input`, or `metadata.audio` is truthy, prefers candidates advertising audio capability (from `metadata.audio_models`, `metadata.model_capabilities` / the known-model map, or an `audio`/`realtime`/`gpt-4o-audio`/`gemini` name heuristic), ranking by audio support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `web-search-prefer`: when `metadata.requires_web_search`, `metadata.web_search`, or `metadata.online` is truthy, prefers candidates advertising web_search capability (from `metadata.web_search_models`, `metadata.model_capabilities` / the known-model map, or a `search`/`online`/`browse` name heuristic), ranking by web-search support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `computer-use-prefer`: when `metadata.requires_computer_use`, `metadata.computer_use`, or `metadata.cua` is truthy, prefers candidates advertising computer_use capability (from `metadata.computer_use_models`, `metadata.model_capabilities` / the known-model map, or a `computer`/`cua`/`operator` name heuristic), ranking by computer-use support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `image-gen-prefer`: when `metadata.requires_image_gen`, `metadata.image_gen`, or `metadata.image_generation` is truthy, prefers candidates advertising `image_gen` capability (from `metadata.image_gen_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `code-execution-prefer`: when `metadata.requires_code_execution`, `metadata.code_execution`, or `metadata.code_interpreter` is truthy, prefers candidates advertising `code_execution` capability (from `metadata.code_execution_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `video-input-prefer`: when `metadata.requires_video`, `metadata.video_input`, or `metadata.has_video` is truthy, prefers candidates advertising `video` capability (from `metadata.video_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `pdf-input-prefer`: when `metadata.requires_pdf` / `metadata.pdf_input` / `metadata.has_pdf` is truthy, prefers candidates advertising `pdf` capability (from `metadata.pdf_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `batch-api-prefer`: when `metadata.requires_batch` / `metadata.batch_api` / `metadata.use_batch` is truthy, prefers candidates advertising `batch` capability (from `metadata.batch_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `reasoning-effort-prefer`: when `metadata.requires_reasoning_effort` / `metadata.reasoning_effort` / `metadata.effort_control` is truthy, prefers candidates advertising `reasoning_effort` capability (from `metadata.reasoning_effort_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `transcription-prefer`: when `metadata.requires_transcription` / `metadata.transcription` / `metadata.speech_to_text` / `metadata.stt` is truthy, prefers candidates advertising `transcription` capability (from `metadata.transcription_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `moderation-prefer`: when `metadata.requires_moderation` / `metadata.moderation` / `metadata.content_moderation` is truthy, prefers candidates advertising `moderation` capability (from `metadata.moderation_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `predicted-outputs-prefer`: when `metadata.requires_predicted_outputs` / `metadata.predicted_outputs` / `metadata.prediction` is truthy, prefers candidates advertising `predicted_outputs` capability (from `metadata.predicted_outputs_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `prompt-caching-prefer`: prefers `prompt_caching`-capable models when signaled via metadata (requires_prompt_caching, prompt_caching, cache_prompt); quality-first otherwise. GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
+- `fine-tune-prefer`: capability-prefer routing for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
+- `embeddings-prefer`: capability-prefer routing for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 - `responses-api-prefer` — prefer `responses_api`-capable models when requested
 - `file-search-prefer` — prefer `file_search`-capable models when requested
 - `vector-store-prefer` — prefer `vector_store`-capable models when requested
-- `realtime-api-prefer`: when `metadata.requires_realtime` / `metadata.realtime_api` / `metadata.websocket_streaming` is truthy, prefers candidates advertising `realtime_api` capability (from `metadata.realtime_api_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `mcp-prefer`: when `metadata.requires_mcp` / `metadata.mcp_servers` / `metadata.model_context_protocol` is truthy, prefers candidates advertising `mcp` capability (from `metadata.mcp_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `logprobs-prefer`: when `metadata.requires_logprobs` / `metadata.logprobs` / `metadata.top_logprobs` is truthy, prefers candidates advertising `logprobs` capability (from `metadata.logprobs_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `parallel-tool-prefer`: when `metadata.requires_parallel_tool_calls` / `metadata.parallel_tool_calls` / `metadata.parallel_tools` is truthy, prefers candidates advertising `parallel_tool_calls` capability (from `metadata.parallel_tool_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `deep-research-prefer`: when `metadata.requires_deep_research` / `metadata.deep_research` / `metadata.o_deep_research` is truthy, prefers candidates advertising `deep_research` capability (from `metadata.deep_research_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `agents-api-prefer`: when `metadata.requires_agents_api` / `metadata.agents_api` / `metadata.openai_agents` is truthy, prefers candidates advertising `agents_api` capability (from `metadata.agents_api_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `webhook-prefer`: when `metadata.requires_webhook` / `metadata.webhook_callbacks` / `metadata.async_webhook` is truthy, prefers candidates advertising `webhook` capability (from `metadata.webhook_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `memory-tool-prefer`: when `metadata.requires_memory_tool` / `metadata.memory_tool` / `metadata.agent_memory` is truthy, prefers candidates advertising `memory_tool` capability (from `metadata.memory_tool_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
-- `background-mode-prefer`: when `metadata.requires_background_mode` / `metadata.background_mode` / `metadata.background_agent` is truthy, prefers candidates advertising `background_mode` capability (from `metadata.background_mode_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+- `realtime-api-prefer`: when `metadata.requires_realtime` / `metadata.realtime_api` / `metadata.websocket_streaming` is truthy, prefers candidates advertising `realtime_api` capability (from `metadata.realtime_api_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `mcp-prefer`: when `metadata.requires_mcp` / `metadata.mcp_servers` / `metadata.model_context_protocol` is truthy, prefers candidates advertising `mcp` capability (from `metadata.mcp_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `logprobs-prefer`: when `metadata.requires_logprobs` / `metadata.logprobs` / `metadata.top_logprobs` is truthy, prefers candidates advertising `logprobs` capability (from `metadata.logprobs_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `parallel-tool-prefer`: when `metadata.requires_parallel_tool_calls` / `metadata.parallel_tool_calls` / `metadata.parallel_tools` is truthy, prefers candidates advertising `parallel_tool_calls` capability (from `metadata.parallel_tool_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `deep-research-prefer`: when `metadata.requires_deep_research` / `metadata.deep_research` / `metadata.o_deep_research` is truthy, prefers candidates advertising `deep_research` capability (from `metadata.deep_research_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `agents-api-prefer`: when `metadata.requires_agents_api` / `metadata.agents_api` / `metadata.openai_agents` is truthy, prefers candidates advertising `agents_api` capability (from `metadata.agents_api_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `webhook-prefer`: when `metadata.requires_webhook` / `metadata.webhook_callbacks` / `metadata.async_webhook` is truthy, prefers candidates advertising `webhook` capability (from `metadata.webhook_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `memory-tool-prefer`: when `metadata.requires_memory_tool` / `metadata.memory_tool` / `metadata.agent_memory` is truthy, prefers candidates advertising `memory_tool` capability (from `metadata.memory_tool_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `background-mode-prefer`: when `metadata.requires_background_mode` / `metadata.background_mode` / `metadata.background_agent` is truthy, prefers candidates advertising `background_mode` capability (from `metadata.background_mode_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
@@ -813,79 +816,79 @@ Select a strategy with `X-Router-Strategy`:
 
 ![GuidedJsonSchemaThrashBandAdvisor](assets/demo/guided-json-schema-thrash-band-advisor.gif)
 
-Offline HITL `thrash_ratio` bands. Gap vs vLLM/SGLang/TGI guided JSON schema thrash monitors. Distinct from `SpeculativeAcceptanceEntropyBandAdvisor` / `RadixCacheCollisionBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline HITL `thrash_ratio` bands. Gap vs vLLM/SGLang/TGI guided JSON schema thrash monitors. Distinct from `SpeculativeAcceptanceEntropyBandAdvisor` / `RadixCacheCollisionBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 
 ### PagedAttentionFragmentationBandAdvisor
 
 ![PagedAttentionFragmentationBandAdvisor](assets/demo/paged-attention-fragmentation-band-advisor.gif)
 
-Offline HITL `fragmentation_ratio` bands. Gap vs vLLM/SGLang/TGI paged-attention fragmentation monitors. Distinct from `KvBlockStealStormBandAdvisor` / `ChunkedPrefillBubbleBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline HITL `fragmentation_ratio` bands. Gap vs vLLM/SGLang/TGI paged-attention fragmentation monitors. Distinct from `KvBlockStealStormBandAdvisor` / `ChunkedPrefillBubbleBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 
 ### SpeculativeDraftStarveBandAdvisor
 
 ![SpeculativeDraftStarveBandAdvisor](assets/demo/speculative-draft-starve-band-advisor.gif)
 
-Offline HITL `starve_ratio` bands. Gap vs vLLM/SGLang/TGI speculative draft-starve monitors. Distinct from `SpeculativeTreeDepthBlowupAdvisor` / `SpeculativeAcceptanceEntropyBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline HITL `starve_ratio` bands. Gap vs vLLM/SGLang/TGI speculative draft-starve monitors. Distinct from `SpeculativeTreeDepthBlowupAdvisor` / `SpeculativeAcceptanceEntropyBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 
 ### LoraHotSwapStallBandAdvisor
 
 ![LoraHotSwapStallBandAdvisor](assets/demo/lora-hot-swap-stall-band-advisor.gif)
 
-Offline HITL `stall_ratio` bands. Gap vs vLLM/SGLang/TGI LoRA hot-swap stall monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `KvBlockStealStormBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline HITL `stall_ratio` bands. Gap vs vLLM/SGLang/TGI LoRA hot-swap stall monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `KvBlockStealStormBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 
 ### TensorParallelSkewBandAdvisor
 
 ![TensorParallelSkewBandAdvisor](assets/demo/tensor-parallel-skew-band-advisor.gif)
 
-Offline HITL `skew_ratio` bands. Gap vs vLLM/SGLang/TGI tensor-parallel skew monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `TokenizerVocabSkewBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline HITL `skew_ratio` bands. Gap vs vLLM/SGLang/TGI tensor-parallel skew monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `TokenizerVocabSkewBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 
 ### ContinuousBatchTokenBubbleBandAdvisor
 
 ![ContinuousBatchTokenBubbleBandAdvisor](assets/demo/continuous-batch-token-bubble-band-advisor.gif)
 
-Offline HITL `bubble_ratio` bands. Gap vs vLLM/SGLang/TGI continuous-batch token-bubble monitors. Distinct from `ChunkedPrefillBubbleBandAdvisor` / `DecodePreemptionPingPongBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Offline HITL `bubble_ratio` bands. Gap vs vLLM/SGLang/TGI continuous-batch token-bubble monitors. Distinct from `ChunkedPrefillBubbleBandAdvisor` / `DecodePreemptionPingPongBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 
 ### CudaGraphCaptureStallBandAdvisor
 
 ![CudaGraphCaptureStallBandAdvisor](assets/demo/cuda-graph-capture-stall-band-advisor.gif)
 
-Gap vs vLLM/SGLang/TGI CUDA-graph capture-stall monitors. Distinct from `LoraHotSwapStallBandAdvisor` / `SpeculativeVerifyBacklogBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/CUDA_GRAPH_CAPTURE_STALL_BAND_ADVISOR_GUIDE.md`.
+Gap vs vLLM/SGLang/TGI CUDA-graph capture-stall monitors. Distinct from `LoraHotSwapStallBandAdvisor` / `SpeculativeVerifyBacklogBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/CUDA_GRAPH_CAPTURE_STALL_BAND_ADVISOR_GUIDE.md`.
 
 ### SpeculativeAcceptanceCollapseBandAdvisor
 
 ![SpeculativeAcceptanceCollapseBandAdvisor](assets/demo/speculative-acceptance-collapse-band-advisor.gif)
 
-Gap vs vLLM/SGLang/TGI speculative acceptance-collapse monitors. Distinct from `SpeculativeAcceptanceEntropyBandAdvisor` / `SpeculativeDraftStarveBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SPECULATIVE_ACCEPTANCE_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
+Gap vs vLLM/SGLang/TGI speculative acceptance-collapse monitors. Distinct from `SpeculativeAcceptanceEntropyBandAdvisor` / `SpeculativeDraftStarveBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SPECULATIVE_ACCEPTANCE_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
 
 ### MoeExpertHotspotBandAdvisor
 
 ![MoeExpertHotspotBandAdvisor](assets/demo/moe-expert-hotspot-band-advisor.gif)
 
-Gap vs vLLM/SGLang/TGI MoE expert-hotspot monitors. Distinct from `MoeExpertLoadImbalanceAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/MOE_EXPERT_HOTSPOT_BAND_ADVISOR_GUIDE.md`.
+Gap vs vLLM/SGLang/TGI MoE expert-hotspot monitors. Distinct from `MoeExpertLoadImbalanceAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/MOE_EXPERT_HOTSPOT_BAND_ADVISOR_GUIDE.md`.
 
 ### PrefixCacheEvictionResidualBandAdvisor
 
 ![PrefixCacheEvictionResidualBandAdvisor](assets/demo/prefix-cache-eviction-residual-band-advisor.gif)
 
-`eviction_residual_ratio` band advisor. Gap vs vLLM/SGLang/TGI prefix-cache eviction residual monitors. Distinct from `RadixCacheCollisionBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_CACHE_EVICTION_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
+`eviction_residual_ratio` band advisor. Gap vs vLLM/SGLang/TGI prefix-cache eviction residual monitors. Distinct from `RadixCacheCollisionBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFIX_CACHE_EVICTION_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
 
 ### KvMirrorLagBandAdvisor
 
 ![KvMirrorLagBandAdvisor](assets/demo/kv-mirror-lag-band-advisor.gif)
 
-`lag_ratio` band advisor. Gap vs vLLM/SGLang/TGI KV-mirror lag monitors. Distinct from `DisaggKvTransferStallBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/KV_MIRROR_LAG_BAND_ADVISOR_GUIDE.md`.
+`lag_ratio` band advisor. Gap vs vLLM/SGLang/TGI KV-mirror lag monitors. Distinct from `DisaggKvTransferStallBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/KV_MIRROR_LAG_BAND_ADVISOR_GUIDE.md`.
 
 ### AttentionSinkResidualBandAdvisor
 
 ![AttentionSinkResidualBandAdvisor](assets/demo/attention-sink-residual-band-advisor.gif)
 
-`sink_residual_ratio` band advisor. Gap vs vLLM/SGLang/TGI attention-sink residual monitors. Distinct from `RopeScaleMismatchBandAdvisor` / `KvCacheQuantErrorBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/ATTENTION_SINK_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
+`sink_residual_ratio` band advisor. Gap vs vLLM/SGLang/TGI attention-sink residual monitors. Distinct from `RopeScaleMismatchBandAdvisor` / `KvCacheQuantErrorBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/ATTENTION_SINK_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
 
 
 
@@ -894,39 +897,39 @@ Gap vs vLLM/SGLang/TGI MoE expert-hotspot monitors. Distinct from `MoeExpertLoad
 
 ![TensorParallelAllreduceStallBandAdvisor](assets/demo/tensor-parallel-allreduce-stall-band-advisor.gif)
 
-`stall_ratio` band advisor. Gap vs vLLM/SGLang/TGI tensor-parallel allreduce stall monitors. Distinct from `TensorParallelSkewBandAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TENSOR_PARALLEL_ALLREDUCE_STALL_BAND_ADVISOR_GUIDE.md`.
+`stall_ratio` band advisor. Gap vs vLLM/SGLang/TGI tensor-parallel allreduce stall monitors. Distinct from `TensorParallelSkewBandAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TENSOR_PARALLEL_ALLREDUCE_STALL_BAND_ADVISOR_GUIDE.md`.
 
 
 ### SlidingWindowAttentionBleedBandAdvisor
 
 ![SlidingWindowAttentionBleedBandAdvisor](assets/demo/sliding-window-attention-bleed-band-advisor.gif)
 
-`bleed_ratio` band advisor. Gap vs vLLM/SGLang/TGI sliding-window attention bleed monitors. Distinct from `AttentionSinkResidualBandAdvisor` / `RopeScaleMismatchBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SLIDING_WINDOW_ATTENTION_BLEED_BAND_ADVISOR_GUIDE.md`.
+`bleed_ratio` band advisor. Gap vs vLLM/SGLang/TGI sliding-window attention bleed monitors. Distinct from `AttentionSinkResidualBandAdvisor` / `RopeScaleMismatchBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SLIDING_WINDOW_ATTENTION_BLEED_BAND_ADVISOR_GUIDE.md`.
 
 
 ### FlashAttnWorkspaceThrashBandAdvisor
 
 ![FlashAttnWorkspaceThrashBandAdvisor](assets/demo/flash-attn-workspace-thrash-band-advisor.gif)
 
-`thrash_ratio` band advisor. Gap vs vLLM/SGLang/TGI FlashAttention workspace thrash monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `GpuMemoryFragmentationBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FLASH_ATTN_WORKSPACE_THRASH_BAND_ADVISOR_GUIDE.md`.
+`thrash_ratio` band advisor. Gap vs vLLM/SGLang/TGI FlashAttention workspace thrash monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `GpuMemoryFragmentationBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/FLASH_ATTN_WORKSPACE_THRASH_BAND_ADVISOR_GUIDE.md`.
 
 ### ExpertRoutingEntropyBandAdvisor
 
 ![ExpertRoutingEntropyBandAdvisor](assets/demo/expert-routing-entropy-band-advisor.gif)
 
-`entropy_ratio` band advisor. Gap vs vLLM/SGLang/TGI MoE expert-routing entropy monitors. Distinct from `MoeExpertHotspotBandAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/EXPERT_ROUTING_ENTROPY_BAND_ADVISOR_GUIDE.md`.
+`entropy_ratio` band advisor. Gap vs vLLM/SGLang/TGI MoE expert-routing entropy monitors. Distinct from `MoeExpertHotspotBandAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/EXPERT_ROUTING_ENTROPY_BAND_ADVISOR_GUIDE.md`.
 
 ### DisaggScheduleBubbleBandAdvisor
 
 ![DisaggScheduleBubbleBandAdvisor](assets/demo/disagg-schedule-bubble-band-advisor.gif)
 
-`bubble_ratio` band advisor. Gap vs vLLM/SGLang/TGI disaggregated schedule-bubble monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `ChunkedPrefillBubbleBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/DISAGG_SCHEDULE_BUBBLE_BAND_ADVISOR_GUIDE.md`.
+`bubble_ratio` band advisor. Gap vs vLLM/SGLang/TGI disaggregated schedule-bubble monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `ChunkedPrefillBubbleBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/DISAGG_SCHEDULE_BUBBLE_BAND_ADVISOR_GUIDE.md`.
 
 ### TokenizerDecodeSkewResidualBandAdvisor
 
 ![TokenizerDecodeSkewResidualBandAdvisor](assets/demo/tokenizer-decode-skew-residual-band-advisor.gif)
 
-`decode_skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI tokenizer decode-skew residual monitors. Distinct from `AttentionSinkResidualBandAdvisor` / `SpeculativeAcceptanceEntropyBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/TOKENIZER_DECODE_SKEW_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
+`decode_skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI tokenizer decode-skew residual monitors. Distinct from `AttentionSinkResidualBandAdvisor` / `SpeculativeAcceptanceEntropyBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOKENIZER_DECODE_SKEW_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
 
 
 
@@ -934,60 +937,60 @@ Gap vs vLLM/SGLang/TGI MoE expert-hotspot monitors. Distinct from `MoeExpertLoad
 
 ![NvlinkPeerCopyStallBandAdvisor](assets/demo/nvlink-peer-copy-stall-band-advisor.gif)
 
-HITL `stall_ratio` band advisor. Gap vs vLLM/SGLang/TGI NVLink peer-copy stall monitors. Distinct from `TensorParallelAllreduceStallBandAdvisor` / `TensorParallelSkewBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/NVLINK_PEER_COPY_STALL_BAND_ADVISOR_GUIDE.md`.
+HITL `stall_ratio` band advisor. Gap vs vLLM/SGLang/TGI NVLink peer-copy stall monitors. Distinct from `TensorParallelAllreduceStallBandAdvisor` / `TensorParallelSkewBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/NVLINK_PEER_COPY_STALL_BAND_ADVISOR_GUIDE.md`.
 
 
 ### PrefixSharingDepthCollapseBandAdvisor
 
 ![PrefixSharingDepthCollapseBandAdvisor](assets/demo/prefix-sharing-depth-collapse-band-advisor.gif)
 
-HITL `collapse_ratio` band advisor. Gap vs vLLM/SGLang/TGI prefix-sharing / radix-cache depth-collapse monitors. Distinct from `SystemPromptShareAdvisor` / `PagedKvSwapThrashAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFIX_SHARING_DEPTH_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
+HITL `collapse_ratio` band advisor. Gap vs vLLM/SGLang/TGI prefix-sharing / radix-cache depth-collapse monitors. Distinct from `SystemPromptShareAdvisor` / `PagedKvSwapThrashAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFIX_SHARING_DEPTH_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
 
 
 ### EngineWarmupColdStartBandAdvisor
 
 ![EngineWarmupColdStartBandAdvisor](assets/demo/engine-warmup-cold-start-band-advisor.gif)
 
-HITL `cold_start_ratio` band. Gap vs vLLM/SGLang/TGI engine warmup cold-start monitors. Distinct from `CudaGraphCaptureStallBandAdvisor` / `LoraHotSwapStallBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/ENGINE_WARMUP_COLD_START_BAND_ADVISOR_GUIDE.md`.
+HITL `cold_start_ratio` band. Gap vs vLLM/SGLang/TGI engine warmup cold-start monitors. Distinct from `CudaGraphCaptureStallBandAdvisor` / `LoraHotSwapStallBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/ENGINE_WARMUP_COLD_START_BAND_ADVISOR_GUIDE.md`.
 
 ### ContinuousBatchPadWasteBandAdvisor
 
 ![ContinuousBatchPadWasteBandAdvisor](assets/demo/continuous-batch-pad-waste-band-advisor.gif)
 
-HITL `pad_waste_ratio` band. Gap vs vLLM/SGLang/TGI continuous-batch pad-waste monitors. Distinct from `ContinuousBatchTokenBubbleBandAdvisor` / `ContinuousBatchingTailLatencyBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/CONTINUOUS_BATCH_PAD_WASTE_BAND_ADVISOR_GUIDE.md`.
+HITL `pad_waste_ratio` band. Gap vs vLLM/SGLang/TGI continuous-batch pad-waste monitors. Distinct from `ContinuousBatchTokenBubbleBandAdvisor` / `ContinuousBatchingTailLatencyBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/CONTINUOUS_BATCH_PAD_WASTE_BAND_ADVISOR_GUIDE.md`.
 
 ### PromptCacheHitCollapseBandAdvisor
 
 ![PromptCacheHitCollapseBandAdvisor](assets/demo/prompt-cache-hit-collapse-band-advisor.gif)
 
-`collapse_ratio` band advisor. Gap vs vLLM/SGLang/TGI prompt-cache hit-collapse monitors. Distinct from `PromptCacheHitRateAdvisor` / `PromptCacheHitRateFloorAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROMPT_CACHE_HIT_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
+`collapse_ratio` band advisor. Gap vs vLLM/SGLang/TGI prompt-cache hit-collapse monitors. Distinct from `PromptCacheHitRateAdvisor` / `PromptCacheHitRateFloorAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PROMPT_CACHE_HIT_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
 
 
 ### StreamingTtftSpikeBandAdvisor
 
 ![StreamingTtftSpikeBandAdvisor](assets/demo/streaming-ttft-spike-band-advisor.gif)
 
-`spike_ratio` band advisor. Gap vs vLLM/SGLang/TGI streaming TTFT spike monitors. Distinct from `PrefillTtftRatioAdvisor` / `FirstTokenLatencySloAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/STREAMING_TTFT_SPIKE_BAND_ADVISOR_GUIDE.md`.
+`spike_ratio` band advisor. Gap vs vLLM/SGLang/TGI streaming TTFT spike monitors. Distinct from `PrefillTtftRatioAdvisor` / `FirstTokenLatencySloAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/STREAMING_TTFT_SPIKE_BAND_ADVISOR_GUIDE.md`.
 
 
 ### SchedulerQueueSkewBandAdvisor
 
 ![SchedulerQueueSkewBandAdvisor](assets/demo/scheduler-queue-skew-band-advisor.gif)
 
-`skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI scheduler queue-skew monitors. Distinct from `PrefillQueueStallBandAdvisor` / `ContinuousBatchPadWasteBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SCHEDULER_QUEUE_SKEW_BAND_ADVISOR_GUIDE.md`.
+`skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI scheduler queue-skew monitors. Distinct from `PrefillQueueStallBandAdvisor` / `ContinuousBatchPadWasteBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SCHEDULER_QUEUE_SKEW_BAND_ADVISOR_GUIDE.md`.
 
 
 ### PrefillQueueStallBandAdvisor
 
 ![PrefillQueueStallBandAdvisor](assets/demo/prefill-queue-stall-band-advisor.gif)
 
-HITL `stall_ratio` band. Gap vs vLLM/SGLang/TGI prefill-queue stall monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `DisaggScheduleBubbleBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PREFILL_QUEUE_STALL_BAND_ADVISOR_GUIDE.md`.
+HITL `stall_ratio` band. Gap vs vLLM/SGLang/TGI prefill-queue stall monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `DisaggScheduleBubbleBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFILL_QUEUE_STALL_BAND_ADVISOR_GUIDE.md`.
 
 ### PagedKvEvictionSkewBandAdvisor
 
 ![PagedKvEvictionSkewBandAdvisor](assets/demo/paged-kv-eviction-skew-band-advisor.gif)
 
-HITL `skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI paged-KV eviction skew monitors. Distinct from `PagedKvSwapThrashAdvisor` / `PagedAttentionFragmentationBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PAGED_KV_EVICTION_SKEW_BAND_ADVISOR_GUIDE.md`.
+HITL `skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI paged-KV eviction skew monitors. Distinct from `PagedKvSwapThrashAdvisor` / `PagedAttentionFragmentationBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PAGED_KV_EVICTION_SKEW_BAND_ADVISOR_GUIDE.md`.
 
 ## License
 
@@ -1000,21 +1003,21 @@ Apache-2.0 © [Francis1998](https://github.com/Francis1998)
 
 ![FlashinferKernelFallbackBandAdvisor](assets/demo/flashinfer-kernel-fallback-band-advisor.gif)
 
-Gap vs vLLM/SGLang/TGI FlashInfer kernel-fallback monitors. Distinct from `KvCacheQuantErrorBandAdvisor` / `TensorParallelSkewBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/FLASHINFER_KERNEL_FALLBACK_BAND_ADVISOR_GUIDE.md`.
+Gap vs vLLM/SGLang/TGI FlashInfer kernel-fallback monitors. Distinct from `KvCacheQuantErrorBandAdvisor` / `TensorParallelSkewBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/FLASHINFER_KERNEL_FALLBACK_BAND_ADVISOR_GUIDE.md`.
 
 
 ### DisaggKvTransferStallBandAdvisor
 
 ![DisaggKvTransferStallBandAdvisor](assets/demo/disagg-kv-transfer-stall-band-advisor.gif)
 
-Gap vs vLLM/SGLang/TGI disaggregated KV-transfer stall monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/DISAGG_KV_TRANSFER_STALL_BAND_ADVISOR_GUIDE.md`.
+Gap vs vLLM/SGLang/TGI disaggregated KV-transfer stall monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/DISAGG_KV_TRANSFER_STALL_BAND_ADVISOR_GUIDE.md`.
 
 
 ### PagedAttentionBlockLeakBandAdvisor
 
 ![PagedAttentionBlockLeakBandAdvisor](assets/demo/paged-attention-block-leak-band-advisor.gif)
 
-Gap vs vLLM/SGLang/TGI paged-attention block-leak monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `KvBlockStealStormBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PAGED_ATTENTION_BLOCK_LEAK_BAND_ADVISOR_GUIDE.md`.
+Gap vs vLLM/SGLang/TGI paged-attention block-leak monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `KvBlockStealStormBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PAGED_ATTENTION_BLOCK_LEAK_BAND_ADVISOR_GUIDE.md`.
 
 ### SpeculativeVerifyBacklogBandAdvisor
 

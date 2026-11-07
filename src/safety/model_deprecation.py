@@ -29,39 +29,62 @@ class _DeprecationEntry:
     reason: str
 
 
-# Small curated seed of legacy aliases → current frontier SKUs.
+# Small curated seed of legacy aliases → current SKUs (November 2026 line-ups).
 # Distinct from ``router.model_ids`` catalog sync — this is a safety guard for
 # callers still sending retired IDs, not a capability catalog refresh.
+_KIMI_K2_RETIREMENT = (
+    "Kimi K2 series is closed to new users since 2026-10-31 and retires by the end of December 2026"
+)
 _DEFAULT_DEPRECATIONS: dict[str, _DeprecationEntry] = {
     "gpt-4o": _DeprecationEntry(
-        replacement="gpt-5.5",
+        replacement="gpt-6.1-sol",
         severity="warn",
-        reason="gpt-4o is deprecated; prefer gpt-5.5",
+        reason="gpt-4o is deprecated; prefer gpt-6.1-sol",
     ),
     "gpt-4o-mini": _DeprecationEntry(
-        replacement="gpt-5.5",
+        replacement="gpt-6-luna",
         severity="warn",
-        reason="gpt-4o-mini is deprecated; prefer gpt-5.5",
+        reason="gpt-4o-mini is deprecated; prefer gpt-6-luna",
     ),
     "claude-3-5-sonnet": _DeprecationEntry(
-        replacement="claude-sonnet-4.6",
+        replacement="claude-sonnet-5-5",
         severity="warn",
-        reason="claude-3-5-sonnet is deprecated; prefer claude-sonnet-4.6",
+        reason="claude-3-5-sonnet is deprecated; prefer claude-sonnet-5-5",
     ),
     "claude-3-5-sonnet-20241022": _DeprecationEntry(
-        replacement="claude-sonnet-4.6",
+        replacement="claude-sonnet-5-5",
         severity="warn",
-        reason="claude-3-5-sonnet dated alias is deprecated; prefer claude-sonnet-4.6",
+        reason="claude-3-5-sonnet dated alias is deprecated; prefer claude-sonnet-5-5",
     ),
     "gemini-1.5-pro": _DeprecationEntry(
-        replacement="gemini-3.1-pro-preview",
+        replacement="gemini-4-argon",
         severity="warn",
-        reason="gemini-1.5-pro is deprecated; prefer gemini-3.x",
+        reason="gemini-1.5-pro is deprecated; prefer gemini-4-argon",
     ),
     "moonshot-v1-128k": _DeprecationEntry(
-        replacement="kimi-k2",
+        replacement="kimi-k3.1-pro",
         severity="warn",
-        reason="moonshot-v1-128k is deprecated; prefer kimi-k2",
+        reason="moonshot-v1-128k is deprecated; prefer kimi-k3.1-pro",
+    ),
+    "kimi-k2": _DeprecationEntry(
+        replacement="kimi-k3.1-pro",
+        severity="warn",
+        reason=f"{_KIMI_K2_RETIREMENT}; prefer kimi-k3.1-pro",
+    ),
+    "kimi-k2.6": _DeprecationEntry(
+        replacement="kimi-k3.1-pro",
+        severity="warn",
+        reason=f"{_KIMI_K2_RETIREMENT}; prefer kimi-k3.1-pro",
+    ),
+    "kimi-k2.7-code": _DeprecationEntry(
+        replacement="kimi-k3.1-pro",
+        severity="warn",
+        reason=f"{_KIMI_K2_RETIREMENT}; prefer kimi-k3.1-pro",
+    ),
+    "kimi-k2.7-code-highspeed": _DeprecationEntry(
+        replacement="kimi-k3.1-pro-highspeed",
+        severity="warn",
+        reason=f"{_KIMI_K2_RETIREMENT}; prefer kimi-k3.1-pro-highspeed",
     ),
 }
 
@@ -70,7 +93,7 @@ class ModelDeprecationGuard:
     """Map deprecated model IDs to replacements with warn|block severity.
 
     Closes the LiteLLM / OpenRouter model-alias deprecation gap for offline
-    Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2:
+    Nexus gateways serving GPT-6 / Claude 5.5 / Gemini 4 / Kimi K3.1:
     callers ``check(model_id)`` before dispatch and either log a warning,
     rewrite to ``replacement``, or reject when ``severity == "block"``.
 

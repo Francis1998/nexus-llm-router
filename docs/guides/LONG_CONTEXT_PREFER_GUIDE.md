@@ -2,8 +2,8 @@
 
 Use `long-context-prefer` to bias selection toward models whose context
 window meets a requested threshold when a request declares
-`metadata.min_context_tokens` or `metadata.long_context`, for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+`metadata.min_context_tokens` or `metadata.long_context`, for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ![Long context prefer demo](../../assets/long-context-prefer.gif)
 
@@ -25,7 +25,10 @@ Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 3. Resolve each candidate's context window from
    `metadata.model_context_windows`, the built-in known-model map, the
    catalog `context_window`, or a name heuristic matching `gpt-5`,
-   `claude`, `gemini`, or `kimi` (default `200000`).
+   `gpt-6`, `claude`, `gemini`, or `kimi` (default `200000`). Known-map and
+   catalog windows are capped at the model's `max_input_tokens`, so GPT-6
+   (1,050,000-token window, at most 922,000 input tokens) ranks below the
+   1,048,576-token Gemini 4 Argon. Per-request overrides are used as given.
 4. Rank by `(meets_threshold desc, context_window desc, quality desc,
    cost asc)`.
 5. When the long-context signal is absent, route quality-first among
@@ -48,7 +51,7 @@ X-Router-Strategy: long-context-prefer
   "metadata": {
     "min_context_tokens": 500000,
     "model_context_windows": {
-      "gemini-3.1-pro-preview": 1000000
+      "gemini-4-argon": 1048576
     }
   }
 }
