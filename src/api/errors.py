@@ -1,4 +1,4 @@
-"""Gateway errors with OpenAI-compatible error envelopes."""
+"""Gateway errors with OpenAI- and Anthropic-compatible error envelopes."""
 
 from __future__ import annotations
 
@@ -10,6 +10,55 @@ from safety.budget import BudgetExceededError
 from safety.rate_limiter import RateLimitExceededError
 
 ROUTING_ERRORS = (RateLimitExceededError, BudgetExceededError, RoutingFailedError)
+
+# Anthropic error ``type`` for each HTTP status nexus can return. Nexus keeps its
+# usual statuses on every endpoint (503 rather than Anthropic's 529 when every
+# provider failed), so only the envelope changes on the Anthropic paths.
+_ANTHROPIC_ERROR_TYPES = {
+    400: "invalid_request_error",
+    401: "authentication_error",
+    402: "billing_error",
+    403: "permission_error",
+    404: "not_found_error",
+    409: "conflict_error",
+    413: "request_too_large",
+    429: "rate_limit_error",
+    500: "api_error",
+    503: "overloaded_error",
+    504: "timeout_error",
+    529: "overloaded_error",
+}
+
+
+def anthropic_error_type(status_code: int) -> str:
+    """Return the Anthropic error ``type`` for an HTTP status.
+
+    Args:
+        status_code: HTTP status of the error response.
+
+    Returns:
+        The documented Anthropic type; other 4xx map to ``invalid_request_error``
+        and other 5xx to ``api_error``, as the Anthropic API does.
+    """
+    if status_code in _ANTHROPIC_ERROR_TYPES:
+        return _ANTHROPIC_ERROR_TYPES[status_code]
+    return "api_error" if status_code >= 500 else "invalid_request_error"
+
+
+def anthropic_error_body(status_code: int, message: str) -> dict[str, str | dict[str, str]]:
+    """Return the Anthropic ``{"type": "error", "error": {...}}`` envelope.
+
+    Args:
+        status_code: HTTP status of the error response.
+        message: Human-readable error message.
+
+    Returns:
+        JSON-serializable error body.
+    """
+    return {
+        "type": "error",
+        "error": {"type": anthropic_error_type(status_code), "message": message},
+    }
 
 
 class GatewayError(Exception):
@@ -54,6 +103,18 @@ class GatewayError(Exception):
                 "code": self.code,
             }
         }
+
+    def to_anthropic_body(self) -> dict[str, str | dict[str, str]]:
+        """Return the Anthropic ``{"type": "error", "error": {...}}`` envelope.
+
+        The Anthropic ``type`` follows the HTTP status (see
+        :func:`anthropic_error_type`); Anthropic errors have no ``param`` or
+        ``code``, so the message names the offending field instead.
+
+        Returns:
+            JSON-serializable error body.
+        """
+        return anthropic_error_body(self.status_code, self.message)
 
 
 def routing_error(

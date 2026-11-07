@@ -34,6 +34,10 @@ derives a deterministic, non-reversible fingerprint instead
 - A missing or empty header maps to the shared `anonymous` identity.
 - The same key always maps to the same id, so per-key rate limits, budgets,
   idempotency scopes, and response-cache namespaces stay isolated.
+- On the Anthropic Messages endpoints (`/v1/messages*`), an `x-api-key` header
+  is fingerprinted the same way (`fingerprint_request_credentials`), so
+  `x-api-key: <key>` and `Authorization: Bearer <key>` map to the same id.
+  Both headers carrying different keys is a 401 whose message names neither key.
 
 Only the fingerprint appears in HTTP 429/503 error details, `GET /v1/spend`
 `by_tenant` keys, the SQLite spend ledger and idempotency store, and logs.

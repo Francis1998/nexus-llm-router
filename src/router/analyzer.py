@@ -7,6 +7,21 @@ from router.schemas import RouterRequest, TaskSignals
 CHARS_PER_TOKEN_ESTIMATE = 4
 
 
+def estimate_prompt_tokens(prompt_text: str) -> int:
+    """Return the prompt-token estimate used for routing and budget checks.
+
+    Nexus estimates about four characters per token, independent of the
+    provider tokenizer, so the number is known before a model is chosen.
+
+    Args:
+        prompt_text: Concatenated prompt (``RouterRequest.prompt_text``).
+
+    Returns:
+        Estimated prompt tokens (at least 1).
+    """
+    return max(1, len(prompt_text) // CHARS_PER_TOKEN_ESTIMATE)
+
+
 class RequestAnalyzer:
     """Extract routing signals from incoming requests."""
 
@@ -40,7 +55,7 @@ class RequestAnalyzer:
         complexity_score = self._complexity_classifier.predict_score(features)
         domain_tag = self._domain_classifier.classify(features)
         latency_requirement = self._latency_classifier.classify(features, complexity_score)
-        estimated_tokens = max(1, len(request.prompt_text) // CHARS_PER_TOKEN_ESTIMATE)
+        estimated_tokens = estimate_prompt_tokens(request.prompt_text)
         return TaskSignals(
             complexity_score=complexity_score,
             domain_tag=domain_tag,
