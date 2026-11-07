@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 
 from adapters.registry import AdapterRegistry
 from observability.logging import get_logger
@@ -408,8 +408,19 @@ class NexusRouter:
         message = f"all provider attempts failed: {last_error}"
         raise RoutingFailedError(message)
 
-    async def complete_stream(self, request: RouterRequest) -> AsyncIterator[tuple[str, str]]:
+    async def complete_stream(
+        self,
+        request: RouterRequest,
+        *,
+        on_complete: Callable[[RouterResponse], None] | None = None,
+    ) -> AsyncGenerator[tuple[str, str], None]:
         """Route a request and stream provider chunks.
+
+        Args:
+            request: Router request.
+            on_complete: Optional callback receiving the final ``RouterResponse``
+                (usage, cost, latency, rationale) once the stream finished
+                successfully, so callers can report it after the last chunk.
 
         Yields:
             Pairs of ``(model_name, text_chunk)`` from the selected provider.
@@ -495,7 +506,7 @@ class NexusRouter:
                         model_name, signals.prompt_tokens_estimate, output_tokens
                     ),
                 )
-                self._respond(
+                router_response = self._respond(
                     request=request,
                     provider_response=provider_response,
                     strategy=strategy,
@@ -506,7 +517,6 @@ class NexusRouter:
                     prompt_tokens_estimate=signals.prompt_tokens_estimate,
                     attempt_started_at=attempt_started_at,
                 )
-                return
             except Exception as exception:
                 last_error = exception
                 attempt_latency_ms = (time.perf_counter() - attempt_started_at) * 1000.0
@@ -547,6 +557,10 @@ class NexusRouter:
                         state_machine.transition(RequestState.FALLBACK)
                     continue
                 state_machine.transition(RequestState.FAILED)
+            else:
+                if on_complete is not None:
+                    on_complete(router_response)
+                return
 
         message = f"all provider attempts failed: {last_error}"
         raise RoutingFailedError(message)

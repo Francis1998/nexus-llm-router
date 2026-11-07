@@ -2,18 +2,35 @@
 
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from functools import lru_cache
 from time import time
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Request, status
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from adapters.registry import AdapterRegistry, build_adapter_registry
+from api.errors import ROUTING_ERRORS, GatewayError, routing_error
+from api.responses import (
+    RESPONSES_PATH,
+    complete_response,
+    draft_response,
+    new_response_id,
+    reject_unsupported,
+    stream_response_events,
+    to_router_messages,
+    validation_error,
+)
 from api.schemas import (
+    DEFAULT_MAX_TOKENS,
     ChatCompletionRequest,
     ChatCompletionResponse,
+    ResponseCreateRequest,
+    ResponseObject,
     SpendRecordRequest,
     SpendSummaryResponse,
 )
@@ -159,6 +176,95 @@ def metrics() -> object:
     return metrics_response()
 
 
+@dataclass(frozen=True, slots=True)
+class _Caller:
+    """Identity resolved for one gateway request."""
+
+    api_key_id: str
+    end_user: str | None
+    tenant_id: str | None
+
+    @property
+    def principal(self) -> str:
+        """Budget, spend, and response-cache subject (end user or key fingerprint)."""
+        return self.end_user or self.api_key_id
+
+    @property
+    def idempotency_tenant(self) -> str:
+        """Scope for ``Idempotency-Key`` replays."""
+        return self.tenant_id or self.principal
+
+
+def _parse_strategy(header: str | None) -> RoutingStrategyName | None:
+    """Parse the optional ``X-Router-Strategy`` header."""
+    if not header:
+        return None
+    try:
+        return RoutingStrategyName(header)
+    except ValueError as exception:
+        raise GatewayError(
+            status.HTTP_400_BAD_REQUEST,
+            f"unsupported routing strategy: {header}",
+            code="invalid_value",
+            param="X-Router-Strategy",
+        ) from exception
+
+
+def _admit_caller(request: Request, tenant_id: str | None, end_user: str | None) -> _Caller:
+    """Fingerprint the API key and enforce the optional hard tenant rate limit."""
+    # Never use the raw Authorization header as an identifier: it would leak the
+    # secret into error details, the spend ledger, and idempotency/cache tenants.
+    caller = _Caller(
+        api_key_id=fingerprint_api_key(request.headers.get("authorization")),
+        end_user=end_user,
+        tenant_id=tenant_id,
+    )
+    # Hard tenant limit only when X-Tenant-Id is present (backward compatible).
+    if tenant_id:
+        try:
+            get_gateway_guards().assert_tenant_allowed(tenant_id)
+        except TenantRateLimitExceededError as exception:
+            raise GatewayError(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                str(exception),
+                error_type="rate_limit_error",
+                code="rate_limit_exceeded",
+            ) from exception
+    return caller
+
+
+async def _complete_cached(
+    router_request: RouterRequest, *, temperature: float, tenant: str
+) -> RouterResponse:
+    """Serve from the exact-match response cache or route and cache the result."""
+    cache = get_response_cache()
+    cache_key = ResponseCache.make_key(
+        model=router_request.requested_model,
+        messages=router_request.messages,
+        temperature=temperature,
+        tenant=tenant,
+        max_tokens=router_request.max_tokens,
+        strategy=(router_request.strategy or get_settings().default_strategy).value,
+    )
+    cached = cache.get(cache_key)
+    if cached is not None:
+        response_cache_hits_total.inc()
+        if not isinstance(cached, RouterResponse):
+            raise GatewayError(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "invalid cached router response type",
+                error_type="server_error",
+            )
+        return cached
+    response_cache_misses_total.inc()
+    try:
+        router_response = await get_router().complete(router_request)
+    except ROUTING_ERRORS as exception:
+        raise routing_error(exception) from exception
+    cache.set(cache_key, router_response)
+    return router_response
+
+
 @app.post("/v1/chat/completions", response_model=None)
 async def chat_completions(
     payload: ChatCompletionRequest,
@@ -183,28 +289,13 @@ async def chat_completions(
         HTTPException: If routing fails or safety controls reject the request.
     """
     try:
-        strategy = RoutingStrategyName(x_router_strategy) if x_router_strategy else None
-    except ValueError as exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"unsupported routing strategy: {x_router_strategy}",
-        ) from exception
-    # Never use the raw Authorization header as an identifier: it would leak the
-    # secret into error details, the spend ledger, and idempotency/cache tenants.
-    api_key_id = fingerprint_api_key(request.headers.get("authorization"))
+        strategy = _parse_strategy(x_router_strategy)
+        caller = _admit_caller(request, x_tenant_id, payload.user)
+    except GatewayError as exception:
+        raise HTTPException(exception.status_code, detail=exception.message) from exception
     guards = get_gateway_guards()
-    # Hard tenant limit only when X-Tenant-Id is present (backward compatible).
-    if x_tenant_id:
-        try:
-            guards.assert_tenant_allowed(x_tenant_id)
-        except TenantRateLimitExceededError as exception:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=str(exception),
-            ) from exception
-    idempotency_tenant = x_tenant_id or payload.user or api_key_id
     if idempotency_key:
-        existing = guards.check_idempotency(idempotency_key, idempotency_tenant)
+        existing = guards.check_idempotency(idempotency_key, caller.idempotency_tenant)
         if existing is not None:
             return JSONResponse(
                 content=json.loads(existing.response_json),
@@ -213,8 +304,8 @@ async def chat_completions(
     router_request = RouterRequest(
         request_id=uuid4().hex,
         messages=payload.messages,
-        api_key_id=api_key_id,
-        user_id=payload.user or api_key_id,
+        api_key_id=caller.api_key_id,
+        user_id=caller.principal,
         session_id=payload.user or "default",
         requested_model=payload.model,
         strategy=strategy,
@@ -224,59 +315,144 @@ async def chat_completions(
     if payload.stream:
         return _stream_chat_completion(router_request)
 
-    tenant = payload.user or api_key_id
-    cache = get_response_cache()
-    cache_key = ResponseCache.make_key(
-        model=payload.model,
-        messages=payload.messages,
-        temperature=payload.temperature,
-        tenant=tenant,
-        max_tokens=payload.max_tokens,
-        strategy=(strategy or get_settings().default_strategy).value,
-    )
-    cached = cache.get(cache_key)
-    if cached is not None:
-        response_cache_hits_total.inc()
-        if not isinstance(cached, RouterResponse):
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="invalid cached router response type",
-            )
-        completion = ChatCompletionResponse.from_router_response(cached)
-        if idempotency_key:
-            guards.remember_response(
-                idempotency_key,
-                idempotency_tenant,
-                completion.model_dump_json(),
-                status_code=200,
-            )
-        return completion
-    response_cache_misses_total.inc()
-
     try:
-        router_response = await get_router().complete(router_request)
-    except RateLimitExceededError as exception:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exception)
-        ) from exception
-    except BudgetExceededError as exception:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=str(exception)
-        ) from exception
-    except RoutingFailedError as exception:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exception)
-        ) from exception
-    cache.set(cache_key, router_response)
+        router_response = await _complete_cached(
+            router_request, temperature=payload.temperature, tenant=caller.principal
+        )
+    except GatewayError as exception:
+        raise HTTPException(exception.status_code, detail=exception.message) from exception
     completion = ChatCompletionResponse.from_router_response(router_response)
     if idempotency_key:
         guards.remember_response(
             idempotency_key,
-            idempotency_tenant,
+            caller.idempotency_tenant,
             completion.model_dump_json(),
             status_code=200,
         )
     return completion
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(
+    request: Request, exception: RequestValidationError
+) -> JSONResponse:
+    """Return OpenAI-style 400s for ``/v1/responses``; keep FastAPI 422s elsewhere.
+
+    Args:
+        request: FastAPI request object.
+        exception: Request validation failure.
+
+    Returns:
+        JSON error response.
+    """
+    if request.url.path != RESPONSES_PATH:
+        return await request_validation_exception_handler(request, exception)
+    error = validation_error(exception.errors())
+    return JSONResponse(status_code=error.status_code, content=error.to_openai_body())
+
+
+@app.post(RESPONSES_PATH, response_model=None)
+async def create_response(
+    payload: ResponseCreateRequest,
+    request: Request,
+    x_router_strategy: Annotated[str | None, Header(alias="X-Router-Strategy")] = None,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> JSONResponse | StreamingResponse:
+    """Route an OpenAI Responses API request (documented text-only subset).
+
+    Args:
+        payload: Responses API request body.
+        request: FastAPI request object.
+        x_router_strategy: Optional routing strategy header.
+        idempotency_key: Optional idempotency key (non-streaming requests only).
+        x_tenant_id: Optional tenant id for hard per-tenant rate limiting.
+
+    Returns:
+        A ``response`` object, an SSE event stream, or an OpenAI-style error.
+    """
+    try:
+        return await _create_response(
+            payload, request, x_router_strategy, idempotency_key, x_tenant_id
+        )
+    except GatewayError as exception:
+        return JSONResponse(status_code=exception.status_code, content=exception.to_openai_body())
+
+
+async def _create_response(
+    payload: ResponseCreateRequest,
+    request: Request,
+    x_router_strategy: str | None,
+    idempotency_key: str | None,
+    x_tenant_id: str | None,
+) -> JSONResponse | StreamingResponse:
+    """Validate, route, and render one ``POST /v1/responses`` request."""
+    reject_unsupported(payload)
+    messages = to_router_messages(payload)
+    strategy = _parse_strategy(x_router_strategy)
+    end_user = payload.safety_identifier or payload.user
+    caller = _admit_caller(request, x_tenant_id, end_user)
+    guards = get_gateway_guards()
+    # Responses keys live in their own namespace so they never replay a chat body.
+    replay_key = f"{RESPONSES_PATH}:{idempotency_key}" if idempotency_key else None
+    if replay_key and not payload.stream:
+        existing = guards.check_idempotency(replay_key, caller.idempotency_tenant)
+        if existing is not None:
+            return JSONResponse(
+                content=json.loads(existing.response_json),
+                status_code=existing.status_code,
+            )
+    router_request = RouterRequest(
+        request_id=uuid4().hex,
+        messages=messages,
+        api_key_id=caller.api_key_id,
+        user_id=caller.principal,
+        session_id=end_user or "default",
+        requested_model=payload.model,
+        strategy=strategy,
+        max_tokens=payload.max_output_tokens or DEFAULT_MAX_TOKENS,
+        stream=bool(payload.stream),
+    )
+    draft = draft_response(
+        payload,
+        response_id=new_response_id(),
+        created_at=int(time()),
+        model=payload.model or "nexus-routed",
+    )
+    if payload.stream:
+        return await _stream_response(router_request, draft)
+
+    router_response = await _complete_cached(
+        router_request,
+        temperature=draft.temperature,
+        tenant=caller.principal,
+    )
+    body = complete_response(draft, router_response, f"msg_{uuid4().hex}").model_dump(mode="json")
+    if replay_key:
+        guards.remember_response(
+            replay_key, caller.idempotency_tenant, json.dumps(body), status_code=200
+        )
+    return JSONResponse(content=body)
+
+
+async def _stream_response(
+    router_request: RouterRequest, draft: ResponseObject
+) -> StreamingResponse:
+    """Start a routed stream and render it as Responses API SSE events.
+
+    The first chunk is pulled before the HTTP response starts so routing
+    failures that happen before any output return a normal HTTP error.
+    """
+    completed: list[RouterResponse] = []
+    chunks = get_router().complete_stream(router_request, on_complete=completed.append)
+    try:
+        first_chunk = await anext(chunks, None)
+    except ROUTING_ERRORS as exception:
+        raise routing_error(exception) from exception
+    return StreamingResponse(
+        stream_response_events(draft, first_chunk, chunks, completed),
+        media_type="text/event-stream",
+    )
 
 
 def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:

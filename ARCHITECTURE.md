@@ -74,6 +74,18 @@ gateways may return `message.content` as a structured list of
 `adapters.http_utils.message_text` helper accepts either shape and joins the
 text parts, so the OpenAI and Moonshot adapters never drop a valid completion.
 
+## API Surface
+
+`src/api/main.py` exposes `/v1/chat/completions` and the OpenAI Responses API
+(`/v1/responses`, translated by `src/api/responses.py`) over the same router.
+Both endpoints share one ingress path: the `Authorization` header is reduced to
+a non-reversible key fingerprint, `X-Tenant-Id` hard limits and
+`Idempotency-Key` replay run before routing, and non-streaming requests use the
+exact-match response cache. Router failures map to 429 / 402 / 503. Responses
+streams pull the first chunk before emitting the SSE lifecycle so failures
+before any output stay real HTTP errors; `NexusRouter.complete_stream`'s
+`on_complete` callback supplies the final usage for `response.completed`.
+
 ## Audit Log
 
 `AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, and final state.

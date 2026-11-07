@@ -1,12 +1,17 @@
 """FastAPI request and response schemas."""
 
 from time import time
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from router.schemas import ChatMessage, RouterResponse
+from router.schemas import ChatMessage, RouterResponse, RoutingStrategyName
+
+DEFAULT_MAX_TOKENS = 512
+_METADATA_MAX_PAIRS = 16
+_METADATA_MAX_KEY_CHARS = 64
+_METADATA_MAX_VALUE_CHARS = 512
 
 
 class ChatCompletionRequest(BaseModel):
@@ -14,7 +19,7 @@ class ChatCompletionRequest(BaseModel):
 
     model: str | None = None
     messages: list[ChatMessage]
-    max_tokens: int = Field(default=512, ge=1)
+    max_tokens: int = Field(default=DEFAULT_MAX_TOKENS, ge=1)
     temperature: float = Field(default=1.0)
     stream: bool = False
     user: str | None = None
@@ -102,3 +107,144 @@ class SpendSummaryResponse(BaseModel):
     by_tenant: dict[str, float]
     by_provider: dict[str, float]
     by_model: dict[str, float]
+
+
+class ResponseCreateRequest(BaseModel):
+    """OpenAI Responses API ``POST /v1/responses`` request (supported subset).
+
+    Unknown fields are ignored, mirroring ``ChatCompletionRequest``. Known
+    Responses features that nexus cannot honor (stored state, tools, prompt
+    templates, structured outputs) are declared here only so the endpoint can
+    reject them explicitly instead of silently dropping them.
+    """
+
+    model: str | None = None
+    input: str | list[dict[str, Any]] | None = None
+    instructions: str | None = None
+    max_output_tokens: int | None = Field(default=None, ge=16)
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    stream: bool | None = False
+    user: str | None = None
+    safety_identifier: str | None = Field(default=None, max_length=128)
+    metadata: dict[str, str] | None = None
+    parallel_tool_calls: bool | None = None
+    store: bool | None = None
+    background: bool | None = None
+    previous_response_id: str | None = None
+    conversation: str | dict[str, Any] | None = None
+    tools: list[dict[str, Any]] | None = None
+    tool_choice: str | dict[str, Any] | None = None
+    prompt: dict[str, Any] | None = None
+    text: dict[str, Any] | None = None
+
+    @field_validator("metadata")
+    @classmethod
+    def _limit_metadata(cls, metadata: dict[str, str] | None) -> dict[str, str] | None:
+        """Enforce the OpenAI metadata limits (16 pairs, 64-char keys, 512-char values)."""
+        if metadata is None:
+            return None
+        if len(metadata) > _METADATA_MAX_PAIRS:
+            raise ValueError(f"metadata supports at most {_METADATA_MAX_PAIRS} key-value pairs")
+        for key, value in metadata.items():
+            if len(key) > _METADATA_MAX_KEY_CHARS:
+                raise ValueError(f"metadata keys must be at most {_METADATA_MAX_KEY_CHARS} chars")
+            if len(value) > _METADATA_MAX_VALUE_CHARS:
+                raise ValueError(
+                    f"metadata values must be at most {_METADATA_MAX_VALUE_CHARS} chars"
+                )
+        return metadata
+
+
+class ResponseOutputText(BaseModel):
+    """``output_text`` content part of an assistant output message."""
+
+    type: Literal["output_text"] = "output_text"
+    text: str
+    annotations: list[dict[str, Any]] = Field(default_factory=list)
+    logprobs: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ResponseOutputMessage(BaseModel):
+    """Assistant ``message`` output item."""
+
+    id: str
+    type: Literal["message"] = "message"
+    status: Literal["in_progress", "completed", "incomplete"]
+    role: Literal["assistant"] = "assistant"
+    content: list[ResponseOutputText] = Field(default_factory=list)
+
+
+class ResponseInputTokensDetails(BaseModel):
+    """Input token breakdown."""
+
+    cached_tokens: int = 0
+
+
+class ResponseOutputTokensDetails(BaseModel):
+    """Output token breakdown."""
+
+    reasoning_tokens: int = 0
+
+
+class ResponseUsage(BaseModel):
+    """Responses API token usage."""
+
+    input_tokens: int
+    input_tokens_details: ResponseInputTokensDetails = Field(
+        default_factory=ResponseInputTokensDetails
+    )
+    output_tokens: int
+    output_tokens_details: ResponseOutputTokensDetails = Field(
+        default_factory=ResponseOutputTokensDetails
+    )
+    total_tokens: int
+
+
+class ResponseErrorInfo(BaseModel):
+    """Error attached to a ``failed`` response."""
+
+    code: str
+    message: str
+    type: str | None = None
+    param: str | None = None
+
+
+class NexusRoutingMetadata(BaseModel):
+    """Nexus routing decision attached to a Responses API ``response``."""
+
+    routing_strategy: RoutingStrategyName
+    rationale: str
+    cost_usd: float
+    latency_ms: float
+    request_id: str
+
+
+class ResponseObject(BaseModel):
+    """OpenAI Responses API ``response`` object plus a namespaced ``nexus`` field."""
+
+    id: str
+    object: Literal["response"] = "response"
+    created_at: int
+    status: Literal["in_progress", "completed", "failed"]
+    completed_at: int | None = None
+    error: ResponseErrorInfo | None = None
+    incomplete_details: dict[str, str] | None = None
+    instructions: str | None = None
+    max_output_tokens: int | None = None
+    model: str
+    output: list[ResponseOutputMessage] = Field(default_factory=list)
+    parallel_tool_calls: bool = True
+    previous_response_id: str | None = None
+    background: bool = False
+    store: bool = False
+    temperature: float = 1.0
+    text: dict[str, Any] = Field(default_factory=lambda: {"format": {"type": "text"}})
+    tool_choice: str = "auto"
+    tools: list[dict[str, Any]] = Field(default_factory=list)
+    top_p: float | None = None
+    truncation: Literal["disabled"] = "disabled"
+    usage: ResponseUsage | None = None
+    user: str | None = None
+    safety_identifier: str | None = None
+    metadata: dict[str, str] = Field(default_factory=dict)
+    nexus: NexusRoutingMetadata | None = None
