@@ -1,7 +1,7 @@
 # Carbon-Latency-Blend Routing Guide
 
-Use `carbon-latency-blend` when GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic needs an explicit two-weight trade-off between provider-region
+Use `carbon-latency-blend` when GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro traffic needs an explicit two-weight trade-off between provider-region
 carbon intensity and rolling provider latency.
 
 ![Carbon latency blend demo](../../assets/carbon-latency-blend.gif)

@@ -1,6 +1,6 @@
 # Provider Spend Telemetry Routing Guide
 
-Prefer lower estimated provider spend once a soft USD threshold is crossed — a gap vs popular gateways (LiteLLM, Portkey) that already expose spend telemetry for **GPT-5.5**, **Claude Sonnet 4.6**, **Gemini 3.x**, and **Kimi K2** fleets.
+Prefer lower estimated provider spend once a soft USD threshold is crossed — a gap vs popular gateways (LiteLLM, Portkey) that already expose spend telemetry for **GPT-6 Astra**, **Claude Opus 5.5**, **Gemini 4 Argon**, and **Kimi K3.1 Pro** fleets.
 
 ![Demo](../../assets/provider-spend-telemetry.gif)
 

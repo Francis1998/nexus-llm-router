@@ -1,8 +1,8 @@
 # Prompt Cache Hit Rate Advisor Guide
 
 Advisory prompt-cache hit-rate bands (`cold` / `warm` / `hot`) from
-`cached_tokens / prompt_tokens` — for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic.
+`cached_tokens / prompt_tokens` — for GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ![Prompt cache hit rate advisor demo](../../assets/demo/prompt-cache-hit.gif)
 
@@ -60,4 +60,4 @@ print(advice.advisory, advice.rolling_hit_rate)
 | Hit-rate bands | Varies / dashboards | Explicit `cold` / `warm` / `hot` |
 | Distinct from fingerprint / semantic cache | Often blended | Separate controls |
 | Mutates / rejects | Sometimes | Never (advisory only) |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

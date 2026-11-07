@@ -1,7 +1,7 @@
 # Streaming Token Budget Guide
 
-Hard mid-stream cut-off by token and/or USD cost budget for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 streaming completions.
+Hard mid-stream cut-off by token and/or USD cost budget for GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro streaming completions.
 
 ![Streaming token budget demo](../../assets/demo/streaming-token-budget.gif)
 
@@ -33,7 +33,7 @@ from safety.stream_budget import (
 
 gate = StreamingTokenBudgetGate(max_tokens=256, max_cost_usd=0.05)
 
-for chunk in stream_gpt_55_or_sonnet_46():  # GPT-5.5 / Claude Sonnet 4.6 / ...
+for chunk in stream_from_provider():  # GPT-6 Astra / Claude Opus 5.5 / ...
     try:
         snap = gate.observe_chunk(
             tokens=chunk.completion_tokens,
@@ -57,4 +57,4 @@ for chunk in stream_gpt_55_or_sonnet_46():  # GPT-5.5 / Claude Sonnet 4.6 / ...
 | Token + cost dual ceiling | Varies | `max_tokens` + `max_cost_usd` |
 | Raise on breach | Soft warn | `StreamingTokenBudgetExceededError` |
 | Reusable per-stream gate | Varies | `observe_chunk` / `reset` |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

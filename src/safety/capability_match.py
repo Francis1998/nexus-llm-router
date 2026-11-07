@@ -35,8 +35,8 @@ class ModelCapabilityMatcher:
     """Match request needs to model capability flags (fit / partial / mismatch).
 
     Closes the OpenRouter / LiteLLM / Portkey *capability catalog match* gap
-    for offline Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2: given request needs (vision / tools / json_schema /
+    for offline Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro: given request needs (vision / tools / json_schema /
     long_context) and a model's capability flags, return whether the model is
     a full fit, a partial fit, or a mismatch.
 

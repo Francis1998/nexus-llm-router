@@ -1,7 +1,7 @@
 # Streaming Backpressure Advisor Guide
 
 Advisory inter-chunk gap bands (`ok` / `stall` / `backpressure`) for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 SSE streams.
+GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro SSE streams.
 
 ![Streaming backpressure demo](../../assets/demo/stream-backpressure.gif)
 
@@ -59,4 +59,4 @@ for snap in advisor.backpressured():
 | Inter-chunk gap bands | Alert rules | `ok` / `stall` / `backpressure` |
 | Distinct from TTFT / token budget | Often blended | Separate modules |
 | Offline / air-gapped | Requires SaaS | In-memory, no network |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

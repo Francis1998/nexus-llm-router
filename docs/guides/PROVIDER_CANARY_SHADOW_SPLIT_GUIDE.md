@@ -2,8 +2,8 @@
 
 Use `provider-canary-shadow-split` when production traffic should stay on a
 preferred provider while a deterministic tenant/request slice identifies a
-secondary provider candidate for comparison. It supports controlled GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 evaluations without changing the
+secondary provider candidate for comparison. It supports controlled GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro evaluations without changing the
 user-visible primary response.
 
 ## When to use it

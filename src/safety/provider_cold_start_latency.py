@@ -3,7 +3,7 @@
 Advises warm/cooling/cold bands from measured first-token cold-start latency.
 Closes the OpenRouter / LiteLLM / Portkey cold-start routing gap.
 Distinct from ``FirstTokenLatencySloAdvisor`` and ``ProviderWarmPoolAdvisor``.
-Works with GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Never performs
+Works with GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro. Never performs
 network I/O.
 """
 

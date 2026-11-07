@@ -3,7 +3,7 @@
 Use `provider-cold-start-bias` when healthy providers with sparse recent traffic
 need deliberate exploration before quality-first routing settles on a leader.
 This closes the observation gaps common in LiteLLM/Portkey-style multi-provider
-fleets serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+fleets serving GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 
 ## When to use it
 

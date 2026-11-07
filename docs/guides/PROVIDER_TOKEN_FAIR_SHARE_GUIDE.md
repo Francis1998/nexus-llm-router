@@ -1,8 +1,8 @@
 # Provider-Token-Fair-Share Routing Guide
 
 Use `provider-token-fair-share` when prompt-token volume should be balanced
-across providers in a rolling window so GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic avoids starving one backend's token quota.
+across providers in a rolling window so GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro traffic avoids starving one backend's token quota.
 
 ![Provider token fair share demo](../../assets/provider-token-fair-share.gif)
 

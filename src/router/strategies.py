@@ -770,7 +770,7 @@ class ConcurrencyCapStrategy(RoutingStrategy):
     load. This strategy is a hard-cap sibling: providers whose live in-flight
     attempt count is at or above the configured cap are skipped for primary
     selection. Among the remaining candidates, quality wins first so premium
-    GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic still goes to the
+    GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic still goes to the
     strongest available provider without piling onto a saturated one.
     """
 
@@ -1067,7 +1067,7 @@ class TokenBucketBurstStrategy(RoutingStrategy):
     providers with at least one token available (after refill), then breaks ties
     by quality and estimated cost. When every bucket is empty it falls back to
     the highest remaining token fraction, then to the cheapest eligible model so
-    GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 traffic still drains
+    GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro traffic still drains
     gradually instead of hard-blocking.
     """
 
@@ -1183,7 +1183,7 @@ class TokenBucketBurstStrategy(RoutingStrategy):
 class ModelTierRateLimitStrategy(RoutingStrategy):
     """Route using tier-specific soft RPM limits inferred from model names.
 
-    Frontier models (GPT-5.5, Claude Sonnet 4.6, Gemini 3.x Pro, Kimi K2, o3)
+    Frontier models (GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, Kimi K3.1 Pro)
     carry tighter per-provider RPM ceilings than mid-tier or economy SKUs. This
     strategy tracks rolling request timestamps per provider, infers each
     candidate's tier from its model name, and prefers providers that are still
@@ -1555,7 +1555,7 @@ class HealthCostLatencyStrategy(RoutingStrategy):
     (:class:`SuccessStats`), inverse normalized estimated request cost, and
     inverse normalized rolling provider p95 latency (:class:`LatencyStats`) with
     no circuit-breaker gating or quality component. Operators tune the trade-off
-    across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic via
+    across GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic via
     ``NEXUS_HCL_*`` weights.
     """
 
@@ -3764,7 +3764,7 @@ class SemanticCacheStrategy(RoutingStrategy):
     through a frontier model wastes spend; the useful signal is already cached.
     On ``metadata.cache_hit`` (truthy), this strategy picks the cheapest
     domain-eligible realtime-capable model (ties break toward higher quality,
-    then model name) so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+    then model name) so GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro
     traffic stays cheap on hits. On a miss it falls through to
     :class:`CostOptimalStrategy` so cold requests still respect the quality
     floor.
@@ -3852,8 +3852,8 @@ class FailoverPriorityStrategy(RoutingStrategy):
 
     LiteLLM-style failover uses an operator-defined preference order rather than
     optimizing for cost or quality. This strategy consults
-    ``NEXUS_FAILOVER_PRIORITY`` (an ordered model list spanning GPT-5.5, Claude
-    Sonnet 4.6, Gemini 3.x, and Kimi K2 by default) and selects the first
+    ``NEXUS_FAILOVER_PRIORITY`` (an ordered model list spanning GPT-6 Astra, Claude
+    Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro by default) and selects the first
     catalog model whose provider circuit is closed. Unhealthy providers are
     skipped; when every preference is unhealthy it still routes to the first
     in-catalog preference so the request does not fail at decide time. The
@@ -4382,8 +4382,8 @@ class StickyTenantHashStrategy(RoutingStrategy):
 class MultiRegionLatencyHedgeStrategy(RoutingStrategy):
     """Hedge to a faster secondary region when the primary region is hot.
 
-    Multi-region gateways often keep a preferred residency region for GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic but still need an escape
+    Multi-region gateways often keep a preferred residency region for GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic but still need an escape
     hatch when that region's rolling p50 latency spikes. This strategy picks the
     highest-quality domain-eligible model in the request's primary region (or
     ``global`` when omitted). When that model's provider p50 exceeds
@@ -4477,8 +4477,8 @@ class MultiRegionLatencyHedgeStrategy(RoutingStrategy):
 class PromptLengthTierShedStrategy(RoutingStrategy):
     """Shed frontier models when the prompt exceeds a token-length tier gate.
 
-    Long prompts inflate frontier spend (GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2) without always needing frontier quality. When
+    Long prompts inflate frontier spend (GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro) without always needing frontier quality. When
     ``signals.prompt_tokens_estimate`` exceeds
     ``NEXUS_PROMPT_LENGTH_TIER_TOKENS`` (default ``8000``), this strategy sheds
     frontier-tier candidates and picks the highest-quality mid/economy model
@@ -4570,8 +4570,8 @@ class RetryBudgetAwareFailoverStrategy(RoutingStrategy):
     strategy picks the highest-quality healthy candidate. When the remaining
     budget drops to ``<= 1``, it failovers to the lowest-latency healthy
     alternative so the last attempt is more likely to succeed quickly.
-    Deterministic and safe for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2 traffic.
+    Deterministic and safe for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro traffic.
     """
 
     strategy_name = RoutingStrategyName.RETRY_BUDGET_AWARE_FAILOVER
@@ -4662,8 +4662,8 @@ class CacheHitStickyWarmPoolStrategy(RoutingStrategy):
     Provider prompt caches warm when successive requests share a long identical
     prefix on the same model. This strategy hashes the leading system/user
     prefix (at least ``NEXUS_CACHE_HIT_STICKY_MIN_CHARS`` characters) onto a
-    domain-eligible model and keeps that mapping sticky so GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic reuses a warm pool.
+    domain-eligible model and keeps that mapping sticky so GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic reuses a warm pool.
     When the sticky primary provider is unhealthy it failovers to the next
     healthy ring member.
     """
@@ -4756,7 +4756,7 @@ class EmbeddingCacheKeyNamespaceStrategy(RoutingStrategy):
     ``NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX``, default ``embed``) from
     ``metadata.tenant_id`` (then ``user_id`` / ``sticky_key`` / ``session_id``)
     and consistent-hashes it onto a domain-eligible model with healthy failover
-    so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 cache affinity stays
+    so GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro cache affinity stays
     isolated across tenants.
     """
 
@@ -4844,8 +4844,8 @@ class CircuitBreakerHalfOpenProbeStrategy(RoutingStrategy):
     """Prefer healthy providers; allow limited probes into half-open circuits.
 
     When a provider circuit opens after failures, the recovery window eventually
-    allows a probe. Unbounded probe traffic can slam recovering GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 backends (a LiteLLM/Portkey-style
+    allows a probe. Unbounded probe traffic can slam recovering GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro backends (a LiteLLM/Portkey-style
     gap). This strategy prefers fully closed (healthy) providers, and only
     routes to half-open/recovering providers while live probe load stays under
     ``NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET``.
@@ -4969,8 +4969,8 @@ class SemanticCacheTtlAffinityStrategy(RoutingStrategy):
     """Stick cacheable requests to providers with remaining semantic-cache TTL.
 
     Popular semantic-cache layers (GPTCache, Redis semantic caches, LiteLLM
-    cache) keep warm embeddings for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2 prompts. This strategy prefers providers whose remaining TTL
+    cache) keep warm embeddings for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro prompts. This strategy prefers providers whose remaining TTL
     (``cache_ttl_remaining:<provider>`` metadata, seconds) is positive and
     within ``NEXUS_SEMANTIC_CACHE_TTL_SECONDS`` when the request is marked
     cacheable.
@@ -5079,7 +5079,7 @@ class ProviderSpendTelemetryStrategy(RoutingStrategy):
     """Prefer lower estimated provider spend when soft spend threshold is exceeded.
 
     Gateway routers (LiteLLM / Portkey style) increasingly expose spend
-    telemetry so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic can
+    telemetry so GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic can
     shed away from high-burn providers. This strategy ranks eligible healthy
     providers by estimated spend from request metadata (``provider_spend_usd``
     keyed as ``spend:<provider>``) once any observed spend meets the soft USD
@@ -5179,8 +5179,8 @@ class ProviderSpendTelemetryStrategy(RoutingStrategy):
 class CarbonAwarePreferenceStrategy(RoutingStrategy):
     """Prefer providers with lower carbon intensity for eligible models.
 
-    Sustainability-aware gateways increasingly bias GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2 traffic toward lower-carbon regions. This strategy
+    Sustainability-aware gateways increasingly bias GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro traffic toward lower-carbon regions. This strategy
     reads ``carbon_intensity:<provider>`` (gCO2eq/kWh) from request metadata
     (with a regional heuristic fallback) and prefers intensities at or below
     ``NEXUS_CARBON_AWARE_MAX_INTENSITY``.
@@ -5280,8 +5280,8 @@ class TenantConcurrencyLeaseStrategy(RoutingStrategy):
     ``session_id``) and prefers domain-eligible models whose
     tenant-scoped ``InflightStats`` load stays below
     ``NEXUS_TENANT_CONCURRENCY_LEASE``. When every provider is at the lease it
-    falls back to the least-loaded tenant/provider pair so GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic keeps moving.
+    falls back to the least-loaded tenant/provider pair so GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic keeps moving.
     """
 
     strategy_name = RoutingStrategyName.TENANT_CONCURRENCY_LEASE
@@ -5408,8 +5408,8 @@ class ProviderErrorBudgetShedStrategy(RoutingStrategy):
     providers, keeps providers whose ``SuccessStats``-derived error rate is at
     or below ``NEXUS_PROVIDER_ERROR_BUDGET_RATE`` (default ``0.15``), then picks
     the highest-quality model. If every eligible provider is over budget, it
-    sheds toward the lowest error rate before quality so GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic avoids degrading backends.
+    sheds toward the lowest error rate before quality so GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic avoids degrading backends.
     """
 
     strategy_name = RoutingStrategyName.PROVIDER_ERROR_BUDGET_SHED
@@ -5551,8 +5551,8 @@ class RegionLatencyP99ShedStrategy(RoutingStrategy):
     shedding: prefer domain-eligible models that match the request region, then
     keep providers whose rolling ``LatencyStats`` p99 stays at or below
     ``NEXUS_REGION_LATENCY_P99_MS``. When every regional candidate is over the
-    threshold it falls back to the lowest p99 so GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2 traffic still routes deterministically.
+    threshold it falls back to the lowest p99 so GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro traffic still routes deterministically.
     """
 
     strategy_name = RoutingStrategyName.REGION_LATENCY_P99_SHED
@@ -5653,8 +5653,8 @@ class StickyCanaryCostStrategy(RoutingStrategy):
 
     Pins tenants via consistent hashing on tenant identity (like
     ``sticky-tenant-hash``), then on a deterministic ``request_id`` explore
-    slice blends toward cheaper healthy models. The majority of GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic keeps sticky affinity
+    slice blends toward cheaper healthy models. The majority of GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic keeps sticky affinity
     while ``NEXUS_STICKY_CANARY_COST_PERCENT`` samples lower-cost SKUs.
     """
 
@@ -5789,7 +5789,7 @@ class QueueDepthFairnessStrategy(RoutingStrategy):
     queue depth: providers at or above ``NEXUS_QUEUE_DEPTH_SOFT_CAP`` are shed
     when shallower alternatives exist. Among under-cap providers it picks highest
     quality; when every provider is deep it falls back to lowest depth so
-    GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic keeps moving.
+    GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic keeps moving.
     """
 
     strategy_name = RoutingStrategyName.QUEUE_DEPTH_FAIRNESS
@@ -6322,8 +6322,8 @@ class RegionCarbonBlendStrategy(RoutingStrategy):
     inverse-normalized rolling provider p95 latency. ``blend_weight`` of ``0``
     is latency-only; ``1`` is carbon-only. Intensity comes from
     ``carbon_intensity:<provider>`` metadata or a regional heuristic, matching
-    carbon-aware-preference for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2 traffic.
+    carbon-aware-preference for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro traffic.
     """
 
     strategy_name = RoutingStrategyName.REGION_CARBON_BLEND
@@ -6492,8 +6492,8 @@ class ProviderWeightDecayStrategy(RoutingStrategy):
     Repeated failures multiply a provider's weight by
     ``NEXUS_PROVIDER_WEIGHT_DECAY_FACTOR``; successes add
     ``NEXUS_PROVIDER_WEIGHT_RECOVER`` capped at ``1.0``. Routing multiplies the
-    live weight by model quality so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2 traffic gradually shifts away from failing backends and recovers
+    live weight by model quality so GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro traffic gradually shifts away from failing backends and recovers
     slowly once they stabilize.
     """
 
@@ -6620,7 +6620,7 @@ class RetryAfterRespectStrategy(RoutingStrategy):
     """Skip providers still honoring a Retry-After cooldown.
 
     When providers return HTTP 429 with ``Retry-After``, hammering them before
-    the wait expires wastes GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+    the wait expires wastes GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro
     retry budget. This strategy prefers healthy providers whose cooldown has
     expired, then falls back to the next healthy cooling provider (soonest
     expiry) so decide-time remains deterministic.
@@ -6819,7 +6819,7 @@ class LatencySlopeShedStrategy(RoutingStrategy):
     EWMA slope (ms per sample step), and when the quality leader's slope
     exceeds ``NEXUS_LATENCY_SLOPE_THRESHOLD_MS`` it sheds to a lower-latency /
     cheaper healthy alternative. Cold starts (flat slope) keep quality-first
-    selection for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+    selection for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
     """
 
     strategy_name = RoutingStrategyName.LATENCY_SLOPE_SHED
@@ -6999,8 +6999,8 @@ class ProviderHourlyCostCeilingStrategy(RoutingStrategy):
     spend per provider and hard-skips providers already over
     ``NEXUS_PROVIDER_HOURLY_COST_CEILING_USD``. Among under-ceiling providers it
     picks highest quality; when every provider is over ceiling it falls back to
-    the cheapest eligible model so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2 traffic still routes deterministically.
+    the cheapest eligible model so GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro traffic still routes deterministically.
     """
 
     strategy_name = RoutingStrategyName.PROVIDER_HOURLY_COST_CEILING
@@ -7094,8 +7094,8 @@ class QualityWeightedStickyStrategy(RoutingStrategy):
     uniform sticky hashing (and unlike :class:`StickyTenantHashStrategy`, which
     hashes tenant identity onto an equal ring), each candidate receives a hash
     ring share proportional to ``quality_score`` so higher-quality models such
-    as Claude Sonnet 4.6 / GPT-5.5 absorb a larger sticky share while cheaper
-    Gemini 3.x / Kimi K2 arms still receive some sessions.
+    as Claude Opus 5.5 / GPT-6 Astra absorb a larger sticky share while cheaper
+    Gemini 3.8 Flash / Kimi K3.1 Pro arms still receive some sessions.
     """
 
     strategy_name = RoutingStrategyName.QUALITY_WEIGHTED_STICKY
@@ -7200,8 +7200,8 @@ class TokenRpmCeilingStrategy(RoutingStrategy):
     The strategy keeps the highest-quality domain-eligible model while its
     provider's last 60 seconds of estimated prompt tokens plus the current
     request fit under ``NEXUS_TOKEN_RPM_CEILING``. When the quality leader would
-    cross the ceiling, traffic sheds to the next eligible provider so GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 workloads can avoid provider token
+    cross the ceiling, traffic sheds to the next eligible provider so GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro workloads can avoid provider token
     throttles.
     """
 
@@ -7306,8 +7306,8 @@ class ProviderCircuitProbeStrategy(RoutingStrategy):
     the highest-quality provider's circuit state directly. A closed leader wins,
     an open leader immediately sheds to the best healthy alternate, and a
     half-open leader receives at most ``NEXUS_PROVIDER_CIRCUIT_PROBE_BUDGET``
-    probe decisions before traffic falls back. This keeps GPT-5.5 / Claude
-    Sonnet 4.6 / Gemini 3.x / Kimi K2 recovery controlled without abandoning
+    probe decisions before traffic falls back. This keeps GPT-6 Astra / Claude
+    Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro recovery controlled without abandoning
     the preferred quality arm.
     """
 
@@ -7460,8 +7460,8 @@ class CarbonLatencyBlendStrategy(RoutingStrategy):
     candidate as ``w_carbon * normalized_inverse_carbon + w_latency *
     normalized_inverse_latency``. Unlike ``region-carbon-blend``, the two
     weights are independent rather than complementary, so operators can
-    increase or suppress either signal for GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2 traffic.
+    increase or suppress either signal for GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro traffic.
     """
 
     strategy_name = RoutingStrategyName.CARBON_LATENCY_BLEND
@@ -7595,8 +7595,8 @@ class AdaptiveConcurrencyCapStrategy(RoutingStrategy):
     Unlike :class:`ConcurrencyCapStrategy`, which applies a static
     ``NEXUS_CONCURRENCY_CAP`` to every provider equally, this strategy scales
     each provider's effective cap by rolling success rate and inverse p95
-    latency. Unhealthy or slow providers receive tighter caps so GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic drains toward healthier
+    latency. Unhealthy or slow providers receive tighter caps so GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic drains toward healthier
     backends under load.
     """
 
@@ -7727,8 +7727,8 @@ class ProviderTokenFairShareStrategy(RoutingStrategy):
     and selects providers with the most remaining fair-share headroom. Unlike
     :class:`ProviderQuotaFairShareStrategy`, which balances request counts,
     this strategy balances token volume and uses request-id weighted
-    round-robin among providers tied on remaining quota for GPT-5.5 / Claude
-    Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+    round-robin among providers tied on remaining quota for GPT-6 Astra / Claude
+    Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
     """
 
     strategy_name = RoutingStrategyName.PROVIDER_TOKEN_FAIR_SHARE
@@ -7911,8 +7911,8 @@ class RegionFailoverHysteresisStrategy(RoutingStrategy):
     region preference list and pins ``session_id`` inside the active region
     pool. After failovers, it will not return to the preferred region until
     that region accumulates ``NEXUS_REGION_FAILOVER_HYSTERESIS_SUCCESSES``
-    consecutive successes, preventing GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2 traffic from flapping during intermittent recovery blips.
+    consecutive successes, preventing GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro traffic from flapping during intermittent recovery blips.
     """
 
     strategy_name = RoutingStrategyName.REGION_FAILOVER_HYSTERESIS
@@ -8115,8 +8115,8 @@ class TenantBudgetCascadeStrategy(RoutingStrategy):
     Requests start quality-first while their projected spend fits the soft
     threshold. Once that headroom is exhausted, routing sheds to the cheapest
     candidate that remains below the hard ceiling. The strategy fails closed
-    before a request would cross the hard ceiling, protecting GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 tenant budgets.
+    before a request would cross the hard ceiling, protecting GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro tenant budgets.
     """
 
     strategy_name = RoutingStrategyName.TENANT_BUDGET_CASCADE
@@ -8297,7 +8297,7 @@ class ProviderErrorBudgetResetStrategy(RoutingStrategy):
     Unlike ``provider-error-budget-shed``, whose shared cumulative success stats
     do not reset on a strategy timer, this strategy explicitly clears each
     provider's error window after ``NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS``.
-    Recovered GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 providers are
+    Recovered GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro providers are
     then restored automatically.
     """
 
@@ -8428,8 +8428,8 @@ class StickyRegionWarmupStrategy(RoutingStrategy):
     The first ``NEXUS_STICKY_REGION_WARMUP_REQUESTS`` decisions use a shared
     warmup region so provider caches and capacity can stabilize. Later requests
     pin the session to its requested or hash-selected region, preventing
-    cold-start region flaps for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2 traffic.
+    cold-start region flaps for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro traffic.
     """
 
     strategy_name = RoutingStrategyName.STICKY_REGION_WARMUP
@@ -9024,7 +9024,7 @@ class ProviderColdStartBiasStrategy(RoutingStrategy):
     deterministic exploration bias toward the least-observed healthy provider.
     Once every healthy provider reaches the target, routing returns to
     quality-first selection. A bounded lookback lets exploration gaps reopen as
-    stale GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 observations age out.
+    stale GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro observations age out.
     """
 
     strategy_name = RoutingStrategyName.PROVIDER_COLD_START_BIAS
@@ -9180,8 +9180,8 @@ class TenantFairQueueStrategy(RoutingStrategy):
     or below that share receives the highest-quality healthy route; a tenant
     above share uses the cheapest healthy relief lane. This request-count
     fairness is independent of provider queue depth and provider quota sharing,
-    preserving fair access for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2 tenants without conflating tenant demand with backend utilization.
+    preserving fair access for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro tenants without conflating tenant demand with backend utilization.
     """
 
     strategy_name = RoutingStrategyName.TENANT_FAIR_QUEUE
@@ -9330,7 +9330,7 @@ class StickyRegionDrainStrategy(RoutingStrategy):
     metadata marks that region as draining, the session moves once to the first
     healthy non-draining preferred region and keeps its new pin. This operational
     drain pattern avoids warmup, automatic failback, and success hysteresis for
-    GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 regional pools.
+    GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro regional pools.
     """
 
     strategy_name = RoutingStrategyName.STICKY_REGION_DRAIN
@@ -9549,8 +9549,8 @@ class CanaryShadowSplitStrategy(RoutingStrategy):
     The primary route favors a configured healthy provider. A deterministic
     tenant-or-request hash optionally identifies a healthy candidate on another
     provider for comparison, without changing the user-visible primary response.
-    Counters expose the resulting GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2 provider split to telemetry integrations.
+    Counters expose the resulting GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro provider split to telemetry integrations.
     """
 
     strategy_name = RoutingStrategyName.PROVIDER_CANARY_SHADOW_SPLIT
@@ -9746,7 +9746,7 @@ class StickyModelPinExpireStrategy(RoutingStrategy):
     the strategy removes the pin and re-evaluates current provider health and
     model quality before establishing a fresh TTL. Unlike sticky-region-drain,
     this controls model affinity lifetime rather than operational region
-    evacuation for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    evacuation for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.STICKY_MODEL_PIN_EXPIRE
@@ -9891,8 +9891,8 @@ class TenantPriorityLanesStrategy(RoutingStrategy):
     During provider health pressure or after a lane reaches its recent soft
     quota, high-priority tenants move to the fastest observed healthy provider,
     normal tenants keep quality-first routing, and low tenants use a cheap relief
-    route. This preserves differentiated service for GPT-5.5 / Claude Sonnet
-    4.6 / Gemini 3.x / Kimi K2 without pretending decide-time routing can
+    route. This preserves differentiated service for GPT-6 Astra / Claude
+    Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro without pretending decide-time routing can
     preempt requests already in flight.
     """
 
@@ -10086,8 +10086,8 @@ class RequestClassQosStrategy(RoutingStrategy):
     - ``batch``: quality-first with mid-cost preference
     - ``bulk``: cheapest healthy model
 
-    Unknown class values fall back to interactive so GPT-5.5 / Claude Sonnet
-    4.6 / Gemini 3.x / Kimi K2 traffic still receives a deterministic policy.
+    Unknown class values fall back to interactive so GPT-6 Astra / Claude
+    Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic still receives a deterministic policy.
     """
 
     strategy_name = RoutingStrategyName.REQUEST_CLASS_QOS
@@ -10228,7 +10228,7 @@ class DeadlineAwarePickStrategy(RoutingStrategy):
     ``metadata.remaining_ms``. When the remaining budget is below
     ``NEXUS_DEADLINE_AWARE_THRESHOLD_MS`` (default ``500``), the strategy
     selects the lowest observed healthy latency. Otherwise it stays
-    quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    quality-first for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     Missing or invalid deadline metadata keeps quality-first routing.
     """
 
@@ -10364,7 +10364,7 @@ class ProviderSuccessFloorStrategy(RoutingStrategy):
     ``SuccessStats`` and keeps providers at or above
     ``NEXUS_PROVIDER_SUCCESS_FLOOR`` (default ``0.85``). When every candidate
     is below the floor, the strategy emergency-retains the highest-success
-    healthy option so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+    healthy option so GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro
     traffic still routes.
     """
 
@@ -10548,8 +10548,8 @@ class ModelCapabilityGateStrategy(RoutingStrategy):
     per-request override mapping model name to a capability list) and falls
     back to the built-in known-model capability map otherwise. When no
     candidate satisfies every required capability, the strategy
-    emergency-retains the highest-quality healthy candidate so GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic still routes. Inspired by
+    emergency-retains the highest-quality healthy candidate so GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic still routes. Inspired by
     LiteLLM / OpenRouter capability-aware model filtering.
     """
 
@@ -10695,7 +10695,7 @@ class ProviderWarmupWeightStrategy(RoutingStrategy):
     a neutral warmup score of ``0.5`` — neither cold nor confidently warm —
     so quality still meaningfully governs selection absent an explicit
     warmup signal. Inspired by Envoy/outlier-detection warm-host preference
-    for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+    for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
     """
 
     strategy_name = RoutingStrategyName.PROVIDER_WARMUP_WEIGHT
@@ -10801,8 +10801,8 @@ class TenantSoftIsolationStrategy(RoutingStrategy):
     Reads a per-request tenant request rate directly from
     ``metadata.tenant_rpm`` (or ``metadata.tenant_request_rate`` as an
     alias). Tenants at or below ``NEXUS_TENANT_SOFT_ISOLATION_RPM`` (default
-    ``60``) stay on quality-first frontier routing for GPT-5.5 / Claude
-    Sonnet 4.6 / Gemini 3.x / Kimi K2. Tenants whose reported rate exceeds
+    ``60``) stay on quality-first frontier routing for GPT-6 Astra / Claude
+    Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro. Tenants whose reported rate exceeds
     the soft ceiling are shifted to the lowest-cost healthy domain-eligible
     model so a single noisy tenant borrows spare capacity instead of
     frontier slots reserved for well-behaved tenants. Unlike
@@ -10947,8 +10947,8 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
     (``json``, ``structured``, or ``json_mode``), or a name heuristic matching
     ``gpt-5``, ``claude``, ``gemini``, or ``kimi``. Requests that omit the
     structured-output signal stay quality-first. Inspired by LiteLLM /
-    OpenRouter / Portkey structured-output routing for GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    OpenRouter / Portkey structured-output routing for GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.STRUCTURED_OUTPUT_PREFER
@@ -11129,7 +11129,7 @@ class ProviderExclusionStrategy(RoutingStrategy):
     the healthy domain-eligible pool before selecting the highest-quality
     remaining candidate. When every candidate is excluded, the strategy
     emergency-retains the highest-quality model from the full domain-eligible
-    pool so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic still
+    pool so GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic still
     routes. Inspired by Portkey / Helicone provider allow/deny lists.
     """
 
@@ -11247,7 +11247,7 @@ class PromptInjectionRiskShedStrategy(RoutingStrategy):
     spare capacity instead of frontier slots. Below the threshold, stay
     quality-first. This strategy never rejects a request — it only demotes
     routing quality. Inspired by Helicone / Portkey risk-aware gateway
-    shedding for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    shedding for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.PROMPT_INJECTION_RISK_SHED
@@ -11372,7 +11372,7 @@ class ThinkingModelPreferStrategy(RoutingStrategy):
     the deterministic tokens ``o1``, ``o3``, ``reasoning``, ``thinking``,
     ``sonnet``, or ``opus`` are preferred. Below the threshold, stay
     quality-first. Inspired by LiteLLM reasoning-model routing for hard
-    tasks on GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    tasks on GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.THINKING_MODEL_PREFER
@@ -11532,7 +11532,7 @@ class ToolCallingPreferStrategy(RoutingStrategy):
     / the built-in known-model map (``tools`` capability), or a name heuristic
     matching ``gpt-5``, ``claude``, ``gemini``, or ``kimi``. Requests that omit
     the tool-calling signal stay quality-first. Inspired by OpenRouter tool-use
-    routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.TOOL_CALLING_PREFER
@@ -11715,7 +11715,7 @@ class MultimodalInputPreferStrategy(RoutingStrategy):
     (``vision`` capability), or a name heuristic matching ``gpt-5``,
     ``claude``, ``gemini``, or ``vision``. Requests that omit the multimodal
     signal stay quality-first. Inspired by OpenRouter multimodal routing for
-    GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.MULTIMODAL_INPUT_PREFER
@@ -11898,8 +11898,8 @@ class StreamingPreferStrategy(RoutingStrategy):
     (``streaming`` capability), or a name heuristic matching ``gpt-5``,
     ``claude``, ``gemini``, or ``kimi``. Requests that omit the streaming
     signal stay quality-first. Inspired by OpenRouter / LiteLLM / Portkey
-    streaming capability routing for GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2.
+    streaming capability routing for GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.STREAMING_PREFER
@@ -12081,8 +12081,8 @@ class LongContextPreferStrategy(RoutingStrategy):
     catalog ``context_window``, or a name heuristic matching ``gpt-5``,
     ``claude``, ``gemini``, or ``kimi`` (default ``200000``). Requests that
     omit the long-context signal stay quality-first. Inspired by OpenRouter /
-    LiteLLM / Portkey long-context capability routing for GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    LiteLLM / Portkey long-context capability routing for GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.LONG_CONTEXT_PREFER
@@ -12264,8 +12264,8 @@ class AudioInputPreferStrategy(RoutingStrategy):
     (``audio`` capability), or a name heuristic matching ``audio``,
     ``realtime``, ``gpt-4o-audio``, or ``gemini``. Requests that omit the
     signal stay quality-first. Inspired by OpenRouter / LiteLLM / Portkey
-    audio-input capability routing for GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2.
+    audio-input capability routing for GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.AUDIO_INPUT_PREFER
@@ -12450,8 +12450,8 @@ class WebSearchPreferStrategy(RoutingStrategy):
     built-in known-model map (``web_search`` capability), or a name
     heuristic matching ``search``, ``online``, or ``browse``. Requests that
     omit the signal stay quality-first. Inspired by OpenRouter / LiteLLM /
-    Portkey web-search capability routing for GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2.
+    Portkey web-search capability routing for GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.WEB_SEARCH_PREFER
@@ -12640,8 +12640,8 @@ class ComputerUsePreferStrategy(RoutingStrategy):
     built-in known-model map (``computer_use`` capability), or a name
     heuristic matching ``computer``, ``cua``, or ``operator``. Requests that
     omit the signal stay quality-first. Inspired by OpenRouter / LiteLLM /
-    Portkey computer-use capability routing for GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    Portkey computer-use capability routing for GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.COMPUTER_USE_PREFER
@@ -12830,8 +12830,8 @@ class ImageGenPreferStrategy(RoutingStrategy):
     built-in known-model map (``computer_use`` capability), or a name
     heuristic matching ``computer``, ``cua``, or ``operator``. Requests that
     omit the signal stay quality-first. Inspired by OpenRouter / LiteLLM /
-    Portkey computer-use capability routing for GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    Portkey computer-use capability routing for GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.IMAGE_GEN_PREFER
@@ -13020,8 +13020,8 @@ class CodeExecutionPreferStrategy(RoutingStrategy):
     built-in known-model map (``computer_use`` capability), or a name
     heuristic matching ``computer``, ``cua``, or ``operator``. Requests that
     omit the signal stay quality-first. Inspired by OpenRouter / LiteLLM /
-    Portkey computer-use capability routing for GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    Portkey computer-use capability routing for GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.CODE_EXECUTION_PREFER
@@ -13211,8 +13211,8 @@ class VideoInputPreferStrategy(RoutingStrategy):
     built-in known-model map (``computer_use`` capability), or a name
     heuristic matching ``computer``, ``cua``, or ``operator``. Requests that
     omit the signal stay quality-first. Inspired by OpenRouter / LiteLLM /
-    Portkey computer-use capability routing for GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    Portkey computer-use capability routing for GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.VIDEO_INPUT_PREFER
@@ -13396,8 +13396,8 @@ class PdfInputPreferStrategy(RoutingStrategy):
     built-in known-model map (``pdf`` capability), or a name
     heuristic matching ``pdf``, ``document``, or ``file-input``. Requests that
     omit the signal stay quality-first. Inspired by OpenRouter / LiteLLM / Portkey PDF
-    document-input capability routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    document-input capability routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.PDF_INPUT_PREFER
@@ -13581,8 +13581,8 @@ class BatchApiPreferStrategy(RoutingStrategy):
     built-in known-model map (``batch`` capability), or a name
     heuristic matching ``batch``, ``async-batch``, or ``offline``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI Batch API / Anthropic Message Batches
-    routing in LiteLLM and Portkey for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    routing in LiteLLM and Portkey for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.BATCH_API_PREFER
@@ -13766,8 +13766,8 @@ class ReasoningEffortPreferStrategy(RoutingStrategy):
     built-in known-model map (``reasoning_effort`` capability), or a name
     heuristic matching ``reasoning-effort``, ``o3-pro``, or ``effort-control``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI reasoning-effort controls and
-    LiteLLM/Portkey effort-aware routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    LiteLLM/Portkey effort-aware routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.REASONING_EFFORT_PREFER
@@ -13957,8 +13957,8 @@ class TranscriptionPreferStrategy(RoutingStrategy):
     built-in known-model map (``transcription`` capability), or a name
     heuristic matching ``whisper``, ``transcription``, ``speech-to-text``, or ``stt``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI Whisper/transcription and
-    Gemini audio routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    Gemini audio routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.TRANSCRIPTION_PREFER
@@ -14149,8 +14149,8 @@ class ModerationPreferStrategy(RoutingStrategy):
     built-in known-model map (``moderation`` capability), or a name
     heuristic matching ``moderation``, ``omni-moderation``, or ``text-moderation``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI Moderation API and
-    Portkey guardrails routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    Portkey guardrails routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.MODERATION_PREFER
@@ -14339,8 +14339,8 @@ class PredictedOutputsPreferStrategy(RoutingStrategy):
     built-in known-model map (``predicted_outputs`` capability), or a name
     heuristic matching ``predicted-outputs``, ``prediction``, or ``predicted``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI Predicted Outputs and
-    LiteLLM predicted-output routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    LiteLLM predicted-output routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.PREDICTED_OUTPUTS_PREFER
@@ -14529,8 +14529,8 @@ class PromptCachingPreferStrategy(RoutingStrategy):
     built-in known-model map (``prompt_caching`` capability), or a name
     heuristic matching ``prompt-caching``, ``prompt-cache``, or ``cached-tokens``. Requests that
     omit the signal stay quality-first. Inspired by Anthropic/OpenAI prompt caching and Portkey
-    cache-aware routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    cache-aware routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.PROMPT_CACHING_PREFER
@@ -14720,8 +14720,8 @@ class FineTunePreferStrategy(RoutingStrategy):
     heuristic matching ``fine-tune``, ``finetune``, or ``ft:``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI Fine-tuning API and
     LiteLLM/Portkey fine-tune
-    model routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    model routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.FINE_TUNE_PREFER
@@ -14910,8 +14910,8 @@ class EmbeddingsPreferStrategy(RoutingStrategy):
     built-in known-model map (``embeddings`` capability), or a name
     heuristic matching ``embedding``, ``embeddings``, or ``text-embedding``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI Embeddings API and LiteLLM/Portkey
-    embedding-model routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    embedding-model routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.EMBEDDINGS_PREFER
@@ -15100,8 +15100,8 @@ class ResponsesApiPreferStrategy(RoutingStrategy):
     built-in known-model map (``embeddings`` capability), or a name
     heuristic matching ``embedding``, ``embeddings``, or ``text-embedding``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI Embeddings API and LiteLLM/Portkey
-    embedding-model routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    embedding-model routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.RESPONSES_API_PREFER
@@ -15290,8 +15290,8 @@ class FileSearchPreferStrategy(RoutingStrategy):
     built-in known-model map (``embeddings`` capability), or a name
     heuristic matching ``embedding``, ``embeddings``, or ``text-embedding``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI Embeddings API and LiteLLM/Portkey
-    embedding-model routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    embedding-model routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.FILE_SEARCH_PREFER
@@ -15480,8 +15480,8 @@ class VectorStorePreferStrategy(RoutingStrategy):
     built-in known-model map (``embeddings`` capability), or a name
     heuristic matching ``embedding``, ``embeddings``, or ``text-embedding``. Requests that
     omit the signal stay quality-first. Inspired by OpenAI Embeddings API and LiteLLM/Portkey
-    embedding-model routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    embedding-model routing for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.VECTOR_STORE_PREFER
@@ -15670,7 +15670,7 @@ class RealtimeApiPreferStrategy(RoutingStrategy):
     the built-in known-model map (``realtime_api`` capability), or a name
     heuristic matching ``realtime``. Requests that omit the signal stay
     quality-first. Inspired by OpenAI Realtime API WebSocket streaming
-    for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.REALTIME_API_PREFER
@@ -15854,8 +15854,8 @@ class McpPreferStrategy(RoutingStrategy):
     ``metadata.model_capabilities`` / the built-in known-model map (``mcp``
     capability), or a name heuristic matching ``mcp``. Requests that omit the
     signal stay quality-first. Inspired by Anthropic/OpenAI Model Context
-    Protocol tool-server routing for GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2.
+    Protocol tool-server routing for GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.MCP_PREFER
@@ -16038,8 +16038,8 @@ class LogprobsPreferStrategy(RoutingStrategy):
     built-in known-model map (``logprobs`` capability), or a name
     heuristic matching ``logprobs``. Requests that omit the signal stay
     quality-first. Inspired by OpenAI logprobs for confidence scoring
-    and eval pipelines on GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2.
+    and eval pipelines on GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.LOGPROBS_PREFER
@@ -16226,8 +16226,8 @@ class BackgroundModePreferStrategy(RoutingStrategy):
     built-in known-model map (``background_mode`` capability), or a name
     heuristic matching ``background_mode``. Requests that omit the signal stay
     quality-first. Inspired by OpenAI Background mode / Agents API long-running jobs
-    in LiteLLM/Portkey capability routers on GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2.
+    in LiteLLM/Portkey capability routers on GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.BACKGROUND_MODE_PREFER
@@ -16416,8 +16416,8 @@ class ParallelToolPreferStrategy(RoutingStrategy):
     built-in known-model map (``parallel_tool_calls`` capability), or a name
     heuristic matching ``parallel_tool_calls``. Requests that omit the signal stay
     quality-first. Inspired by OpenAI parallel_tool_calls and Anthropic parallel tool use
-    in multi-tool agent loops on GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2.
+    in multi-tool agent loops on GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.PARALLEL_TOOL_PREFER
@@ -16606,8 +16606,8 @@ class DeepResearchPreferStrategy(RoutingStrategy):
     built-in known-model map (``deep_research`` capability), or a name
     heuristic matching ``deep_research``. Requests that omit the signal stay
     quality-first. Inspired by OpenAI Deep Research / o-series research agents and
-    Anthropic long-horizon research loops on GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2.
+    Anthropic long-horizon research loops on GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.DEEP_RESEARCH_PREFER
@@ -16796,7 +16796,7 @@ class AgentsApiPreferStrategy(RoutingStrategy):
     built-in known-model map (``agents_api`` capability), or a name
     heuristic matching ``agents_api``. Requests that omit the signal stay
     quality-first. Inspired by OpenAI Agents API / Assistants-style agent
-    loops on GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+    loops on GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.AGENTS_API_PREFER
@@ -16986,8 +16986,8 @@ class WebhookPreferStrategy(RoutingStrategy):
     built-in known-model map (``webhook`` capability), or a name
     heuristic matching ``webhook``. Requests that omit the signal stay
     quality-first. Inspired by OpenAI / Anthropic async webhook callbacks
-    and Gemini long-running job notifications on GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2.
+    and Gemini long-running job notifications on GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.WEBHOOK_PREFER
@@ -17175,8 +17175,8 @@ class MemoryToolPreferStrategy(RoutingStrategy):
     built-in known-model map (``memory_tool`` capability), or a name
     heuristic matching ``memory_tool``. Requests that omit the signal stay
     quality-first. Inspired by Anthropic memory tool / OpenAI Agents API persistent memory
-    gaps on GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2.
+    gaps on GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro.
     """
 
     strategy_name = RoutingStrategyName.MEMORY_TOOL_PREFER

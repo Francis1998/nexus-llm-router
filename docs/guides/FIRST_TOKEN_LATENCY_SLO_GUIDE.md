@@ -1,7 +1,7 @@
 # First-Token Latency SLO Advisor Guide
 
 Advisory time-to-first-token (TTFT) SLO bands (`within` / `warn` / `breach`)
-for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 streaming starts.
+for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro streaming starts.
 
 ![First-token latency SLO demo](../../assets/demo/first-token-latency-slo.gif)
 
@@ -60,4 +60,4 @@ for snap in advisor.breaches():
 | First-token SLO bands | Alert rules | `within` / `warn` / `breach` |
 | Distinct from E2E latency | Yes | Separate from `ModelLatencySlaTracker` |
 | Offline / air-gapped | Requires SaaS | In-memory, no network |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

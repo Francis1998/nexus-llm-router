@@ -1,8 +1,8 @@
 # Request-Class-QoS Routing Guide
 
 Use `request-class-qos` when callers declare a QoS class and need differentiated
-routing for interactive, batch, and bulk work across GPT-5.5 / Claude Sonnet
-4.6 / Gemini 3.x / Kimi K2.
+routing for interactive, batch, and bulk work across GPT-6 Astra / Claude
+Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 
 ## When to use it
 

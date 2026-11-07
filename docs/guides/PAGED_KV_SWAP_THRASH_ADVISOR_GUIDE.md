@@ -5,7 +5,7 @@
 Offline HITL advisor for `swap_thrash_ratio` bands.
 Gap vs vLLM/SGLang/TGI paged-KV swap-thrash monitors. Distinct from `PagedAttentionSlotFragmentationAdvisor` / `KvBlockStealAdvisor`.
 
-Stack: **GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2**.
+Stack: **GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro**.
 
 ## Usage
 

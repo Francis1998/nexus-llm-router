@@ -45,8 +45,8 @@ _DEFAULT_WEIGHTS: dict[PriorityClass, int] = {
 class RequestPriorityLane:
     """Weighted fair dequeue across high / normal / bulk request lanes.
 
-    Closes the LiteLLM priority-queue / OpenRouter ranking gap for GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 ingress: callers enqueue with a
+    Closes the LiteLLM priority-queue / OpenRouter ranking gap for GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro ingress: callers enqueue with a
     priority class and ``dequeue()`` serves a weighted fair schedule so bulk
     traffic cannot starve interactive work (and high cannot fully starve bulk).
     """

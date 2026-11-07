@@ -42,8 +42,8 @@ class ProviderModelListSync:
     LiteLLM refreshes a live ``model_list`` and Portkey refreshes a hosted
     model catalog. Nexus keeps routing offline-first: this helper seeds via
     ``refresh_from_static`` and applies deterministic ``upsert`` calls from a
-    provided descriptor list — covering GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2 without network I/O.
+    provided descriptor list — covering GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro without network I/O.
     """
 
     def __init__(self, catalog: ModelCapabilityCatalog | None = None) -> None:

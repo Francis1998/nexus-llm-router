@@ -5,7 +5,7 @@
 Offline `churn_ratio` band advisor.
 Gap vs vLLM/SGLang/TGI tokenizer vocabulary-churn monitors. Distinct from `TokenizerVocabSkewBandAdvisor` / `TokenizerBpeMergeDriftAdvisor`.
 
-Stack: **GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3**.
+Stack: **GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro**.
 
 ## Usage
 

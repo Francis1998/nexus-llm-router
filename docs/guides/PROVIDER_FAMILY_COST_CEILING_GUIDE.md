@@ -8,8 +8,8 @@ budgets while still maximizing quality.
 ## When to use it
 
 - Finance assigns separate budgets to OpenAI, Anthropic, Google, and Moonshot.
-- You want the highest-quality domain-eligible model among GPT-5.5, Claude Sonnet
-  4.6, Gemini 3.x, and Kimi K2 that still fits its family's ceiling.
+- You want the highest-quality domain-eligible model among GPT-6 Astra, Claude
+  Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro that still fits its family's ceiling.
 - Global `budget-aware` is too coarse: one family should be tightened without
   starving the others.
 - You need a fail-soft path: if nothing fits any family ceiling, Nexus still
@@ -27,7 +27,7 @@ budgets while still maximizing quality.
 6. If no family has an affordable eligible model, fall back across families to
    the cheapest eligible candidate.
 
-Catalog priors cover GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 under
+Catalog priors cover GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro under
 the openai, anthropic, google, and moonshot families.
 
 ## Quick start

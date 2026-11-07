@@ -2,7 +2,7 @@
 
 Use `provider-exclusion` to filter providers and models listed in request
 metadata out of the healthy domain-eligible pool before quality-first
-selection for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+selection for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 
 ![Provider exclusion demo](../../assets/provider-exclusion.gif)
 

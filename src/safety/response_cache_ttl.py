@@ -3,8 +3,8 @@
 Advises short/medium/long cache TTL bands from request class. Closes the
 Helicone / Portkey / LiteLLM cache-TTL gap. Distinct from
 ``PromptCacheHitAdvisor`` (prefix cache hits) and
-``CostAttributionTagLedger`` (cost tags). Works with GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Never performs network I/O.
+``CostAttributionTagLedger`` (cost tags). Works with GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro. Never performs network I/O.
 """
 
 from __future__ import annotations

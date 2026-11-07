@@ -25,8 +25,8 @@ class ModelLatencySlaTracker:
     """Track per-model p50/p95 latency windows and flag SLA breaches.
 
     Advisory and in-memory — closes the Helicone / Langfuse latency-dashboard
-    gap for offline / air-gapped Nexus gateways serving GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 without requiring an external
+    gap for offline / air-gapped Nexus gateways serving GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro without requiring an external
     observability backend. Breaches never reject traffic; callers decide how
     to surface or act on ``breached`` snapshots.
     """

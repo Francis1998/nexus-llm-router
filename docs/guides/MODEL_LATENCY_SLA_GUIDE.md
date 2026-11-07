@@ -1,7 +1,7 @@
 # Model Latency SLA Tracker Guide
 
 Advisory in-memory per-model p50/p95 latency windows with SLA breach flags for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 — without an external
+GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro — without an external
 observability backend.
 
 ![Model latency SLA demo](../../assets/demo/model-latency-sla.gif)
@@ -56,4 +56,4 @@ for snap in tracker.breaches():
 | SLA breach flags | Alerting rules | Advisory `breached` |
 | Offline / air-gapped | Requires SaaS/backend | In-memory, no network |
 | Per-model thresholds | Yes | `per_model_sla_p95_ms` |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

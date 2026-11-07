@@ -1,8 +1,8 @@
 # Sticky-Model-Pin-Expire Routing Guide
 
 Use `sticky-model-pin-expire` when a session needs temporary model affinity but
-must periodically re-evaluate provider health and model quality. Each GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 pin expires after a configurable TTL,
+must periodically re-evaluate provider health and model quality. Each GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro pin expires after a configurable TTL,
 then the next request establishes a fresh model pin.
 
 ## When to use it

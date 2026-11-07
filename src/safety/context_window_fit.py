@@ -25,7 +25,7 @@ class ContextWindowFitAdvisor:
     """Classify estimated prompt size against a model's context window.
 
     Closes the LiteLLM / OpenRouter pre-dispatch context-fit advisory gap for
-    Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2:
+    Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro:
     given ``estimated_tokens`` and ``model_context_limit``, return a fit band
     (``fits`` / ``tight`` / ``overflow``) plus a human-readable advisory.
 

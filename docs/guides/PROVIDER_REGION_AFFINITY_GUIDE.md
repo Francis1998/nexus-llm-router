@@ -1,7 +1,7 @@
 # Provider Region Affinity Advisor Guide
 
-Rank providers by affinity to a preferred-region list — for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic before dispatch.
+Rank providers by affinity to a preferred-region list — for GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic before dispatch.
 
 ![Provider region affinity advisor demo](../../assets/demo/region-affinity.gif)
 
@@ -64,4 +64,4 @@ for row in advice.rankings:
 | Ranked affinity scores | Varies | Explicit `affinity_score` + ranks |
 | Distinct from health / sticky | Often blended | Separate controls |
 | Mutates / rejects | Sometimes | Never (advisory only) |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

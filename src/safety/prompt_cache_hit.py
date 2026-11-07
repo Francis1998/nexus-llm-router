@@ -30,8 +30,8 @@ class PromptCacheHitRateAdvisor:
     """Classify prompt-cache hit rates into cold / warm / hot bands.
 
     Closes the OpenRouter / LiteLLM / Helicone *prompt-cache hit-rate*
-    observability gap for offline Nexus gateways serving GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2: operators need advisory bands
+    observability gap for offline Nexus gateways serving GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro: operators need advisory bands
     when ``cached_tokens / prompt_tokens`` is cold, warm, or hot.
 
     Distinct from ``RequestFingerprintDeduper`` (identical-request content-hash

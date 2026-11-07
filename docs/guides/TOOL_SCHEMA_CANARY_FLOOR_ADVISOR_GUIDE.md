@@ -4,7 +4,7 @@
 
 Offline HITL advisor for `canary_miss_ratio` bands. Gap vs vLLM/SGLang/LiteLLM tool-schema canary floor monitors. Distinct from `PromptInjectionCanaryFloorAdvisor` / `ProviderCanaryRolloutGuard`.
 
-Optional polish via **GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2**.
+Optional polish via **GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro**.
 
 ## Usage
 

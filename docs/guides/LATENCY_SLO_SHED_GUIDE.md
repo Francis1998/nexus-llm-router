@@ -8,7 +8,7 @@ rolling p95 exceeds the SLO are deprioritized whenever faster alternatives exist
 
 - Peak traffic should not keep routing to slow-but-premium providers when a
   faster model can serve the prompt.
-- You want GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 routing to shed
+- You want GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro routing to shed
   over-SLO backends instead of always competing on quality.
 - `latency-budget` (`NEXUS_LATENCY_SLA_MS`, default `750`) is too tight; you
   need a softer SLO gate (default `2000ms`) focused on shedding, not hard caps.

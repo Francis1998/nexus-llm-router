@@ -28,8 +28,8 @@ class StreamingBackpressureAdvisor:
     """Classify inter-chunk gaps into ok / stall / backpressure bands.
 
     Closes the Helicone / LiteLLM *streaming backpressure* observability gap
-    for offline Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2: operators need advisory bands when the gap between
+    for offline Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro: operators need advisory bands when the gap between
     successive SSE chunks exceeds configured thresholds.
 
     Distinct from ``StreamingTokenBudgetGate`` (hard mid-stream token/cost

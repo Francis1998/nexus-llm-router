@@ -1,7 +1,7 @@
 # Request Priority Lane Guide
 
 Weighted fair dequeue across `high` / `normal` / `bulk` request classes for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 ingress.
+GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro ingress.
 
 ![Request priority lane demo](../../assets/demo/request-priority-lane.gif)
 
@@ -50,4 +50,4 @@ while True:
 | Fair dequeue | Varies | Weighted cycle (default 4:2:1) |
 | Anti-starvation | Varies | Empty lanes skipped; bulk still served |
 | Routing-strategy cousin | N/A | Distinct from `tenant-priority-lanes` |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

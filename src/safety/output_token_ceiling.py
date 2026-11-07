@@ -26,8 +26,8 @@ class OutputTokenCeilingGuard:
     """Classify requested max_tokens against an output-token ceiling.
 
     Closes the LiteLLM / OpenRouter / Portkey *max_tokens vs soft ceiling*
-    advisory gap for offline Nexus gateways serving GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2: operators need ``ok`` /
+    advisory gap for offline Nexus gateways serving GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro: operators need ``ok`` /
     ``near`` / ``over`` bands before dispatch when a request asks for more
     completion tokens than a policy ceiling allows.
 

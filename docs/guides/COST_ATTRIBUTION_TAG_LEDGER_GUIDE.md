@@ -5,7 +5,7 @@
 Record Helicone-style cost attribution tags per request and roll up by tag.
 Never performs network I/O. Closes the Helicone / Portkey / LiteLLM cost-tag gap.
 
-Optional later polish via **GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2**.
+Optional later polish via **GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro**.
 
 Distinct from `SpendLedgerGuard` and `TenantSpendQuotaGuard`.
 

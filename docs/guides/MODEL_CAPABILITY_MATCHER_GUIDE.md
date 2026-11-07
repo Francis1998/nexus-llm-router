@@ -2,7 +2,7 @@
 
 Match request needs (`vision` / `tools` / `json_schema` / `long_context`) to
 model capability flags with `fit` / `partial` / `mismatch` verdicts for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 
 ![Model capability matcher demo](../../assets/demo/capability-match.gif)
 
@@ -59,4 +59,4 @@ print(matcher.match(model="kimi-k2", needs=["vision"]).verdict)  # mismatch
 | Need vs flag match | Routing filters | `fit` / `partial` / `mismatch` |
 | Distinct from context/schema | Often blended | Separate from context-fit / JSON guard |
 | Offline / air-gapped | Requires SaaS metadata | In-process matcher |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

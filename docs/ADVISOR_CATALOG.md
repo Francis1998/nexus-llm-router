@@ -557,21 +557,21 @@ HITL `pad_waste_ratio` band. Gap vs vLLM/SGLang/TGI continuous-batch pad-waste m
 
 ![LoraRankSkewBandAdvisor](../assets/demo/lora-rank-skew-band-advisor.gif)
 
-offline LoRA rank skew_ratio bands. Gap vs vLLM/SGLang/TGI LoRA adapter rank-skew monitors. Distinct from `LoraHotSwapStallBandAdvisor` / `AdapterWeightDriftAdvisor`. Stack: GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3. Guide: [`LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md`](guides/LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md).
+offline LoRA rank skew_ratio bands. Gap vs vLLM/SGLang/TGI LoRA adapter rank-skew monitors. Distinct from `LoraHotSwapStallBandAdvisor` / `AdapterWeightDriftAdvisor`. Stack: GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro. Guide: [`LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md`](guides/LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md).
 
 
 ### KvBlockFragmentationBandAdvisor
 
 ![KvBlockFragmentationBandAdvisor](../assets/demo/kv-block-fragmentation-band-advisor.gif)
 
-offline KV-block fragmentation_ratio bands. Gap vs vLLM/SGLang/TGI KV-block fragmentation monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `GpuMemoryFragmentationBandAdvisor`. Stack: GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3. Guide: [`KV_BLOCK_FRAGMENTATION_BAND_ADVISOR_GUIDE.md`](guides/KV_BLOCK_FRAGMENTATION_BAND_ADVISOR_GUIDE.md).
+offline KV-block fragmentation_ratio bands. Gap vs vLLM/SGLang/TGI KV-block fragmentation monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `GpuMemoryFragmentationBandAdvisor`. Stack: GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro. Guide: [`KV_BLOCK_FRAGMENTATION_BAND_ADVISOR_GUIDE.md`](guides/KV_BLOCK_FRAGMENTATION_BAND_ADVISOR_GUIDE.md).
 
 
 ### TokenizerVocabChurnBandAdvisor
 
 ![TokenizerVocabChurnBandAdvisor](../assets/demo/tokenizer-vocab-churn-band-advisor.gif)
 
-offline tokenizer vocab churn_ratio bands. Gap vs vLLM/SGLang/TGI tokenizer vocabulary-churn monitors. Distinct from `TokenizerVocabSkewBandAdvisor` / `TokenizerBpeMergeDriftAdvisor`. Stack: GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3. Guide: [`TOKENIZER_VOCAB_CHURN_BAND_ADVISOR_GUIDE.md`](guides/TOKENIZER_VOCAB_CHURN_BAND_ADVISOR_GUIDE.md).
+offline tokenizer vocab churn_ratio bands. Gap vs vLLM/SGLang/TGI tokenizer vocabulary-churn monitors. Distinct from `TokenizerVocabSkewBandAdvisor` / `TokenizerBpeMergeDriftAdvisor`. Stack: GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro. Guide: [`TOKENIZER_VOCAB_CHURN_BAND_ADVISOR_GUIDE.md`](guides/TOKENIZER_VOCAB_CHURN_BAND_ADVISOR_GUIDE.md).
 
 ### PromptCacheHitCollapseBandAdvisor
 

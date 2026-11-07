@@ -7,7 +7,7 @@ are deprioritized before hard caps trip, while routing stays deterministic.
 ## When to use it
 
 - Finance tracks rolling hourly/daily spend per provider family.
-- You want GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic to drift
+- You want GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic to drift
   away from a family that is running hot without blocking it entirely.
 - `provider-family-cost-ceiling` is too rigid: you need observed spend, not just
   per-request estimates.

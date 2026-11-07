@@ -1,8 +1,8 @@
 # Provider-Error-Budget-Reset Routing Guide
 
 Use `provider-error-budget-reset` when an unhealthy provider should be shed for
-a bounded interval, then automatically restored for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+a bounded interval, then automatically restored for GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ![Provider error budget reset demo](../../assets/provider-error-budget-reset.gif)
 

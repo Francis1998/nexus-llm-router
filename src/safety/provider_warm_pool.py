@@ -3,7 +3,7 @@
 Advises pool readiness from idle warm replicas vs target. Closes the
 OpenRouter / LiteLLM / Portkey warm-pool gap. Distinct from
 ``ProviderHealthGuard`` (error rates) and ``RequestHedgingAdvisor`` (duplicate
-hedges). Works with GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+hedges). Works with GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 Never performs network I/O.
 """
 

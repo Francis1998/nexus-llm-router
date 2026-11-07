@@ -3,7 +3,7 @@
 Advises KV-cache hit-rate bands vs a target ratio. Closes the vLLM /
 TensorRT-LLM / OpenRouter prompt-cache hit-rate gap. Distinct from
 ``PromptCacheHitAdvisor`` (binary hit) and ``PrefillTtftRatioAdvisor``
-(TTFT). Works with GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+(TTFT). Works with GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 Never performs network I/O.
 """
 

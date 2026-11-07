@@ -2,7 +2,7 @@
 
 Use `provider-warmup-weight` to bias selection toward providers that are
 already warm — according to a per-request signal — while staying
-quality-aware for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+quality-aware for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 
 ![Provider warmup weight demo](../../assets/provider-warmup-weight.gif)
 

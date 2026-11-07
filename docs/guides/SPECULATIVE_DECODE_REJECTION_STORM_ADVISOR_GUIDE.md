@@ -6,7 +6,7 @@ Offline HITL advisor. Never network I/O.
 
 Gap vs vLLM/SGLang/TensorRT-LLM speculative-decode rejection-storm advisors. Distinct from ``SpeculativeDecodeAcceptanceBandAdvisor`` and ``SpeculativeDecodeAbortAdvisor``.
 
-Optional polish via **GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2**.
+Optional polish via **GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro**.
 
 ## Usage
 

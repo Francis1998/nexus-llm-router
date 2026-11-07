@@ -1,8 +1,8 @@
 # Token-Bucket-Burst Routing Guide
 
 Use the `token-bucket-burst` strategy when provider gateways expose bursty
-token-bucket quotas and you want Nexus to steer GPT-5.5, Claude Sonnet 4.6,
-Gemini 3.x, and Kimi K2 traffic toward providers that still have burst capacity.
+token-bucket quotas and you want Nexus to steer GPT-6 Astra, Claude Opus 5.5,
+Gemini 4 Argon, and Kimi K3.1 Pro traffic toward providers that still have burst capacity.
 
 ## When to use it
 

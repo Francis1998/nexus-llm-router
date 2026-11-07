@@ -8,7 +8,7 @@ prefer the highest-quality model on that frontier.
 
 - You care about both spend and tail latency, and a single weighted score would
   hide useful trade-offs.
-- Catalog entries such as GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2
+- Catalog entries such as GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro
   offer different cost/latency profiles for the same domain.
 - You want deterministic, explainable selection without tuning blend weights.
 

@@ -1,7 +1,7 @@
 # Token-RPM-Ceiling Routing Guide
 
-Use `token-rpm-ceiling` when GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic must stay below provider prompt-token-per-minute quotas.
+Use `token-rpm-ceiling` when GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro traffic must stay below provider prompt-token-per-minute quotas.
 
 ![Token RPM ceiling demo](../../assets/token-rpm-ceiling.gif)
 

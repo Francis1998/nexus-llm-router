@@ -24,7 +24,7 @@ class ProviderFallbackChainPlanner:
     """Plan an ordered provider fallback chain from explicit preferences.
 
     Closes the LiteLLM / OpenRouter *static preference-chain* gap for Nexus
-    gateways serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2:
+    gateways serving GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro:
     operators need a deterministic planner that orders providers by declared
     preference, skips unavailable ones, and optionally anchors on an explicit
     primary — without requiring live health observations.

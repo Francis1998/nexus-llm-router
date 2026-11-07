@@ -8,7 +8,7 @@ quality axis or circuit-breaker hard gate.
 
 - You want rolling provider success rate, estimated request cost, and p95
   latency in one tunable score.
-- GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 should trade off health,
+- GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro should trade off health,
   cost, and latency explicitly.
 - Cold-start traffic should remain safe: missing success stats count as `1.0`,
   and missing p95 latency stats are normalized without divide-by-zero failures.

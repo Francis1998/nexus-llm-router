@@ -1,7 +1,7 @@
 # Sticky Provider Affinity Guide
 
 Session-key → provider sticky map for conversation continuity across
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 turns.
+GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro turns.
 
 ![Sticky provider affinity demo](../../assets/demo/sticky-provider.gif)
 
@@ -46,4 +46,4 @@ assert affinity.clear("chat-42") is True
 | Session sticky provider | Yes (hosted / config) | `StickyProviderAffinity` (local) |
 | Explicit bind / get / clear | Varies | First-class API |
 | Independent of error shed | Coupled in some gateways | Distinct from `ProviderErrorBudgetShed` |
-| Frontier traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

@@ -67,4 +67,4 @@ with their K3.1 replacements.
 | Alias / deprecation table | Yes (hosted) | `ModelDeprecationGuard` (local) |
 | Warn vs block severity | Varies | Explicit `warn` \| `block` |
 | Extensible register API | Config / dashboard | `register()` / `unregister()` |
-| Frontier traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

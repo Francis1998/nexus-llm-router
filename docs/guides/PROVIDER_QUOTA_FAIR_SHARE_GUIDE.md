@@ -6,7 +6,7 @@ backend.
 
 ## When to use it
 
-- GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic shares provider
+- GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic shares provider
   quota pools and one provider should not absorb every request.
 - You want a bounded local signal that reacts faster than provider billing or
   rate-limit telemetry.

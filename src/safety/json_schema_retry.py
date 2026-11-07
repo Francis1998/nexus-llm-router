@@ -43,8 +43,8 @@ class JsonSchemaRetryBudgetGuard:
     """Track JSON schema repair retries per request_id with advisory/hard budgets.
 
     Closes the LiteLLM / OpenRouter *structured-output repair retry budget*
-    gap for offline Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2: callers record each repair attempt and learn whether
+    gap for offline Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro: callers record each repair attempt and learn whether
     they are still ``ok``, in the ``advisory`` band, or ``exhausted``.
 
     Distinct from ``OutputJsonSchemaGuard`` (post-check required-keys

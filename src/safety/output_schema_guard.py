@@ -23,8 +23,8 @@ class OutputJsonSchemaGuard:
     """Validate model JSON output for required top-level keys.
 
     Closes the LiteLLM / Portkey / OpenRouter structured-output *post-check*
-    gap for offline Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2: after a completion returns text, ``check(text)``
+    gap for offline Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro: after a completion returns text, ``check(text)``
     parses JSON and verifies every configured required key is present.
 
     Distinct from ``PromptInjectionGateway`` (pre-route injection allow /

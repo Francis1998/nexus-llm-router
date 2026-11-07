@@ -1,10 +1,10 @@
 """Reasoning / thinking-token budget advisor.
 
-Advises ok/near_limit/exhausted bands for reasoning-token usage (GPT-5.5
-thinking / Claude extended thinking style workloads). Closes the OpenRouter /
+Advises ok/near_limit/exhausted bands for reasoning-token usage (GPT-6
+reasoning effort / Claude adaptive thinking style workloads). Closes the OpenRouter /
 LiteLLM / Portkey reasoning-budget gap. Distinct from ``StreamBudgetGuard`` and
-``OutputTokenCeilingGuard``. Works with GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2. Never performs network I/O.
+``OutputTokenCeilingGuard``. Works with GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro. Never performs network I/O.
 """
 
 from __future__ import annotations

@@ -85,7 +85,7 @@ class TenantSpendQuotaEnforcer:
     Distinct from ``SpendLedger`` itself (which only records/aggregates) and
     from LiteLLM virtual-key hard budgets (which bind to a key secret rather
     than a tenant spend window). Call ``assert_within_quota`` before dispatch
-    for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+    for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
     """
 
     # IEEE-754 accumulation of many small USD costs can land a hair above the

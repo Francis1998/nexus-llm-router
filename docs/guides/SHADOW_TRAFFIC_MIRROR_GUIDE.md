@@ -8,7 +8,7 @@ audit rationale names a shadow mirror model for dual-run telemetry.
 
 - You want the cheapest model above the quality floor, but need to compare a
   second provider on a small traffic slice without returning two primaries.
-- GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 gateways need shadow
+- GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro gateways need shadow
   mirrors for latency/quality dashboards while production still serves one model.
 - You prefer rationale-level telemetry hooks over changing the decide response.
 

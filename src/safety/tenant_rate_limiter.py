@@ -24,8 +24,8 @@ class TenantRateLimiter:
 
     Distinct from ``TokenBucketRateLimiter`` (keyed by ``api_key_id``) and from
     the ``token-bucket-tenant`` *routing* strategy (which soft-sheds to a cheaper
-    model). This limiter hard-rejects excess GPT-5.5 / Claude Sonnet 4.6 /
-    Gemini 3.x / Kimi K2 traffic for a tenant before dispatch.
+    model). This limiter hard-rejects excess GPT-6 Astra / Claude Opus 5.5 /
+    Gemini 4 Argon / Kimi K3.1 Pro traffic for a tenant before dispatch.
     """
 
     def __init__(self, capacity: int, refill_per_second: float) -> None:

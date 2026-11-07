@@ -1,7 +1,7 @@
 # Region-Carbon-Blend Routing Guide
 
-Use `region-carbon-blend` when GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic should balance lower carbon intensity against rolling provider
+Use `region-carbon-blend` when GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro traffic should balance lower carbon intensity against rolling provider
 latency instead of optimizing either axis alone.
 
 ![Demo](../../assets/region-carbon-blend.gif)

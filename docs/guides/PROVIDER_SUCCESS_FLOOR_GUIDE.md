@@ -2,7 +2,7 @@
 
 Use `provider-success-floor` to skip providers whose recent success rate falls
 below a configurable floor while still emergency-retaining a route when every
-provider is degraded for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+provider is degraded for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 
 ## When to use it
 

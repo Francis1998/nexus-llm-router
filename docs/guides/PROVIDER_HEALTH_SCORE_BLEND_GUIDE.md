@@ -8,8 +8,8 @@ and cost at the same time.
 
 - A provider can be soft-degraded before its circuit breaker fully trips.
 - Open circuits should be skipped whenever another provider is available.
-- You want a tunable score across GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and
-  Kimi K2 without committing to pure quality, pure cost, or pure latency.
+- You want a tunable score across GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and
+  Kimi K3.1 Pro without committing to pure quality, pure cost, or pure latency.
 - Cold-start traffic should remain safe: missing success stats count as `1.0`,
   and missing p95 latency stats are normalized without divide-by-zero failures.
 

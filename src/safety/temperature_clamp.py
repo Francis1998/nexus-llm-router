@@ -25,8 +25,8 @@ class ModelTemperatureClampAdvisor:
     """Classify requested temperature against a policy max_allowed clamp.
 
     Closes the LiteLLM / OpenRouter / Portkey *temperature vs soft max*
-    advisory gap for offline Nexus gateways serving GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2: operators need ``ok`` /
+    advisory gap for offline Nexus gateways serving GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro: operators need ``ok`` /
     ``high`` / ``extreme`` bands before dispatch when a request asks for a
     temperature near or above a policy ceiling.
 
