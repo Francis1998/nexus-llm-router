@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from safety.idempotency import IdempotencyRecord, IdempotencyStore
+from safety.idempotency import IdempotencyRecord, IdempotencyReservation, IdempotencyStore
 from safety.tenant_rate_limiter import TenantRateLimiter
 
 
@@ -58,19 +58,20 @@ class GatewayGuardService:
         """
         return self._idempotency_store.get(key, tenant)
 
-    def reserve_idempotency(self, key: str, tenant: str) -> IdempotencyRecord | None:
+    def reserve_idempotency(
+        self, key: str, tenant: str
+    ) -> IdempotencyRecord | IdempotencyReservation:
         """Return a stored response to replay, or claim the key for this request.
 
-        After a ``None`` result the caller owns the key and must call
-        :meth:`remember_response` on success or :meth:`release_idempotency` on
-        failure.
+        A returned reservation must be passed to :meth:`complete_idempotency`
+        on success or :meth:`release_idempotency` on failure.
 
         Args:
             key: Client ``Idempotency-Key`` value (must be non-empty).
             tenant: Tenant scope for the key.
 
         Returns:
-            The completed record to replay, or ``None`` when the key was claimed.
+            The completed record to replay, or this request's reservation.
 
         Raises:
             IdempotencyKeyInUseError: While another request holds the key.
@@ -79,14 +80,29 @@ class GatewayGuardService:
             key, tenant, lease_seconds=self._idempotency_lease_seconds
         )
 
-    def release_idempotency(self, key: str, tenant: str) -> None:
+    def complete_idempotency(
+        self, reservation: IdempotencyReservation, response_json: str, status_code: int = 200
+    ) -> bool:
+        """Store the response for this request's reservation.
+
+        Args:
+            reservation: Reservation from :meth:`reserve_idempotency`.
+            response_json: Serialized response body to replay.
+            status_code: HTTP status to replay (default ``200``).
+
+        Returns:
+            ``True`` when stored; ``False`` if the reservation was lost to a newer
+            request after its lease expired.
+        """
+        return self._idempotency_store.complete(reservation, response_json, status_code)
+
+    def release_idempotency(self, reservation: IdempotencyReservation) -> None:
         """Drop this request's pending reservation so the key can be retried.
 
         Args:
-            key: Client ``Idempotency-Key`` value.
-            tenant: Tenant scope for the key.
+            reservation: Reservation from :meth:`reserve_idempotency`.
         """
-        self._idempotency_store.release(key, tenant)
+        self._idempotency_store.release(reservation)
 
     def remember_response(
         self,

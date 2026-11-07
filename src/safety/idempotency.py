@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 import sqlite3
 import threading
 import time
@@ -14,6 +15,15 @@ _PENDING_STATUS_CODE = 0
 
 class IdempotencyKeyInUseError(RuntimeError):
     """Raised when another in-flight request holds the reservation for a key."""
+
+
+@dataclass(frozen=True, slots=True)
+class IdempotencyReservation:
+    """Ownership of a pending ``(key, tenant)`` claim from :meth:`IdempotencyStore.reserve`."""
+
+    key: str
+    tenant: str
+    token: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,15 +133,17 @@ class IdempotencyStore:
             (now,),
         )
 
-    def reserve(self, key: str, tenant: str, *, lease_seconds: float) -> IdempotencyRecord | None:
+    def reserve(
+        self, key: str, tenant: str, *, lease_seconds: float
+    ) -> IdempotencyRecord | IdempotencyReservation:
         """Atomically claim ``(key, tenant)`` for a request that is about to run.
 
         The claim is a pending row inserted with ``INSERT OR IGNORE`` on the
         ``(key, tenant)`` primary key, so exactly one concurrent caller wins,
-        including across processes sharing the SQLite file. The winner must
-        later :meth:`put` the response or :meth:`release` the key. A pending row
-        expires after ``lease_seconds`` so a crashed request cannot block the
-        key forever.
+        including across processes sharing the SQLite file. The winner gets an
+        :class:`IdempotencyReservation` whose random token proves ownership and
+        must later :meth:`complete` or :meth:`release` it. A pending row expires
+        after ``lease_seconds`` so a crashed request cannot block the key forever.
 
         Args:
             key: Client-supplied idempotency key.
@@ -139,8 +151,7 @@ class IdempotencyStore:
             lease_seconds: How long the reservation blocks duplicates.
 
         Returns:
-            ``None`` when the caller now holds the reservation, or the stored
-            completed record to replay.
+            The caller's reservation, or the stored completed record to replay.
 
         Raises:
             IdempotencyKeyInUseError: While another request holds the key.
@@ -151,18 +162,21 @@ class IdempotencyStore:
             raise ValueError("tenant must be non-empty")
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be > 0")
+        token = secrets.token_hex(16)
         now = time.time()
         with self._lock:
             connection = self._connect()
             try:
                 self._evict_expired_locked(connection, now)
+                # A pending row keeps its owner token in ``response_json``; it is
+                # never replayed (``get`` and ``reserve`` treat it as in flight).
                 cursor = connection.execute(
                     """
                     INSERT OR IGNORE INTO idempotency_keys (
                         key, tenant, response_json, status_code, created_at, expires_at
-                    ) VALUES (?, ?, '', ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (key, tenant, _PENDING_STATUS_CODE, now, now + lease_seconds),
+                    (key, tenant, token, _PENDING_STATUS_CODE, now, now + lease_seconds),
                 )
                 row = None
                 if cursor.rowcount == 0:
@@ -175,7 +189,7 @@ class IdempotencyStore:
                 if not self._memory:
                     connection.close()
         if row is None:
-            return None
+            return IdempotencyReservation(key=key, tenant=tenant, token=token)
         record = self._row_to_record(row)
         if record.status_code == _PENDING_STATUS_CODE:
             raise IdempotencyKeyInUseError(
@@ -183,31 +197,98 @@ class IdempotencyStore:
             )
         return record
 
-    def release(self, key: str, tenant: str) -> None:
-        """Drop a pending reservation so the key can be used again.
+    def complete(
+        self, reservation: IdempotencyReservation, response_json: str, status_code: int
+    ) -> bool:
+        """Store the response for a reservation this caller still owns.
 
-        Completed records are kept; only an in-flight reservation is removed.
+        If the reservation already expired, the response is stored only when
+        the key is free again; another request's newer reservation or stored
+        response is never overwritten.
 
         Args:
-            key: Client-supplied idempotency key.
-            tenant: Tenant / customer identifier.
+            reservation: Reservation returned by :meth:`reserve`.
+            response_json: Serialized response body to replay on retry.
+            status_code: HTTP status code to replay on retry.
+
+        Returns:
+            ``True`` when the response was stored for the key.
+        """
+        now = time.time()
+        expires_at = now + self._ttl_seconds
+        with self._lock:
+            connection = self._connect()
+            try:
+                cursor = connection.execute(
+                    """
+                    UPDATE idempotency_keys
+                    SET response_json = ?, status_code = ?, created_at = ?, expires_at = ?
+                    WHERE key = ? AND tenant = ? AND status_code = ? AND response_json = ?
+                    """,
+                    (
+                        response_json,
+                        int(status_code),
+                        now,
+                        expires_at,
+                        reservation.key,
+                        reservation.tenant,
+                        _PENDING_STATUS_CODE,
+                        reservation.token,
+                    ),
+                )
+                stored = cursor.rowcount == 1
+                if not stored:
+                    self._evict_expired_locked(connection, now)
+                    cursor = connection.execute(
+                        """
+                        INSERT OR IGNORE INTO idempotency_keys (
+                            key, tenant, response_json, status_code, created_at, expires_at
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            reservation.key,
+                            reservation.tenant,
+                            response_json,
+                            int(status_code),
+                            now,
+                            expires_at,
+                        ),
+                    )
+                    stored = cursor.rowcount == 1
+                connection.commit()
+            finally:
+                if not self._memory:
+                    connection.close()
+        return stored
+
+    def release(self, reservation: IdempotencyReservation) -> None:
+        """Drop a pending reservation this caller still owns.
+
+        A reservation that expired and was reclaimed by another request, or one
+        already completed, is left untouched.
+
+        Args:
+            reservation: Reservation returned by :meth:`reserve`.
         """
         with self._lock:
             connection = self._connect()
             connection.execute(
-                "DELETE FROM idempotency_keys WHERE key = ? AND tenant = ? AND status_code = ?",
-                (key, tenant, _PENDING_STATUS_CODE),
+                """
+                DELETE FROM idempotency_keys
+                WHERE key = ? AND tenant = ? AND status_code = ? AND response_json = ?
+                """,
+                (reservation.key, reservation.tenant, _PENDING_STATUS_CODE, reservation.token),
             )
             connection.commit()
             if not self._memory:
                 connection.close()
 
     def put(self, key: str, tenant: str, response_json: str, status_code: int) -> bool:
-        """Store a response for ``(key, tenant)`` if the key is new or reserved.
+        """Store a response for ``(key, tenant)`` if the key is new.
 
-        Expired rows are evicted before insert. A pending reservation from
-        :meth:`reserve` is completed in place. Returns ``False`` when an
-        unexpired completed record already exists for the same key and tenant.
+        Expired rows are evicted before insert. Returns ``False`` when an
+        unexpired record, or another request's pending reservation, already
+        exists for the same key and tenant.
 
         Args:
             key: Client-supplied idempotency key.
@@ -228,17 +309,13 @@ class IdempotencyStore:
             connection = self._connect()
             self._evict_expired_locked(connection, now)
             existing = connection.execute(
-                "SELECT status_code FROM idempotency_keys WHERE key = ? AND tenant = ?",
+                "SELECT 1 FROM idempotency_keys WHERE key = ? AND tenant = ?",
                 (key, tenant),
             ).fetchone()
-            if existing is not None and int(existing["status_code"]) != _PENDING_STATUS_CODE:
+            if existing is not None:
                 if not self._memory:
                     connection.close()
                 return False
-            connection.execute(
-                "DELETE FROM idempotency_keys WHERE key = ? AND tenant = ?",
-                (key, tenant),
-            )
             connection.execute(
                 """
                 INSERT INTO idempotency_keys (

@@ -24,6 +24,7 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `IdempotencyStore.reserve` claims `(key, tenant)` atomically (`INSERT OR IGNORE` on the primary key, safe across processes).
   - A concurrent duplicate gets HTTP 409. Chat returns a `detail`; Responses returns an OpenAI-style `idempotency_key_in_use` error.
   - Success completes the reservation, and failures release it.
+  - Completion and release require the reservation's ownership token, so a request that outlived its lease cannot free or overwrite a newer request's claim.
   - A reservation left by a crashed process expires after `NEXUS_IDEMPOTENCY_LEASE_SECONDS` (default `300`).
   - Streaming requests keep replay-only behavior.
 - Provider stop reasons now reach clients.

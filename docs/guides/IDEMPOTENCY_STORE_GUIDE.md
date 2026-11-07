@@ -18,14 +18,17 @@ idempotency stores; Nexus now provides the same building block via
 1. `reserve(key, tenant, lease_seconds=...)` atomically claims a key before
    routing. It uses `INSERT OR IGNORE` on the `(key, tenant)` primary key, so
    exactly one concurrent caller wins, even across processes sharing the file.
-   It returns `None` to the winner, returns the completed record to replay, or
-   raises `IdempotencyKeyInUseError` while another request holds the key.
-   Pending reservations expire after `lease_seconds`.
-2. `put(key, tenant, response_json, status_code)` stores the response when the
-   key is new, or completes the caller's pending reservation, and returns
-   `True`. A duplicate unexpired completed key returns `False` without
-   overwriting. `release(key, tenant)` drops a pending reservation after a
-   failure.
+   It returns an `IdempotencyReservation` (with a random ownership token) to
+   the winner, returns the completed record to replay, or raises
+   `IdempotencyKeyInUseError` while another request holds the key. Pending
+   reservations expire after `lease_seconds`.
+2. `complete(reservation, response_json, status_code)` stores the response for
+   a reservation the caller still owns. If the lease expired, the response is
+   stored only when the key is free, never over a newer request's claim.
+   `release(reservation)` drops the caller's pending reservation after a
+   failure and leaves anyone else's untouched. `put(key, tenant, ...)` stores a
+   response without a reservation when the key is new, and returns `False`
+   otherwise.
 3. `get(key, tenant)` returns an `IdempotencyRecord` (or `None` on miss,
    expiry, or a still-pending reservation) so middleware can replay
    `status_code` + `response_json`.
