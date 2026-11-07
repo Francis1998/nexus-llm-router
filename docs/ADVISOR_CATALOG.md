@@ -67,6 +67,7 @@ New advisor entries belong in this file, not in `README.md` (see
 | [PrefixCacheHitFloorAdvisor](#prefixcachehitflooradvisor) | [PREFIX_CACHE_HIT_FLOOR_ADVISOR_GUIDE.md](guides/PREFIX_CACHE_HIT_FLOOR_ADVISOR_GUIDE.md) | `src/safety/prefix_cache_hit_floor.py` |
 | [PrefixCachePoisonAdvisor](#prefixcachepoisonadvisor) | [PREFIX_CACHE_POISON_ADVISOR_GUIDE.md](guides/PREFIX_CACHE_POISON_ADVISOR_GUIDE.md) | `src/safety/prefix_cache_poison.py` |
 | [PrefixSharingDepthCollapseBandAdvisor](#prefixsharingdepthcollapsebandadvisor) | [PREFIX_SHARING_DEPTH_COLLAPSE_BAND_ADVISOR_GUIDE.md](guides/PREFIX_SHARING_DEPTH_COLLAPSE_BAND_ADVISOR_GUIDE.md) | `src/safety/prefix_sharing_depth_collapse_band.py` |
+| [LoraRankSkewBandAdvisor](#lorarankskewbandadvisor) | [LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md](guides/LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md) | `src/safety/lora_rank_skew_band.py` |
 | [PromptCacheHitCollapseBandAdvisor](#promptcachehitcollapsebandadvisor) | [PROMPT_CACHE_HIT_COLLAPSE_BAND_ADVISOR_GUIDE.md](guides/PROMPT_CACHE_HIT_COLLAPSE_BAND_ADVISOR_GUIDE.md) | `src/safety/prompt_cache_hit_collapse_band.py` |
 | [PromptCacheHitRateFloorAdvisor](#promptcachehitrateflooradvisor) | [PROMPT_CACHE_HIT_RATE_FLOOR_ADVISOR_GUIDE.md](guides/PROMPT_CACHE_HIT_RATE_FLOOR_ADVISOR_GUIDE.md) | `src/safety/prompt_cache_hit_rate_floor.py` |
 | [PromptInjectionCanaryFloorAdvisor](#promptinjectioncanaryflooradvisor) | [PROMPT_INJECTION_CANARY_FLOOR_ADVISOR_GUIDE.md](guides/PROMPT_INJECTION_CANARY_FLOOR_ADVISOR_GUIDE.md) | `src/safety/prompt_injection_canary_floor.py` |
@@ -548,6 +549,13 @@ HITL `cold_start_ratio` band. Gap vs vLLM/SGLang/TGI engine warmup cold-start mo
 ![ContinuousBatchPadWasteBandAdvisor](../assets/demo/continuous-batch-pad-waste-band-advisor.gif)
 
 HITL `pad_waste_ratio` band. Gap vs vLLM/SGLang/TGI continuous-batch pad-waste monitors. Distinct from `ContinuousBatchTokenBubbleBandAdvisor` / `ContinuousBatchingTailLatencyBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/CONTINUOUS_BATCH_PAD_WASTE_BAND_ADVISOR_GUIDE.md`.
+
+
+### LoraRankSkewBandAdvisor
+
+![LoraRankSkewBandAdvisor](../assets/demo/lora-rank-skew-band-advisor.gif)
+
+offline LoRA rank skew_ratio bands. Gap vs vLLM/SGLang/TGI LoRA adapter rank-skew monitors. Distinct from `LoraHotSwapStallBandAdvisor` / `AdapterWeightDriftAdvisor`. Stack: GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3. Guide: [`LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md`](guides/LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md).
 
 ### PromptCacheHitCollapseBandAdvisor
 

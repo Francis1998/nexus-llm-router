@@ -127,8 +127,8 @@ response = client.responses.create(
     extra_headers={"X-Router-Strategy": "cost-optimal"},
 )
 print(response.output_text)
-print(response.model)                   # model nexus actually used
-print(response.model_extra["nexus"])    # routing strategy, rationale, cost, latency
+print(response.model)  # model nexus actually used
+print(response.model_extra["nexus"])  # routing strategy, rationale, cost, latency
 ```
 
 Multi-turn conversations are stateless: resend earlier turns in `input`
@@ -138,7 +138,10 @@ Multi-turn conversations are stateless: resend earlier turns in `input`
 ```python
 history = [
     {"role": "developer", "content": "Cite the policy section."},
-    {"role": "user", "content": [{"type": "input_text", "text": "Can I return shoes after 40 days?"}]},
+    {
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Can I return shoes after 40 days?"}],
+    },
 ]
 first = client.responses.create(model="claude-opus-5-5", input=history)
 history += [item.model_dump() for item in first.output]
