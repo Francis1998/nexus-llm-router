@@ -1,333 +1,14 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-2012%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
-
+![Tests](https://img.shields.io/badge/tests-2014%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
-### GuidedDecodeFsmBlowupAdvisor
+**Point any OpenAI SDK at one endpoint and let policy pick the model.** Nexus routes every request to GPT-6, Claude 5.5, Gemini 4 / 3.8, or Kimi K3.1 based on task, cost, latency, and provider health, and enforces budgets, fallbacks, rate limits, and an audit trail along the way.
 
-![GuidedDecodeFsmBlowupAdvisor](assets/demo/guided-decode-fsm-blowup-advisor.gif)
+![nexus-llm-router: the official OpenAI SDK calling POST /v1/responses](assets/demo/responses-api.gif)
 
-Offline HITL `fsm_blowup_ratio` bands. Gap vs vLLM/Outlines/Guidance guided-decode FSM blowup monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/GUIDED_DECODE_FSM_BLOWUP_ADVISOR_GUIDE.md`.
-
-### MoeExpertDropoutStormAdvisor
-
-![MoeExpertDropoutStormAdvisor](assets/demo/moe-expert-dropout-storm-advisor.gif)
-
-Offline HITL `dropout_storm_ratio` bands. Gap vs vLLM/SGLang/TGI MoE expert-dropout storm monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/MOE_EXPERT_DROPOUT_STORM_ADVISOR_GUIDE.md`.
-
-### SpeculativeDecodeRejectionHysteresisAdvisor
-
-![SpeculativeDecodeRejectionHysteresisAdvisor](assets/demo/speculative-decode-rejection-hysteresis-advisor.gif)
-
-Offline HITL `hysteresis_ratio` bands. Gap vs vLLM/SGLang/TGI speculative-decode rejection-hysteresis monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SPECULATIVE_DECODE_REJECTION_HYSTERESIS_ADVISOR_GUIDE.md`.
-
-
-
-
-
-### SamplingSeedCollisionBandAdvisor
-
-![SamplingSeedCollisionBandAdvisor](assets/demo/sampling-seed-collision-band-advisor.gif)
-
-Offline HITL `collision_ratio` bands. Gap vs vLLM/SGLang/TGI sampling-seed collision monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SAMPLING_SEED_COLLISION_BAND_ADVISOR_GUIDE.md`.
-
-
-### TokenizerVocabSkewBandAdvisor
-
-![TokenizerVocabSkewBandAdvisor](assets/demo/tokenizer-vocab-skew-band-advisor.gif)
-
-Offline HITL `vocab_skew_ratio` bands. Gap vs vLLM/SGLang/TGI tokenizer vocab-skew monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOKENIZER_VOCAB_SKEW_BAND_ADVISOR_GUIDE.md`.
-
-
-
-### SpeculativeAcceptanceEntropyBandAdvisor
-
-![SpeculativeAcceptanceEntropyBandAdvisor](assets/demo/speculative-acceptance-entropy-band-advisor.gif)
-
-Offline HITL `entropy_ratio` bands. Gap vs vLLM/SGLang/TGI speculative acceptance-entropy monitors. See `docs/guides/SPECULATIVE_ACCEPTANCE_ENTROPY_BAND_ADVISOR_GUIDE.md`.
-
-
-### DecodePreemptionPingPongBandAdvisor
-
-![DecodePreemptionPingPongBandAdvisor](assets/demo/decode-preemption-ping-pong-band-advisor.gif)
-
-Offline HITL `ping_pong_ratio` bands. Gap vs vLLM/SGLang/TGI decode preemption ping-pong monitors. See `docs/guides/DECODE_PREEMPTION_PING_PONG_BAND_ADVISOR_GUIDE.md`.
-
-
-
-### DisaggPrefillDecodeSkewBandAdvisor
-
-![DisaggPrefillDecodeSkewBandAdvisor](assets/demo/disagg-prefill-decode-skew-band-advisor.gif)
-
-Offline HITL `skew_ratio` bands. Gap vs vLLM/SGLang/TGI disaggregated prefill/decode skew monitors. See `docs/guides/DISAGG_PREFILL_DECODE_SKEW_BAND_ADVISOR_GUIDE.md`.
-
-
-### RadixCacheCollisionBandAdvisor
-
-![RadixCacheCollisionBandAdvisor](assets/demo/radix-cache-collision-band-advisor.gif)
-
-Offline HITL `collision_ratio` bands. Gap vs vLLM/SGLang/TGI radix-cache collision monitors. See `docs/guides/RADIX_CACHE_COLLISION_BAND_ADVISOR_GUIDE.md`.
-
-
-### ChunkedPrefillBubbleBandAdvisor
-
-![ChunkedPrefillBubbleBandAdvisor](assets/demo/chunked-prefill-bubble-band-advisor.gif)
-
-Offline HITL `bubble_ratio` bands. Gap vs vLLM/SGLang/TGI chunked-prefill bubble monitors. See `docs/guides/CHUNKED_PREFILL_BUBBLE_BAND_ADVISOR_GUIDE.md`.
-
-### KvBlockStealStormBandAdvisor
-
-![KvBlockStealStormBandAdvisor](assets/demo/kv-block-steal-storm-band-advisor.gif)
-
-Offline HITL `steal_ratio` bands. Gap vs vLLM/SGLang/TGI KV block steal-storm monitors. See `docs/guides/KV_BLOCK_STEAL_STORM_BAND_ADVISOR_GUIDE.md`.
-
-### SpeculativeTreeDepthBlowupAdvisor
-
-![SpeculativeTreeDepthBlowupAdvisor](assets/demo/speculative-tree-depth-blowup-advisor.gif)
-
-Offline HITL `depth_blowup_ratio` bands. Gap vs vLLM/SGLang/TGI speculative tree-depth blowup monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SPECULATIVE_TREE_DEPTH_BLOWUP_ADVISOR_GUIDE.md`.
-
-### ContinuousBatchStarveBandAdvisor
-
-![ContinuousBatchStarveBandAdvisor](assets/demo/continuous-batch-starve-band-advisor.gif)
-
-Offline HITL `starve_ratio` bands. Gap vs vLLM/SGLang/TGI continuous-batch starve monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/CONTINUOUS_BATCH_STARVE_BAND_ADVISOR_GUIDE.md`.
-
-### DraftVerifyMismatchBandAdvisor
-
-![DraftVerifyMismatchBandAdvisor](assets/demo/draft-verify-mismatch-band-advisor.gif)
-
-Offline HITL `mismatch_ratio` bands. Gap vs vLLM/SGLang/TGI speculative draft-verify mismatch monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/DRAFT_VERIFY_MISMATCH_BAND_ADVISOR_GUIDE.md`.
-
-### PrefixCacheEvictionStormAdvisor
-
-![PrefixCacheEvictionStormAdvisor](assets/demo/prefix-cache-eviction-storm-advisor.gif)
-
-Offline HITL `eviction_storm_ratio` bands. Gap vs vLLM/SGLang/TGI prefix-cache eviction-storm monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFIX_CACHE_EVICTION_STORM_ADVISOR_GUIDE.md`.
-
-### PagedKvSwapThrashAdvisor
-
-![PagedKvSwapThrashAdvisor](assets/demo/paged-kv-swap-thrash-advisor.gif)
-
-Offline HITL `swap_thrash_ratio` bands. Gap vs vLLM/SGLang/TGI paged-KV swap-thrash monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PAGED_KV_SWAP_THRASH_ADVISOR_GUIDE.md`.
-
-### RopeScaleMismatchBandAdvisor
-
-![RopeScaleMismatchBandAdvisor](assets/demo/rope-scale-mismatch-band-advisor.gif)
-
-Offline HITL `rope_mismatch_ratio` bands. Gap vs vLLM/SGLang/TGI RoPE-scale mismatch monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/ROPE_SCALE_MISMATCH_BAND_ADVISOR_GUIDE.md`.
-
-### QuantCalibrationDriftBandAdvisor
-
-![QuantCalibrationDriftBandAdvisor](assets/demo/quant-calibration-drift-band-advisor.gif)
-
-Offline HITL `calib_drift_ratio` bands. Gap vs vLLM/TGI/TensorRT-LLM AWQ/GPTQ quant-calibration drift monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/QUANT_CALIBRATION_DRIFT_BAND_ADVISOR_GUIDE.md`.
-
-![Nexus use cases](assets/use-cases.gif)
-
-### DecodeSlotFragmentationBandAdvisor
-
-![DecodeSlotFragmentationBandAdvisor](assets/demo/decode-slot-fragmentation-band-advisor.gif)
-
-Offline HITL `slot_frag_ratio` bands. Gap vs vLLM/SGLang/TGI decode-slot fragmentation monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/DECODE_SLOT_FRAGMENTATION_BAND_ADVISOR_GUIDE.md`.
-
-![EmbeddingCachePoisonAdvisor](assets/demo/embedding-cache-poison-advisor.gif)
-### EmbeddingCachePoisonAdvisor
-
-![EmbeddingCachePoisonAdvisor](assets/demo/embedding-cache-poison-advisor.gif)
-
-Offline HITL `poison_ratio` bands. Gap vs vLLM/TGI/TEI embedding-cache poison monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/EMBEDDING_CACHE_POISON_ADVISOR_GUIDE.md`.
-![ContinuousBatchPreemptionChurnAdvisor](assets/demo/continuous-batch-preemption-churn-advisor.gif)
-### ContinuousBatchPreemptionChurnAdvisor
-
-![ContinuousBatchPreemptionChurnAdvisor](assets/demo/continuous-batch-preemption-churn-advisor.gif)
-
-Offline HITL `preemption_churn_rate` bands. Gap vs vLLM/SGLang/TGI continuous-batch preemption-churn monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/CONTINUOUS_BATCH_PREEMPTION_CHURN_ADVISOR_GUIDE.md`.
-### ToolSchemaVersionSkewAdvisor
-
-![ToolSchemaVersionSkewAdvisor](assets/demo/tool-schema-version-skew-advisor.gif)
-
-Offline HITL skew_score bands. Gap vs LiteLLM/OpenAI/Anthropic tool-schema version-skew monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOOL_SCHEMA_VERSION_SKEW_ADVISOR_GUIDE.md`.
-
-### GpuMemoryFragmentationBandAdvisor
-
-![GpuMemoryFragmentationBandAdvisor](assets/demo/gpu-memory-fragmentation-advisor.gif)
-
-Offline HITL frag_ratio bands. Gap vs vLLM/TGI/TensorRT-LLM GPU memory fragmentation monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/GPU_MEMORY_FRAGMENTATION_ADVISOR_GUIDE.md`.
-
-### KvBlockStealAdvisor
-
-![KvBlockStealAdvisor](assets/demo/kv-block-steal-advisor.gif)
-
-Offline advisor for `steal_rate` bands. Gap vs vLLM/SGLang/TGI KV-block steal monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-### EmbeddingIndexSkewAdvisor
-
-![EmbeddingIndexSkewAdvisor](assets/demo/embedding-index-skew-advisor.gif)
-
-Offline advisor for `index_skew_ratio` bands. Gap vs vLLM/SGLang/embedding-serving index-skew monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-### KvCacheQuantErrorBandAdvisor
-
-![KvCacheQuantErrorBandAdvisor](assets/demo/kv-cache-quant-error-band-advisor.gif)
-
-Offline advisor for `error_rate` bands. Gap vs vLLM/SGLang KV-cache quantization error-band monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-### LoraAdapterHotSwapStallAdvisor
-
-![LoraAdapterHotSwapStallAdvisor](assets/demo/lora-adapter-hot-swap-stall-advisor.gif)
-
-Offline advisor for `stall_ratio` bands. Gap vs vLLM/SGLang LoRA adapter hot-swap stall monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-### GrammarConstrainedDecodeRejectAdvisor
-
-![GrammarConstrainedDecodeRejectAdvisor](assets/demo/grammar-constrained-decode-reject-advisor.gif)
-
-Offline HITL `reject_ratio` bands. Gap vs vLLM/SGLang/Outlines grammar-constrained decode reject monitors. See `docs/guides/GRAMMAR_CONSTRAINED_DECODE_REJECT_ADVISOR_GUIDE.md`.
-
-### SpeculativeDecodeMismatchFloorAdvisor
-
-![SpeculativeDecodeMismatchFloorAdvisor](assets/demo/speculative-decode-mismatch-floor-advisor.gif)
-
-Offline HITL `mismatch_ratio` bands. Gap vs vLLM/SGLang speculative-decode mismatch floor monitors. See `docs/guides/SPECULATIVE_DECODE_MISMATCH_FLOOR_ADVISOR_GUIDE.md`.
-
-### PrefixCacheHitFloorAdvisor
-
-![PrefixCacheHitFloorAdvisor](assets/demo/prefix-cache-hit-floor-advisor.gif)
-
-Offline HITL `miss_ratio` bands. Gap vs vLLM/SGLang/TGI prefix-cache hit floor monitors. See `docs/guides/PREFIX_CACHE_HIT_FLOOR_ADVISOR_GUIDE.md`.
-
-### ContinuousBatchingTailLatencyBandAdvisor
-
-![ContinuousBatchingTailLatencyBandAdvisor](assets/demo/continuous-batching-tail-latency-band-advisor.gif)
-
-Offline HITL `p99_tail_ms` bands. Gap vs vLLM/SGLang/TGI continuous-batching tail-latency band monitors. See `docs/guides/CONTINUOUS_BATCHING_TAIL_LATENCY_BAND_ADVISOR_GUIDE.md`.
-
-### TokenizerBpeMergeStormAdvisor
-
-![TokenizerBpeMergeStormAdvisor](assets/demo/tokenizer-bpe-merge-storm-advisor.gif)
-
-Offline HITL `bpe_merge_storm_rate` bands. Gap vs vLLM/SGLang/TGI tokenizer BPE merge-storm monitors. See `docs/guides/TOKENIZER_BPE_MERGE_STORM_ADVISOR_GUIDE.md`.
-
-### DecodeBatchPriorityInversionAdvisor
-
-![DecodeBatchPriorityInversionAdvisor](assets/demo/decode-batch-priority-inversion-advisor.gif)
-
-Offline HITL `inversion_ratio` bands. Gap vs vLLM/SGLang/TGI decode-batch priority-inversion monitors. See `docs/guides/DECODE_BATCH_PRIORITY_INVERSION_ADVISOR_GUIDE.md`.
-
-### AttentionSinkDriftAdvisor
-
-![AttentionSinkDriftAdvisor](assets/demo/attention-sink-drift-advisor.gif)
-
-Offline HITL `sink_drift_ratio` bands. Gap vs vLLM/SGLang attention-sink drift monitors. See `docs/guides/ATTENTION_SINK_DRIFT_ADVISOR_GUIDE.md`.
-
-### ToolSchemaCanaryFloorAdvisor
-
-![ToolSchemaCanaryFloorAdvisor](assets/demo/tool-schema-canary-floor-advisor.gif)
-
-Offline HITL `canary_miss_ratio` bands. Gap vs vLLM/SGLang/LiteLLM tool-schema canary floor monitors. See `docs/guides/TOOL_SCHEMA_CANARY_FLOOR_ADVISOR_GUIDE.md`.
-
-### PrefillQueueStarvationAdvisor
-
-![PrefillQueueStarvationAdvisor](assets/demo/prefill-queue-starvation-advisor.gif)
-
-Offline advisor for `starvation_rate` bands. Gap vs vLLM/SGLang/TensorRT-LLM prefill queue-starvation monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-### MoeRoutingCollapseAdvisor
-
-![MoeRoutingCollapseAdvisor](assets/demo/moe-routing-collapse-advisor.gif)
-
-Offline advisor for `collapse_rate` bands. Gap vs vLLM/SGLang/DeepSeek MoE routing-collapse monitors. Optional polish via GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-### PrefixCachePoisonAdvisor
-
-![PrefixCachePoisonAdvisor](assets/demo/prefix-cache-poison-advisor.gif)
-
-Offline HITL poison_hit_rate bands. Gap vs vLLM/SGLang/TGI prefix-cache poison monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFIX_CACHE_POISON_ADVISOR_GUIDE.md`.
-### PagedAttentionSlotFragmentationAdvisor
-
-![PagedAttentionSlotFragmentationAdvisor](assets/demo/paged-attention-slot-fragmentation-advisor.gif)
-
-Offline HITL slot_fragmentation_ratio bands. Gap vs vLLM/SGLang paged-attention slot-fragmentation monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PAGED_ATTENTION_SLOT_FRAGMENTATION_ADVISOR_GUIDE.md`.
-### TokenizerBpeMergeDriftAdvisor
-
-![TokenizerBpeMergeDriftAdvisor](assets/demo/tokenizer-bpe-merge-drift-advisor.gif)
-
-Offline HITL bpe_merge_drift_score bands. Gap vs vLLM/TGI/HuggingFace tokenizer BPE merge-drift monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOKENIZER_BPE_MERGE_DRIFT_ADVISOR_GUIDE.md`.
-
-### AdapterWeightDriftAdvisor
-
-![AdapterWeightDriftAdvisor](assets/demo/adapter-weight-drift-advisor.gif)
-
-Offline HITL weight_drift_score bands. Gap vs vLLM/TGI LoRA adapter-weight drift monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/ADAPTER_WEIGHT_DRIFT_ADVISOR_GUIDE.md`.
-
-### BatchPaddingWasteAdvisor
-
-![BatchPaddingWasteAdvisor](assets/demo/batch-padding-waste-advisor.gif)
-
-Offline HITL padding_waste_ratio bands. Gap vs vLLM/TGI/SGLang batch-padding waste monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/BATCH_PADDING_WASTE_ADVISOR_GUIDE.md`.
-
-### PromptInjectionCanaryFloorAdvisor
-
-![PromptInjectionCanaryFloorAdvisor](assets/demo/prompt-injection-canary-floor-advisor.gif)
-
-Offline HITL canary_hit_rate bands. Gap vs LiteLLM/vLLM/Guardrails prompt-injection canary-floor monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PROMPT_INJECTION_CANARY_FLOOR_ADVISOR_GUIDE.md`.
-
-### PrefillDecodeSkewAdvisor
-
-![PrefillDecodeSkewAdvisor](assets/demo/prefill-decode-skew-advisor.gif)
-
-Offline HITL skew_ratio bands. Gap vs vLLM/TGI/SGLang prefill/decode skew monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFILL_DECODE_SKEW_ADVISOR_GUIDE.md`.
-
-### ToolLoopDepthGateAdvisor
-
-![ToolLoopDepthGateAdvisor](assets/demo/tool-loop-depth-gate-advisor.gif)
-
-Offline HITL loop_depth bands. Gap vs LiteLLM/vLLM/OpenAI-compatible tool-loop depth gates. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOOL_LOOP_DEPTH_GATE_ADVISOR_GUIDE.md`.
-### WebGroundingInjectionGateAdvisor
-
-![WebGroundingInjectionGateAdvisor](assets/demo/web-grounding-injection-gate-advisor.gif)
-
-Offline HITL injection_score bands. Gap vs Perplexity/Bing/OpenAI web-grounding injection gates. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/WEB_GROUNDING_INJECTION_GATE_ADVISOR_GUIDE.md`.
-
-### EmbeddingCacheThrashAdvisor
-
-![EmbeddingCacheThrashAdvisor](assets/demo/embedding-cache-thrash-advisor.gif)
-
-Offline HITL thrash_ratio bands. Gap vs Redis/vLLM/embedding-cache thrash monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/EMBEDDING_CACHE_THRASH_ADVISOR_GUIDE.md`.
-
-
-### ModalityMixBudgetAdvisor
-
-![ModalityMixBudgetAdvisor](assets/demo/modality-mix-budget-advisor.gif)
-
-Offline HITL mix_ratio bands. Gap vs LiteLLM/OpenRouter multimodal modality-mix budget monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/MODALITY_MIX_BUDGET_ADVISOR_GUIDE.md`.
-
-### ProviderCircuitBreakerCooldownAdvisor
-
-![ProviderCircuitBreakerCooldownAdvisor](assets/demo/provider-circuit-breaker-cooldown-advisor.gif)
-
-Offline HITL cooldown_ratio bands. Gap vs LiteLLM/Portkey/Helicone provider circuit-breaker cooldown monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PROVIDER_CIRCUIT_BREAKER_COOLDOWN_ADVISOR_GUIDE.md`.
-
-### RegionFailoverHysteresisAdvisor
-
-![RegionFailoverHysteresisAdvisor](assets/demo/region-failover-hysteresis-advisor.gif)
-
-Offline HITL failover_score bands. Gap vs LiteLLM/OpenRouter region-failover hysteresis monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/REGION_FAILOVER_HYSTERESIS_ADVISOR_GUIDE.md`.
-
-### SpeculativeDecodeQueueStallAdvisor
-
-![SpeculativeDecodeQueueStallAdvisor](assets/demo/speculative-decode-queue-stall-advisor.gif)
-
-Offline HITL stall_ratio bands. Gap vs vLLM/TGI/OpenAI-compatible speculative-decode queue-stall monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SPECULATIVE_DECODE_QUEUE_STALL_ADVISOR_GUIDE.md`.
-
-### PromptCacheHitRateFloorAdvisor
-
-![PromptCacheHitRateFloorAdvisor](assets/demo/prompt-cache-hit-rate-floor-advisor.gif)
-
-Offline HITL hit_rate floor bands. Gap vs Anthropic/OpenAI prompt-cache hit-rate floor monitors. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PROMPT_CACHE_HIT_RATE_FLOOR_ADVISOR_GUIDE.md`.
+*The official OpenAI Python SDK calling `POST /v1/responses` (plain and streaming) against nexus with mock providers, recorded from a real run ([how it was recorded](docs/guides/RESPONSES_API_GUIDE.md#how-this-demo-was-recorded)).*
 
 ## Why Nexus
 
@@ -376,11 +57,126 @@ Nexus is designed for AI infrastructure engineers running multi-model production
 - Issue: model routing becomes a hidden product decision.
   Nexus solves this by making routing policy explicit, testable, observable, and owned in infra.
 
+## 60-Second Quickstart
+
+No API keys needed: `scripts/serve_mock.py` serves the real API with deterministic mock providers.
+
+```bash
+git clone https://github.com/Francis1998/nexus-llm-router.git && cd nexus-llm-router
+pip install -e ".[dev]"
+PYTHONPATH=src python scripts/serve_mock.py --port 8000
+```
+
+In a second terminal, send a Chat Completions request and see which model was picked and why:
+
+```bash
+curl -s localhost:8000/v1/chat/completions -H 'content-type: application/json' \
+  -d '{"messages":[{"role":"user","content":"What are your support hours?"}]}' \
+  | jq '{model, strategy: .router.routing_strategy, rationale: .router.rationale}'
+```
+
+```json
+{
+  "model": "gemini-3.8-flash",
+  "strategy": "rule-based",
+  "rationale": "simple realtime prompt favors low latency"
+}
+```
+
+Or use the official OpenAI SDK (`pip install openai`) with the Responses API:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="local-dev")
+response = client.responses.create(
+    model="gpt-6-astra",
+    input=(
+        "Design a multi-region failover strategy for a payments platform: compare "
+        "active-active, active-passive, and pilot-light architectures, analyze cost, "
+        "latency, and consistency trade-offs, and recommend one with a phased rollout plan."
+    ),
+)
+print(response.model, "|", response.output_text)
+print(response.model_extra["nexus"]["rationale"])
+```
+
+```text
+gpt-6-astra | [gpt-6-astra] routed response
+explicit compatible model request honored
+```
+
+Mock providers answer `[<model>] routed response`; routing, budgets, rate limits, caching, and the audit log all run for real. Next, walk through [three end-to-end use cases](docs/guides/USE_CASES.md), or [run with real providers](#run-with-real-providers).
+
+## Feature Map
+
+| Area | What ships | Learn more |
+| --- | --- | --- |
+| OpenAI-compatible API | `POST /v1/chat/completions` (with SSE streaming), `POST /v1/responses` (OpenAI Responses API and its SSE event stream), `GET`/`POST /v1/spend`, `GET /health`, `GET /metrics` | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md), [SSE streaming guide](docs/guides/SSE_STREAMING_GUIDE.md) |
+| Routing | 124 strategies chosen per request with `X-Router-Strategy` (default `rule-based`), from cost-optimal and latency-aware to token-budget, long-context, A/B, and canary routing | [Routing Strategies](#routing-strategies), [CONFIGURATION.md](CONFIGURATION.md) |
+| Reliability | per-provider circuit breakers, health-ranked fallback chains, and no fallback splicing once a stream has started | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md), [Fallback scoreboard guide](docs/guides/FALLBACK_SCOREBOARD_GUIDE.md) |
+| Cost control | provider list prices (including long-prompt tiers), pre-dispatch budget caps, a durable spend ledger, and Prometheus cost metrics | [Built-in model catalog](CONFIGURATION.md#built-in-model-catalog) |
+| Gateway guards | API keys reduced to non-reversible fingerprints, per-key and per-tenant (`X-Tenant-Id`) rate limits, `Idempotency-Key` replay, and an exact-match response cache | [Gateway guards guide](docs/guides/GATEWAY_GUARDS_GUIDE.md), [Response cache guide](docs/guides/RESPONSE_CACHE_GUIDE.md) |
+| Safety and compliance | domain-aware routing (`rule-based` sends medical and legal prompts to Claude Opus 5.5 first, with cross-provider fallback), optional PII scrubbing, a prompt-injection gateway, a model deprecation guard, and a durable audit log of successful completions | [SAFETY.md](SAFETY.md), [SECURITY.md](SECURITY.md) |
+| Observability | Prometheus metrics, Grafana via Docker Compose, OpenTelemetry spans, and structured logs | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Advisors | offline, human-in-the-loop advisors for serving-stack signals such as KV cache, speculative decoding, batching, and MoE routing | [Advisor catalog](docs/ADVISOR_CATALOG.md) |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    client["OpenAI SDK / curl / any OpenAI-compatible client"]
+    subgraph nexus["nexus-llm-router"]
+        api["FastAPI gateway<br/>/v1/chat/completions · /v1/responses<br/>key fingerprint · rate limits · idempotency · cache"]
+        observe["Observe<br/>RequestAnalyzer: domain, complexity,<br/>latency need, token estimate"]
+        decide["Decide<br/>X-Router-Strategy → model + fallback chain"]
+        act["Act<br/>provider adapters with circuit breakers<br/>and health-ranked fallback"]
+        api --> observe --> decide --> act
+    end
+    client --> api
+    act --> openai["OpenAI GPT-6"]
+    act --> anthropic["Anthropic Claude 5.5"]
+    act --> google["Google Gemini 4 / 3.8"]
+    act --> moonshot["Moonshot Kimi K3.1"]
+    act --> records[("spend ledger · audit log<br/>Prometheus · OpenTelemetry")]
+```
+
+Each request moves `RECEIVED → CLASSIFIED → ROUTED → DISPATCHED → RESPONDED`, with `FALLBACK` and `FAILED` paths; see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Documentation Map
+
+| If you want to... | Read |
+| --- | --- |
+| run nexus locally, step by step | [QUICKSTART.md](QUICKSTART.md) |
+| follow three end-to-end scenarios with real output | [Use cases](docs/guides/USE_CASES.md) |
+| call nexus through the OpenAI Responses API | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) |
+| configure strategies, budgets, limits, and models | [CONFIGURATION.md](CONFIGURATION.md) |
+| understand the request lifecycle | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| review guardrails and the security policy | [SAFETY.md](SAFETY.md), [SECURITY.md](SECURITY.md) |
+| browse the advisor modules | [Advisor catalog](docs/ADVISOR_CATALOG.md) |
+| contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| find a specific guide | [Documentation](#documentation) |
+| see what changed | [CHANGELOG.md](CHANGELOG.md) |
+
+## Current Model Stack
+
+Default catalog (`src/router/config.py`), verified against the provider docs on 2026-11-06:
+
+| Catalog role | Model | List price per 1M tokens (input / output) | Context window |
+| --- | --- | --- | --- |
+| OpenAI frontier | `gpt-6-astra` | $10 / $50; 2x input and 1.5x output above 272K input tokens | 1,050,000 (max input 922,000) |
+| OpenAI balanced | `gpt-6-luna` | $0.10 / $0.50; 2x input and 1.5x output above 272K input tokens | 1,050,000 (max input 922,000) |
+| Anthropic safety (medical, legal) | `claude-opus-5-5` | $4 / $20 | 1,000,000 |
+| Anthropic fast | `claude-haiku-5-5` | $0.10 / $0.50; $0.50 / $2.50 above 100K prompt tokens | 1,000,000 |
+| Google pro | `gemini-4-argon` | $2 / $10 ($4 / $20 from 2026-12-01) | 1,048,576 |
+| Google flash | `gemini-3.8-flash` | $0.75 / $3.75 ($1.50 / $7.50 from 2027-01-01) | 1,048,576 |
+| Moonshot | `kimi-k3.1-pro` | $2 / $10 | 1,048,576 |
+
+The adapters also price `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `claude-sonnet-5-5`, `kimi-k3.1-pro-highspeed`, and `kimi-k3`. Nexus never forwards sampling parameters, which these models reject or ignore; see [Provider parameter compatibility](CONFIGURATION.md#provider-parameter-compatibility).
+
 ## Demo Gallery
 
-OpenAI Responses API (`POST /v1/responses`) with the official OpenAI SDK:
-
-![Nexus OpenAI Responses API demo](assets/demo/responses-api.gif)
+The OpenAI Responses API demo is the hero GIF at the top of this page.
 
 Request cost forecast demo:
 
@@ -504,7 +300,47 @@ Soft rate-limit avoidance demo:
 
 ![ModelTemperatureClampAdvisor](assets/demo/model-temperature-clamp.gif)
 
+![StickyProviderAffinity](assets/demo/sticky-provider.gif)
+
+![OutputJsonSchemaGuard](assets/demo/output-schema-guard.gif)
+
 ## Features
+
+### Core gateway
+
+- **Exact-match response cache** with TTL + tenant namespaces
+- **Semantic fuzzy cache** (trigram Jaccard) for near-duplicate prompts
+- **SSE streaming** for `stream=true` chat completions
+- **OpenAI Responses API** (`POST /v1/responses`): text-only subset with the official SSE event stream, OpenAI error envelopes, and a `nexus` routing block — see `docs/guides/RESPONSES_API_GUIDE.md`
+- **Router engine** with configurable strategies
+- **Adapter pipeline** with full observability
+- **Async-first** design using `asyncio` + `httpx`
+- **Type-safe** with full `mypy` compliance
+- **Production-ready** with Docker, CI/CD, and structured logging
+
+### Gateway guards and data plane
+
+- **StickyProviderAffinity**: session_key → provider sticky map (get/bind/clear) for conversation continuity — see `docs/guides/STICKY_PROVIDER_AFFINITY_GUIDE.md`
+- **OutputJsonSchemaGuard**: post-check model JSON against required-keys schema (ok/missing/invalid_json) — see `docs/guides/OUTPUT_JSON_SCHEMA_GUARD_GUIDE.md`
+- **RequestCostForecastAdvisor**: offline pre-dispatch USD cost forecast from tokens + $/1M rates — see `docs/guides/REQUEST_COST_FORECAST_GUIDE.md`
+- **TenantSpendQuotaEnforcer**: hard UTC calendar-month USD spend caps on top of SpendLedger — see `docs/guides/TENANT_SPEND_QUOTA_GUIDE.md`
+- **PromptCacheAffinityRouter**: sticky prefix fingerprint → model after cache hits — see `docs/guides/PROMPT_CACHE_AFFINITY_GUIDE.md`
+- **RequestPriorityLane**: high/normal/bulk fair dequeue queue — see `docs/guides/REQUEST_PRIORITY_LANE_GUIDE.md`
+- **ModelLatencySlaTracker**: advisory in-memory per-model p50/p95 SLA breach flags — see `docs/guides/MODEL_LATENCY_SLA_GUIDE.md`
+- **StreamingTokenBudgetGate**: hard mid-stream token/cost cut-off for SSE completions — see `docs/guides/STREAMING_TOKEN_BUDGET_GUIDE.md`
+- **ProviderFallbackScoreboard**: provider health scoring **wired into** `NexusRouter` fallback order (`record_outcome` + `rank()`) — see `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`
+- **ProviderModelListSync**: offline static/provider model-list sync into the capability catalog — see `docs/guides/CAPABILITY_MODEL_LIST_SYNC_GUIDE.md`
+- **TenantRateLimiter**: hard per-tenant token-bucket rate limit (distinct from api-key limiter and token-bucket-tenant shed) — see `docs/guides/TENANT_RATE_LIMITER_GUIDE.md`
+- **GatewayGuardService**: composed Idempotency-Key replay + hard X-Tenant-Id rate limits on chat completions — see `docs/guides/GATEWAY_GUARDS_GUIDE.md`
+- **ModelCapabilityCatalog**: refreshable capability map — see `docs/guides/CAPABILITY_CATALOG_GUIDE.md`
+- **IdempotencyStore**: durable Idempotency-Key response replay — see `docs/guides/IDEMPOTENCY_STORE_GUIDE.md`
+- **PromptInjectionGateway**: pre-route allow/redact/block injection control — see `docs/guides/PROMPT_INJECTION_GATEWAY_GUIDE.md`
+- **VirtualKeyStore**: hashed tenant virtual keys with budget + model allowlists — see `docs/guides/VIRTUAL_KEYS_GUIDE.md`
+
+### Advisors and guards
+
+More advisor entries, each with a guide and a module, are listed in the [advisor catalog](docs/ADVISOR_CATALOG.md).
+
 - **ModelTemperatureClampAdvisor**: advisory temperature vs max_allowed bands ok/high/extreme (never rejects; suggested_clamp) — see `docs/guides/MODEL_TEMPERATURE_CLAMP_GUIDE.md`
 - **ProviderRegionAffinityAdvisor**: rank providers by preferred-region affinity score (distinct from ProviderHealthScoreboard / StickyProviderAffinity) — see `docs/guides/PROVIDER_REGION_AFFINITY_GUIDE.md`
 - **RequestPriorityAgingAdvisor**: wait-age → fresh/aging/stale priority boost bands (Portkey/Helicone gap; distinct from RequestPriorityLane) — see `docs/guides/REQUEST_PRIORITY_AGING_GUIDE.md`
@@ -564,39 +400,10 @@ Soft rate-limit avoidance demo:
 - **FirstTokenLatencySloAdvisor**: TTFT / first-token SLO bands within/warn/breach (distinct from ModelLatencySlaTracker E2E) — see `docs/guides/FIRST_TOKEN_LATENCY_SLO_GUIDE.md`
 - **RequestFingerprintDeduper**: identical request content-hash dedup window (distinct from IdempotencyStore) — see `docs/guides/REQUEST_FINGERPRINT_DEDUPER_GUIDE.md`
 - **ContextWindowFitAdvisor**: offline fit bands (fits/tight/overflow) from estimated_tokens vs model_context_limit — see `docs/guides/CONTEXT_WINDOW_FIT_GUIDE.md`
-![StickyProviderAffinity](assets/demo/sticky-provider.gif)
 
-![OutputJsonSchemaGuard](assets/demo/output-schema-guard.gif)
+## Run With Real Providers
 
-## Features
-- **StickyProviderAffinity**: session_key → provider sticky map (get/bind/clear) for conversation continuity — see `docs/guides/STICKY_PROVIDER_AFFINITY_GUIDE.md`
-- **OutputJsonSchemaGuard**: post-check model JSON against required-keys schema (ok/missing/invalid_json) — see `docs/guides/OUTPUT_JSON_SCHEMA_GUARD_GUIDE.md`
-- **RequestCostForecastAdvisor**: offline pre-dispatch USD cost forecast from tokens + $/1M rates — see `docs/guides/REQUEST_COST_FORECAST_GUIDE.md`
-- **TenantSpendQuotaEnforcer**: hard UTC calendar-month USD spend caps on top of SpendLedger — see `docs/guides/TENANT_SPEND_QUOTA_GUIDE.md`
-- **PromptCacheAffinityRouter**: sticky prefix fingerprint → model after cache hits — see `docs/guides/PROMPT_CACHE_AFFINITY_GUIDE.md`
-- **RequestPriorityLane**: high/normal/bulk fair dequeue queue — see `docs/guides/REQUEST_PRIORITY_LANE_GUIDE.md`
-- **ModelLatencySlaTracker**: advisory in-memory per-model p50/p95 SLA breach flags — see `docs/guides/MODEL_LATENCY_SLA_GUIDE.md`
-- **StreamingTokenBudgetGate**: hard mid-stream token/cost cut-off for SSE completions — see `docs/guides/STREAMING_TOKEN_BUDGET_GUIDE.md`
-- **ProviderFallbackScoreboard**: provider health scoring **wired into** `NexusRouter` fallback order (`record_outcome` + `rank()`) — see `docs/guides/FALLBACK_SCOREBOARD_GUIDE.md`
-- **ProviderModelListSync**: offline static/provider model-list sync into the capability catalog — see `docs/guides/CAPABILITY_MODEL_LIST_SYNC_GUIDE.md`
-- **TenantRateLimiter**: hard per-tenant token-bucket rate limit (distinct from api-key limiter and token-bucket-tenant shed) — see `docs/guides/TENANT_RATE_LIMITER_GUIDE.md`
-- **GatewayGuardService**: composed Idempotency-Key replay + hard X-Tenant-Id rate limits on chat completions — see `docs/guides/GATEWAY_GUARDS_GUIDE.md`
-- **ModelCapabilityCatalog**: refreshable capability map — see `docs/guides/CAPABILITY_CATALOG_GUIDE.md`
-- **IdempotencyStore**: durable Idempotency-Key response replay — see `docs/guides/IDEMPOTENCY_STORE_GUIDE.md`
-- **PromptInjectionGateway**: pre-route allow/redact/block injection control — see `docs/guides/PROMPT_INJECTION_GATEWAY_GUIDE.md`
-- **VirtualKeyStore**: hashed tenant virtual keys with budget + model allowlists — see `docs/guides/VIRTUAL_KEYS_GUIDE.md`
-
-- **Exact-match response cache** with TTL + tenant namespaces
-- **Semantic fuzzy cache** (trigram Jaccard) for near-duplicate prompts
-- **SSE streaming** for `stream=true` chat completions
-- **OpenAI Responses API** (`POST /v1/responses`): text-only subset with the official SSE event stream, OpenAI error envelopes, and a `nexus` routing block — see `docs/guides/RESPONSES_API_GUIDE.md`
-- **Router engine** with configurable strategies
-- **Adapter pipeline** with full observability
-- **Async-first** design using `asyncio` + `httpx`
-- **Type-safe** with full `mypy` compliance
-- **Production-ready** with Docker, CI/CD, and structured logging
-
-## Quick Start
+Add provider keys to `.env` (see [CONFIGURATION.md](CONFIGURATION.md)) and start the API; [QUICKSTART.md](QUICKSTART.md) has the step-by-step version.
 
 ```bash
 git clone https://github.com/Francis1998/nexus-llm-router.git
@@ -761,6 +568,8 @@ Select a strategy with `X-Router-Strategy`:
 | [Architecture](ARCHITECTURE.md) | System design and component overview |
 | [Configuration](CONFIGURATION.md) | All configuration options |
 | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) | OpenAI Responses API compatibility (`POST /v1/responses`), streaming events, supported fields |
+| [Use cases](docs/guides/USE_CASES.md) | Three end-to-end scenarios (cost control, OpenAI SDK migration with tenant guards, regulated domains) with real output |
+| [Advisor catalog](docs/ADVISOR_CATALOG.md) | Every advisor entry with its guide and module |
 | [Epsilon-greedy guide](docs/guides/EPSILON_GREEDY_GUIDE.md) | Explore/exploit routing walkthrough |
 | [Adaptive-exploration guide](docs/guides/ADAPTIVE_EXPLORATION_GUIDE.md) | Decaying epsilon explore/exploit walkthrough |
 | [Token-budget guide](docs/guides/TOKEN_BUDGET_GUIDE.md) | Context-window-aware quality routing |
@@ -812,227 +621,8 @@ Select a strategy with `X-Router-Strategy`:
 | [Security](SECURITY.md) | Vulnerability reporting policy |
 | [Changelog](CHANGELOG.md) | Version history |
 
-### GuidedJsonSchemaThrashBandAdvisor
-
-![GuidedJsonSchemaThrashBandAdvisor](assets/demo/guided-json-schema-thrash-band-advisor.gif)
-
-Offline HITL `thrash_ratio` bands. Gap vs vLLM/SGLang/TGI guided JSON schema thrash monitors. Distinct from `SpeculativeAcceptanceEntropyBandAdvisor` / `RadixCacheCollisionBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-
-### PagedAttentionFragmentationBandAdvisor
-
-![PagedAttentionFragmentationBandAdvisor](assets/demo/paged-attention-fragmentation-band-advisor.gif)
-
-Offline HITL `fragmentation_ratio` bands. Gap vs vLLM/SGLang/TGI paged-attention fragmentation monitors. Distinct from `KvBlockStealStormBandAdvisor` / `ChunkedPrefillBubbleBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-
-### SpeculativeDraftStarveBandAdvisor
-
-![SpeculativeDraftStarveBandAdvisor](assets/demo/speculative-draft-starve-band-advisor.gif)
-
-Offline HITL `starve_ratio` bands. Gap vs vLLM/SGLang/TGI speculative draft-starve monitors. Distinct from `SpeculativeTreeDepthBlowupAdvisor` / `SpeculativeAcceptanceEntropyBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-
-### LoraHotSwapStallBandAdvisor
-
-![LoraHotSwapStallBandAdvisor](assets/demo/lora-hot-swap-stall-band-advisor.gif)
-
-Offline HITL `stall_ratio` bands. Gap vs vLLM/SGLang/TGI LoRA hot-swap stall monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `KvBlockStealStormBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-
-### TensorParallelSkewBandAdvisor
-
-![TensorParallelSkewBandAdvisor](assets/demo/tensor-parallel-skew-band-advisor.gif)
-
-Offline HITL `skew_ratio` bands. Gap vs vLLM/SGLang/TGI tensor-parallel skew monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `TokenizerVocabSkewBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-
-### ContinuousBatchTokenBubbleBandAdvisor
-
-![ContinuousBatchTokenBubbleBandAdvisor](assets/demo/continuous-batch-token-bubble-band-advisor.gif)
-
-Offline HITL `bubble_ratio` bands. Gap vs vLLM/SGLang/TGI continuous-batch token-bubble monitors. Distinct from `ChunkedPrefillBubbleBandAdvisor` / `DecodePreemptionPingPongBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
-
-
-### CudaGraphCaptureStallBandAdvisor
-
-![CudaGraphCaptureStallBandAdvisor](assets/demo/cuda-graph-capture-stall-band-advisor.gif)
-
-Gap vs vLLM/SGLang/TGI CUDA-graph capture-stall monitors. Distinct from `LoraHotSwapStallBandAdvisor` / `SpeculativeVerifyBacklogBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/CUDA_GRAPH_CAPTURE_STALL_BAND_ADVISOR_GUIDE.md`.
-
-### SpeculativeAcceptanceCollapseBandAdvisor
-
-![SpeculativeAcceptanceCollapseBandAdvisor](assets/demo/speculative-acceptance-collapse-band-advisor.gif)
-
-Gap vs vLLM/SGLang/TGI speculative acceptance-collapse monitors. Distinct from `SpeculativeAcceptanceEntropyBandAdvisor` / `SpeculativeDraftStarveBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SPECULATIVE_ACCEPTANCE_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
-
-### MoeExpertHotspotBandAdvisor
-
-![MoeExpertHotspotBandAdvisor](assets/demo/moe-expert-hotspot-band-advisor.gif)
-
-Gap vs vLLM/SGLang/TGI MoE expert-hotspot monitors. Distinct from `MoeExpertLoadImbalanceAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/MOE_EXPERT_HOTSPOT_BAND_ADVISOR_GUIDE.md`.
-
-### PrefixCacheEvictionResidualBandAdvisor
-
-![PrefixCacheEvictionResidualBandAdvisor](assets/demo/prefix-cache-eviction-residual-band-advisor.gif)
-
-`eviction_residual_ratio` band advisor. Gap vs vLLM/SGLang/TGI prefix-cache eviction residual monitors. Distinct from `RadixCacheCollisionBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFIX_CACHE_EVICTION_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
-
-### KvMirrorLagBandAdvisor
-
-![KvMirrorLagBandAdvisor](assets/demo/kv-mirror-lag-band-advisor.gif)
-
-`lag_ratio` band advisor. Gap vs vLLM/SGLang/TGI KV-mirror lag monitors. Distinct from `DisaggKvTransferStallBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/KV_MIRROR_LAG_BAND_ADVISOR_GUIDE.md`.
-
-### AttentionSinkResidualBandAdvisor
-
-![AttentionSinkResidualBandAdvisor](assets/demo/attention-sink-residual-band-advisor.gif)
-
-`sink_residual_ratio` band advisor. Gap vs vLLM/SGLang/TGI attention-sink residual monitors. Distinct from `RopeScaleMismatchBandAdvisor` / `KvCacheQuantErrorBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/ATTENTION_SINK_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
-
-
-
-
-### TensorParallelAllreduceStallBandAdvisor
-
-![TensorParallelAllreduceStallBandAdvisor](assets/demo/tensor-parallel-allreduce-stall-band-advisor.gif)
-
-`stall_ratio` band advisor. Gap vs vLLM/SGLang/TGI tensor-parallel allreduce stall monitors. Distinct from `TensorParallelSkewBandAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TENSOR_PARALLEL_ALLREDUCE_STALL_BAND_ADVISOR_GUIDE.md`.
-
-
-### SlidingWindowAttentionBleedBandAdvisor
-
-![SlidingWindowAttentionBleedBandAdvisor](assets/demo/sliding-window-attention-bleed-band-advisor.gif)
-
-`bleed_ratio` band advisor. Gap vs vLLM/SGLang/TGI sliding-window attention bleed monitors. Distinct from `AttentionSinkResidualBandAdvisor` / `RopeScaleMismatchBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SLIDING_WINDOW_ATTENTION_BLEED_BAND_ADVISOR_GUIDE.md`.
-
-
-### FlashAttnWorkspaceThrashBandAdvisor
-
-![FlashAttnWorkspaceThrashBandAdvisor](assets/demo/flash-attn-workspace-thrash-band-advisor.gif)
-
-`thrash_ratio` band advisor. Gap vs vLLM/SGLang/TGI FlashAttention workspace thrash monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `GpuMemoryFragmentationBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/FLASH_ATTN_WORKSPACE_THRASH_BAND_ADVISOR_GUIDE.md`.
-
-### ExpertRoutingEntropyBandAdvisor
-
-![ExpertRoutingEntropyBandAdvisor](assets/demo/expert-routing-entropy-band-advisor.gif)
-
-`entropy_ratio` band advisor. Gap vs vLLM/SGLang/TGI MoE expert-routing entropy monitors. Distinct from `MoeExpertHotspotBandAdvisor` / `ExpertParallelImbalanceBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/EXPERT_ROUTING_ENTROPY_BAND_ADVISOR_GUIDE.md`.
-
-### DisaggScheduleBubbleBandAdvisor
-
-![DisaggScheduleBubbleBandAdvisor](assets/demo/disagg-schedule-bubble-band-advisor.gif)
-
-`bubble_ratio` band advisor. Gap vs vLLM/SGLang/TGI disaggregated schedule-bubble monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `ChunkedPrefillBubbleBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/DISAGG_SCHEDULE_BUBBLE_BAND_ADVISOR_GUIDE.md`.
-
-### TokenizerDecodeSkewResidualBandAdvisor
-
-![TokenizerDecodeSkewResidualBandAdvisor](assets/demo/tokenizer-decode-skew-residual-band-advisor.gif)
-
-`decode_skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI tokenizer decode-skew residual monitors. Distinct from `AttentionSinkResidualBandAdvisor` / `SpeculativeAcceptanceEntropyBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/TOKENIZER_DECODE_SKEW_RESIDUAL_BAND_ADVISOR_GUIDE.md`.
-
-
-
-### NvlinkPeerCopyStallBandAdvisor
-
-![NvlinkPeerCopyStallBandAdvisor](assets/demo/nvlink-peer-copy-stall-band-advisor.gif)
-
-HITL `stall_ratio` band advisor. Gap vs vLLM/SGLang/TGI NVLink peer-copy stall monitors. Distinct from `TensorParallelAllreduceStallBandAdvisor` / `TensorParallelSkewBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/NVLINK_PEER_COPY_STALL_BAND_ADVISOR_GUIDE.md`.
-
-
-### PrefixSharingDepthCollapseBandAdvisor
-
-![PrefixSharingDepthCollapseBandAdvisor](assets/demo/prefix-sharing-depth-collapse-band-advisor.gif)
-
-HITL `collapse_ratio` band advisor. Gap vs vLLM/SGLang/TGI prefix-sharing / radix-cache depth-collapse monitors. Distinct from `SystemPromptShareAdvisor` / `PagedKvSwapThrashAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFIX_SHARING_DEPTH_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
-
-
-### EngineWarmupColdStartBandAdvisor
-
-![EngineWarmupColdStartBandAdvisor](assets/demo/engine-warmup-cold-start-band-advisor.gif)
-
-HITL `cold_start_ratio` band. Gap vs vLLM/SGLang/TGI engine warmup cold-start monitors. Distinct from `CudaGraphCaptureStallBandAdvisor` / `LoraHotSwapStallBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/ENGINE_WARMUP_COLD_START_BAND_ADVISOR_GUIDE.md`.
-
-### ContinuousBatchPadWasteBandAdvisor
-
-![ContinuousBatchPadWasteBandAdvisor](assets/demo/continuous-batch-pad-waste-band-advisor.gif)
-
-HITL `pad_waste_ratio` band. Gap vs vLLM/SGLang/TGI continuous-batch pad-waste monitors. Distinct from `ContinuousBatchTokenBubbleBandAdvisor` / `ContinuousBatchingTailLatencyBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/CONTINUOUS_BATCH_PAD_WASTE_BAND_ADVISOR_GUIDE.md`.
-
-### PromptCacheHitCollapseBandAdvisor
-
-![PromptCacheHitCollapseBandAdvisor](assets/demo/prompt-cache-hit-collapse-band-advisor.gif)
-
-`collapse_ratio` band advisor. Gap vs vLLM/SGLang/TGI prompt-cache hit-collapse monitors. Distinct from `PromptCacheHitRateAdvisor` / `PromptCacheHitRateFloorAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PROMPT_CACHE_HIT_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
-
-
-### StreamingTtftSpikeBandAdvisor
-
-![StreamingTtftSpikeBandAdvisor](assets/demo/streaming-ttft-spike-band-advisor.gif)
-
-`spike_ratio` band advisor. Gap vs vLLM/SGLang/TGI streaming TTFT spike monitors. Distinct from `PrefillTtftRatioAdvisor` / `FirstTokenLatencySloAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/STREAMING_TTFT_SPIKE_BAND_ADVISOR_GUIDE.md`.
-
-
-### SchedulerQueueSkewBandAdvisor
-
-![SchedulerQueueSkewBandAdvisor](assets/demo/scheduler-queue-skew-band-advisor.gif)
-
-`skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI scheduler queue-skew monitors. Distinct from `PrefillQueueStallBandAdvisor` / `ContinuousBatchPadWasteBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/SCHEDULER_QUEUE_SKEW_BAND_ADVISOR_GUIDE.md`.
-
-
-### PrefillQueueStallBandAdvisor
-
-![PrefillQueueStallBandAdvisor](assets/demo/prefill-queue-stall-band-advisor.gif)
-
-HITL `stall_ratio` band. Gap vs vLLM/SGLang/TGI prefill-queue stall monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `DisaggScheduleBubbleBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PREFILL_QUEUE_STALL_BAND_ADVISOR_GUIDE.md`.
-
-### PagedKvEvictionSkewBandAdvisor
-
-![PagedKvEvictionSkewBandAdvisor](assets/demo/paged-kv-eviction-skew-band-advisor.gif)
-
-HITL `skew_ratio` band advisor. Gap vs vLLM/SGLang/TGI paged-KV eviction skew monitors. Distinct from `PagedKvSwapThrashAdvisor` / `PagedAttentionFragmentationBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PAGED_KV_EVICTION_SKEW_BAND_ADVISOR_GUIDE.md`.
-
 ## License
 
 Apache-2.0 © [Francis1998](https://github.com/Francis1998)
 
-*Last updated: 2026-08-01*
-
-
-### FlashinferKernelFallbackBandAdvisor
-
-![FlashinferKernelFallbackBandAdvisor](assets/demo/flashinfer-kernel-fallback-band-advisor.gif)
-
-Gap vs vLLM/SGLang/TGI FlashInfer kernel-fallback monitors. Distinct from `KvCacheQuantErrorBandAdvisor` / `TensorParallelSkewBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/FLASHINFER_KERNEL_FALLBACK_BAND_ADVISOR_GUIDE.md`.
-
-
-### DisaggKvTransferStallBandAdvisor
-
-![DisaggKvTransferStallBandAdvisor](assets/demo/disagg-kv-transfer-stall-band-advisor.gif)
-
-Gap vs vLLM/SGLang/TGI disaggregated KV-transfer stall monitors. Distinct from `DisaggPrefillDecodeSkewBandAdvisor` / `KvCacheOffloadThrashBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/DISAGG_KV_TRANSFER_STALL_BAND_ADVISOR_GUIDE.md`.
-
-
-### PagedAttentionBlockLeakBandAdvisor
-
-![PagedAttentionBlockLeakBandAdvisor](assets/demo/paged-attention-block-leak-band-advisor.gif)
-
-Gap vs vLLM/SGLang/TGI paged-attention block-leak monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `KvBlockStealStormBandAdvisor`. Stack: GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PAGED_ATTENTION_BLOCK_LEAK_BAND_ADVISOR_GUIDE.md`.
-
-### SpeculativeVerifyBacklogBandAdvisor
-
-![SpeculativeVerifyBacklogBandAdvisor](assets/demo/speculative-verify-backlog-band-advisor.gif)
-
-Offline HITL `backlog_ratio` bands. Gap vs vLLM/SGLang/TGI speculative verify backlog monitors. Distinct from `SpeculativeDecodeQueueStallAdvisor` / `SpeculativeDraftStarveBandAdvisor`.
-
-### KvCacheOffloadThrashBandAdvisor
-
-![KvCacheOffloadThrashBandAdvisor](assets/demo/kv-cache-offload-thrash-band-advisor.gif)
-
-Offline HITL `thrash_ratio` bands. Gap vs vLLM/SGLang/TGI KV-cache offload thrash monitors. Distinct from `KvCacheEvictionPressureAdvisor` / `PrefixCacheThrashAdvisor`.
-
-### ExpertParallelImbalanceBandAdvisor
-
-![ExpertParallelImbalanceBandAdvisor](assets/demo/expert-parallel-imbalance-band-advisor.gif)
-
-Offline HITL `imbalance_ratio` bands. Gap vs vLLM/SGLang/TGI expert-parallel (MoE) imbalance monitors. Distinct from `TensorParallelSkewBandAdvisor` / `ContinuousBatchTokenBubbleBandAdvisor`.
+*Last updated: 2026-11-07*

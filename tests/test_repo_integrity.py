@@ -80,3 +80,35 @@ def test_readme_test_badge_matches_collected_tests() -> None:
     )
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert f"tests-{test_count}%20passing" in readme
+
+
+def test_readme_keeps_advisor_entries_in_catalog() -> None:
+    """Advisor entries belong in docs/ADVISOR_CATALOG.md, not in the README."""
+    import re
+
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    advisor_headings = re.findall(r"^### \w+Advisor[ \t]*$", readme, flags=re.MULTILINE)
+    assert advisor_headings == [], (
+        "add advisor entries to docs/ADVISOR_CATALOG.md (see CONTRIBUTING.md): "
+        f"{advisor_headings[:3]}"
+    )
+
+
+def test_advisor_catalog_index_and_links_resolve() -> None:
+    """Every catalog entry is indexed and every relative link or image exists."""
+    import re
+
+    catalog_path = REPO_ROOT / "docs" / "ADVISOR_CATALOG.md"
+    catalog = catalog_path.read_text(encoding="utf-8")
+    entries = re.findall(r"^### (\w+)[ \t]*$", catalog, flags=re.MULTILINE)
+    indexed = re.findall(r"^\| \[(\w+)\]\(#", catalog, flags=re.MULTILINE)
+    assert entries, "advisor catalog has no entries"
+    assert sorted(entries) == sorted(indexed)
+
+    targets = re.findall(r"\]\(([^)#\s]+)(?:#[^)]*)?\)", catalog)
+    missing = [
+        target
+        for target in targets
+        if not target.startswith("http") and not (catalog_path.parent / target).exists()
+    ]
+    assert missing == []
