@@ -289,9 +289,10 @@ deltas when the answer is empty).
 Failure semantics match `/v1/responses`:
 
 - Routing failures **before the first output text** (rate limit, every
-  provider failed) are returned as normal HTTP errors: nexus pulls the stream
-  until its first non-empty chunk before it starts the event stream. Provider
-  failures before any text still fall back to the next candidate.
+  provider failed, a provider rejecting the request with 400 / 413 / 422) are
+  returned as normal HTTP errors: nexus pulls the stream until its first
+  non-empty chunk before it starts the event stream. Provider faults before
+  any text still fall back to the next candidate; rejections do not.
 - Once text has streamed, nexus **never falls back** (a second provider's
   answer would be spliced onto the partial one). A failure then ends the
   stream with a single error event, as the Anthropic API does mid-stream:
@@ -343,7 +344,7 @@ data: {"type": "message_delta", "delta": {"stop_reason": "max_tokens", "stop_seq
 | Header | Behavior |
 | --- | --- |
 | `x-api-key` | API key in Anthropic's convention (older SDKs, curl examples). Nexus reduces it to the same non-reversible `key_<16 hex>` fingerprint as `Authorization: Bearer <key>` (see [SECURITY.md](../../SECURITY.md#credential-handling)). |
-| `Authorization: Bearer <key>` | What Anthropic SDK 2.x sends for `api_key=`. Both headers with the **same** key are fine; **different** keys → 401 `authentication_error` (neither key is echoed). |
+| `Authorization: Bearer <key>` | What the current Anthropic Python SDK (2.6.0) sends for `api_key=`. Both headers with the **same** key are fine; **different** keys → 401 `authentication_error` (neither key is echoed). |
 | `anthropic-version` | Accepted and ignored; nexus does not gate behavior on the version (SDK 2.6.0 sends `2026-10-21`). |
 | `anthropic-beta` | Accepted and ignored. Beta features used in the body are still validated (an unknown field is a 400). |
 | `X-Router-Strategy` | Any [routing strategy](../../CONFIGURATION.md) name; unknown names → 400. |
@@ -370,17 +371,22 @@ matching Anthropic `type`:
 
 | HTTP | `error.type` | When | Anthropic SDK exception |
 | --- | --- | --- | --- |
-| 400 | `invalid_request_error` | Missing or invalid fields, rejected features and blocks, a body that is not JSON, an unknown `X-Router-Strategy` | `BadRequestError` |
+| 400 | `invalid_request_error` | Missing or invalid fields (including an empty `messages` list, with or without `system`), rejected features and blocks, a body that is not JSON, an unknown `X-Router-Strategy`, or a provider rejecting the request itself with HTTP 400 | `BadRequestError` |
 | 401 | `authentication_error` | `x-api-key` and `Authorization` carry different keys | `AuthenticationError` |
 | 402 | `billing_error` | The router raised a budget error directly (same 402 as the other endpoints) | `APIStatusError` |
 | 404 | `not_found_error` | Unknown path below `/v1/messages` (for example `/v1/messages/batches`) | `NotFoundError` |
 | 405 | `invalid_request_error` | Wrong method, for example `GET /v1/messages` | `APIStatusError` |
 | 409 | `conflict_error` | Another request with the same `Idempotency-Key` is still running | `ConflictError` |
+| 413 | `request_too_large` | A provider rejected the request as too large (HTTP 413) | `ContentTooLargeError` |
+| 422 | `invalid_request_error` | A provider rejected the request as unprocessable (HTTP 422) | `UnprocessableEntityError` |
 | 429 | `rate_limit_error` | Per-key router rate limit or `X-Tenant-Id` bucket exhausted | `RateLimitError` |
 | 500 | `api_error` | Internal gateway error (for example a corrupt response-cache entry) | `InternalServerError` |
 | 503 | `overloaded_error` | Every provider attempt failed, including candidates skipped by the budget cap (the message then says `budget cap exceeded`) | `ServiceUnavailableError` |
 
-The Anthropic API returns 529 for `overloaded_error`; nexus keeps the standard
+A provider's rejection of the request itself (HTTP 400, 413, or 422) keeps the
+provider's status, as on the other endpoints: it is not retried on another
+provider and does not count against the provider's circuit breaker. The
+Anthropic API returns 529 for `overloaded_error`; nexus keeps the standard
 503 it uses on every endpoint. The SDK retries 409, 429, and 5xx responses
 (twice by default); pass `max_retries=0` if a budget-exhausted 503 should fail
 fast. Real error bodies:
@@ -395,8 +401,9 @@ fast. Real error bodies:
 ```
 
 Other routes keep their formats: `/v1/chat/completions` returns FastAPI
-`{"detail": ...}` bodies (422 for validation errors) and `/v1/responses`
-returns OpenAI `{"error": {...}}` envelopes.
+`{"detail": ...}` bodies (422 for validation errors; only an empty or
+system-only `messages` array gets an OpenAI-style 400 there) and
+`/v1/responses` returns OpenAI `{"error": {...}}` envelopes.
 
 ## Routing metadata
 
@@ -569,6 +576,8 @@ no-splice rule) and HTTP 503 before output; gateway-enforced stop sequences
 (chunk boundaries, earliest match, no leaked text); `count_tokens` equal to the
 router's estimate without a provider call; `x-api-key` and `Bearer` sharing one
 fingerprint, the conflicting-key 401, and anonymous access; 429 / 402 / 503 /
-409 / 404 / 405 mapping; idempotent replay scoped per endpoint; response-cache
+409 / 404 / 405 mapping; provider 400 / 413 / 422 rejections (status kept, no
+fallback or circuit failure, in-band after streamed text); `system`-only
+requests rejected before routing; idempotent replay scoped per endpoint; response-cache
 reuse; `X-Router-Strategy`; explicit model pinning; and unchanged OpenAI and
 FastAPI envelopes on the other endpoints.

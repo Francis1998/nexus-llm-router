@@ -137,7 +137,10 @@ def to_router_messages(payload: MessageCountTokensRequest) -> list[ChatMessage]:
 
     Raises:
         GatewayError: 400 for empty or non-text content, or when the last
-            message is an assistant turn (prefill is not supported).
+            message is an assistant turn (prefill is not supported). An empty
+            ``messages`` list is rejected even with a ``system`` prompt, the
+            Messages-format equivalent of the empty or system-only conversations
+            ``api.errors.conversation_error`` rejects on the OpenAI endpoints.
     """
     messages: list[ChatMessage] = []
     system = _system_text(payload.system)

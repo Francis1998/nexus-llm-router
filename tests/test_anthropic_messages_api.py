@@ -69,6 +69,34 @@ class PartialStreamAdapter(MockProviderAdapter):
         raise ProviderError("connection reset mid-stream")
 
 
+class RejectingAdapter(CountingAdapter):
+    """Mock provider that rejects the request itself with an HTTP client error."""
+
+    def __init__(self, provider_name: str, *, status_code: int, after_text: bool = False) -> None:
+        super().__init__(provider_name)
+        self._status_code = status_code
+        self._after_text = after_text
+
+    def _rejection(self) -> ProviderError:
+        return ProviderError(
+            f"{self.provider_name} rejected the prompt", status_code=self._status_code
+        )
+
+    async def complete(
+        self, model: str, messages: list[ChatMessage], max_tokens: int
+    ) -> ProviderResponse:
+        self.calls += 1
+        raise self._rejection()
+
+    async def stream(
+        self, model: str, messages: list[ChatMessage], max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        self.calls += 1
+        if self._after_text:
+            yield f"[{model}] partial "
+        raise self._rejection()
+
+
 @dataclass
 class Gateway:
     """Test client plus the router, its adapters, and the requests it dispatched."""
@@ -725,6 +753,68 @@ def test_stream_failure_before_output_is_a_real_http_error(gateway: GatewayFacto
 
     message = _assert_anthropic_error(response, 503, "overloaded_error")
     assert message.startswith("all provider attempts failed")
+
+
+@pytest.mark.parametrize(
+    ("status", "error_type"),
+    [(400, "invalid_request_error"), (413, "request_too_large"), (422, "invalid_request_error")],
+)
+def test_provider_rejection_keeps_its_status_with_an_anthropic_type(
+    gateway: GatewayFactory, status: int, error_type: str
+) -> None:
+    """A provider's 400/413/422 goes back as-is: no fallback and no circuit failure."""
+    rejecting = RejectingAdapter("google", status_code=status)
+    gw = gateway(adapters={"google": rejecting})
+
+    plain = gw.create(_body())
+    streamed = gw.create(_body(stream=True, max_tokens=64))
+
+    for response in (plain, streamed):
+        message = _assert_anthropic_error(response, status, error_type)
+        assert f"provider google rejected the request (HTTP {status})" in message
+    assert rejecting.calls == gw.provider_calls == 2
+    assert gw.router.provider_routable("google")
+    assert gw.ledger.summary().request_count == 0
+
+
+def test_provider_rejection_after_streamed_text_ends_with_an_error_event(
+    gateway: GatewayFactory,
+) -> None:
+    """A rejection after text was streamed ends the stream with an in-band error."""
+    rejecting = RejectingAdapter("google", status_code=400, after_text=True)
+    gw = gateway(adapters={"google": rejecting})
+
+    response = gw.create(_body(stream=True))
+
+    assert response.status_code == 200
+    events = _sse_events(response.text)
+    assert _streamed_text(events) == f"[{GEMINI_FLASH_MODEL}] partial "
+    name, error = events[-1]
+    assert name == "error"
+    assert error["error"]["type"] == "invalid_request_error"
+    assert "rejected the request (HTTP 400)" in error["error"]["message"]
+    assert rejecting.calls == gw.provider_calls == 1
+    assert gw.router.provider_routable("google")
+
+
+@pytest.mark.parametrize("path", ["/v1/messages", "/v1/messages/count_tokens"])
+def test_system_only_conversations_are_rejected_before_routing(
+    gateway: GatewayFactory, path: str
+) -> None:
+    """A ``system`` prompt without turns is the Messages form of a system-only conversation."""
+    gw = gateway()
+    body: dict[str, Any] = {"model": "auto", "system": "Answer tersely.", "messages": []}
+    if path == "/v1/messages":
+        body["max_tokens"] = 64
+
+    rejected = [gw.client.post(path, json=body) for _ in range(3)]
+
+    for response in rejected:
+        message = _assert_anthropic_error(response, 400, "invalid_request_error")
+        assert message == "messages: at least one message is required"
+    assert gw.provider_calls == 0
+    assert all(gw.router.provider_routable(provider) for provider in PROVIDERS)
+    assert gw.create(_body()).status_code == 200
 
 
 def test_count_tokens_returns_the_router_estimate_without_a_provider_call(
