@@ -5,6 +5,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+- API gateway no longer uses the raw `Authorization` header as an identifier. `Bearer sk-...` previously became `RouterRequest.api_key_id`, the `user_id` fallback, the spend-ledger tenant, and the idempotency / response-cache tenant, so the secret was echoed in HTTP 429 (`rate limit exceeded for Bearer sk-...`) and 503 budget-exhaustion details, exposed as a `GET /v1/spend` `by_tenant` key, and persisted to the SQLite spend ledger and idempotency store. A new `safety.key_fingerprint.fingerprint_api_key` derives a deterministic, non-reversible id (`key_` + 16 hex chars of SHA-256 over the credential, `Bearer` prefix stripped; `anonymous` when absent) used everywhere instead, preserving per-key isolation. Operators who ran earlier builds with real keys should rotate them and purge the old ledger/idempotency files (see `SECURITY.md`).
+
+### Added
 - `SchedulerQueueSkewBandAdvisor` (`src/safety/scheduler_queue_skew_band.py`): offline `skew_ratio` bands. Gap vs vLLM/SGLang/TGI scheduler queue-skew monitors. Distinct from `PrefillQueueStallBandAdvisor` / `ContinuousBatchPadWasteBandAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/SCHEDULER_QUEUE_SKEW_BAND_ADVISOR_GUIDE.md`.
 - `StreamingTtftSpikeBandAdvisor` (`src/safety/streaming_ttft_spike_band.py`): offline `spike_ratio` bands. Gap vs vLLM/SGLang/TGI streaming TTFT spike monitors. Distinct from `PrefillTtftRatioAdvisor` / `FirstTokenLatencySloAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/STREAMING_TTFT_SPIKE_BAND_ADVISOR_GUIDE.md`.
 - `PromptCacheHitCollapseBandAdvisor` (`src/safety/prompt_cache_hit_collapse_band.py`): offline `collapse_ratio` bands. Gap vs vLLM/SGLang/TGI prompt-cache hit-collapse monitors. Distinct from `PromptCacheHitRateAdvisor` / `PromptCacheHitRateFloorAdvisor`. Stack: GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROMPT_CACHE_HIT_COLLAPSE_BAND_ADVISOR_GUIDE.md`.
