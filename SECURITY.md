@@ -45,3 +45,20 @@ identifier, so it could be echoed in 429/503 responses and persisted in
 `NEXUS_SPEND_LEDGER_PATH` / `NEXUS_IDEMPOTENCY_PATH`. If you ran such a build
 with real keys, rotate the affected keys and delete or restrict access to those
 SQLite files and any captured logs.
+
+### Provider API keys
+
+Adapters send provider credentials only in request headers (`Authorization`
+for OpenAI and Moonshot, `x-api-key` for Anthropic, `x-goog-api-key` for
+Google), never in URLs. httpx logs every request URL at INFO, and the gateway
+writes INFO logs to stdout, so a key in a URL ends up in the logs.
+
+Earlier builds sent the Gemini key as a `?key=` query parameter, so every Gemini
+call logged a line like this one:
+
+```text
+HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=<GOOGLE_API_KEY> "HTTP/1.1 200 OK"
+```
+
+If you ran such a build with `GOOGLE_API_KEY` set, rotate the key and delete or
+restrict access to the captured logs.
