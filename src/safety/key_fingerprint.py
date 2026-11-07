@@ -17,6 +17,10 @@ _BEARER_SCHEME = "bearer"
 _FINGERPRINT_HEX_CHARS = 16
 
 
+class ConflictingCredentialsError(ValueError):
+    """Raised when ``x-api-key`` and ``Authorization`` carry different keys."""
+
+
 def fingerprint_api_key(authorization: str | None) -> str:
     """Return a stable, non-reversible identifier for an ``Authorization`` header.
 
@@ -41,3 +45,35 @@ def fingerprint_api_key(authorization: str | None) -> str:
         return ANONYMOUS_KEY_ID
     digest = hashlib.sha256(credential.encode("utf-8")).hexdigest()
     return f"key_{digest[:_FINGERPRINT_HEX_CHARS]}"
+
+
+def fingerprint_request_credentials(authorization: str | None, x_api_key: str | None) -> str:
+    """Fingerprint the API key sent as ``Authorization`` and/or ``x-api-key``.
+
+    Anthropic SDKs and curl examples send ``x-api-key: <key>``; newer SDKs and
+    OpenAI-style clients send ``Authorization: Bearer <key>``. Both forms of the
+    same key map to the same fingerprint, so rate limits, budgets, and cache or
+    idempotency scopes do not depend on which header a client used.
+
+    Args:
+        authorization: Raw ``Authorization`` header value, or ``None``.
+        x_api_key: Raw ``x-api-key`` header value, or ``None``.
+
+    Returns:
+        The shared ``key_`` fingerprint, or ``"anonymous"`` when neither header
+        carries a credential.
+
+    Raises:
+        ConflictingCredentialsError: When both headers carry different keys.
+            The message never includes either key.
+    """
+    bearer_id = fingerprint_api_key(authorization)
+    api_key_id = fingerprint_api_key(x_api_key)
+    if api_key_id == ANONYMOUS_KEY_ID:
+        return bearer_id
+    if bearer_id not in (ANONYMOUS_KEY_ID, api_key_id):
+        raise ConflictingCredentialsError(
+            "The x-api-key and Authorization headers carry different API keys; "
+            "send the key in one of them (or the same key in both)."
+        )
+    return api_key_id

@@ -84,17 +84,26 @@ A custom adapter whose stream yields text only falls back to estimates.
 
 ## API Surface
 
-`src/api/main.py` exposes `/v1/chat/completions` and the OpenAI Responses API
-(`/v1/responses`, translated by `src/api/responses.py`) over the same router.
-Both endpoints share one ingress path: the `Authorization` header is reduced to
-a non-reversible key fingerprint, `X-Tenant-Id` hard limits and
-`Idempotency-Key` replay run before routing, and non-streaming requests use the
-exact-match response cache. Router failures map to 429 / 402 / 503; a provider's
-400 / 413 / 422 rejection of the request itself is returned with its status,
-without fallback or a circuit-breaker failure. Responses
-streams pull the first non-empty chunk before emitting the SSE lifecycle so
-failures before any output stay real HTTP errors; `NexusRouter.complete_stream`'s
-`on_complete` callback supplies the final usage for `response.completed`.
+`src/api/main.py` exposes `/v1/chat/completions`, the OpenAI Responses API
+(`/v1/responses`, translated by `src/api/responses.py`), and the Anthropic
+Messages API (`/v1/messages` and `/v1/messages/count_tokens`, translated by
+`src/api/anthropic_messages.py`) over the same router. All three share one
+ingress path: the `Authorization` header (or, on the Anthropic paths, an
+equivalent `x-api-key`) is reduced to a non-reversible key fingerprint,
+`X-Tenant-Id` hard limits and per-endpoint `Idempotency-Key` replay run before
+routing, and non-streaming requests use the exact-match response cache. Router
+failures map to 429 / 402 / 503; a provider's 400 / 413 / 422 rejection of the
+request itself is returned with its status, without fallback or a
+circuit-breaker failure. Errors are rendered as OpenAI envelopes on
+`/v1/responses` and Anthropic envelopes on `/v1/messages*`. Responses and
+Messages streams pull the first non-empty chunk before emitting their SSE
+events so failures before any output stay real HTTP errors;
+`NexusRouter.complete_stream`'s `on_complete` callback supplies the final usage
+for `response.completed` and `message_delta`. The Messages translation is
+text-only (tools, thinking, and non-text blocks are rejected with a 400) and
+enforces `stop_sequences` at the gateway because adapters cannot pass them
+upstream; `count_tokens` returns the analyzer's prompt estimate without calling
+a provider.
 `complete_stream` falls back to the next candidate only while no text has been
 streamed; after that a provider failure ends the stream instead of splicing a
 second answer onto the partial one. `GET /v1/models` and `GET /v1/models/{id}`

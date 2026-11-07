@@ -49,7 +49,7 @@ Nexus is designed for AI infrastructure engineers running multi-model production
   Nexus solves this with optional regex redaction and a Presidio extension path before provider dispatch.
 
 - Issue: teams need OpenAI compatibility without giving up provider choice.
-  Nexus solves this by exposing `/v1/chat/completions` and the OpenAI Responses API (`/v1/responses`) while normalizing OpenAI, Anthropic, Gemini, and Moonshot adapters behind one interface.
+  Nexus solves this by exposing `/v1/chat/completions`, the OpenAI Responses API (`/v1/responses`), and the Anthropic Messages API (`/v1/messages`) while normalizing OpenAI, Anthropic, Gemini, and Moonshot adapters behind one interface.
 
 - Issue: current models reject sampling parameters (Claude 5.5 returns HTTP 400 for non-default `temperature` / `top_p` / `top_k`, GPT-6 allows them only with reasoning effort `none`, Kimi K3.x fixes `temperature` at 1.0, and Gemini 3.x/4 ignores them).
   Nexus solves this by never forwarding `temperature`, `top_p`, `top_k`, or logprobs upstream; each adapter sends only the fields the current models accept (see [Provider parameter compatibility](CONFIGURATION.md#provider-parameter-compatibility)).
@@ -112,7 +112,7 @@ Mock providers answer `[<model>] routed response`; routing, budgets, rate limits
 
 | Area | What ships | Learn more |
 | --- | --- | --- |
-| OpenAI-compatible API | `POST /v1/chat/completions` (with SSE streaming), `POST /v1/responses` (OpenAI Responses API and its SSE event stream), `GET /v1/models` (model discovery with pricing, limits, and health), `GET`/`POST /v1/spend`, `GET /health`, `GET /metrics` | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md), [Models API guide](docs/guides/MODELS_API_GUIDE.md), [SSE streaming guide](docs/guides/SSE_STREAMING_GUIDE.md) |
+| OpenAI- and Anthropic-compatible API | `POST /v1/chat/completions` (with SSE streaming), `POST /v1/responses` (OpenAI Responses API and its SSE event stream), `POST /v1/messages` and `POST /v1/messages/count_tokens` (Anthropic Messages API, text-only, with Anthropic SSE events), `GET /v1/models` (model discovery with pricing, limits, and health), `GET`/`POST /v1/spend`, `GET /health`, `GET /metrics` | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md), [Anthropic Messages API guide](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md), [Models API guide](docs/guides/MODELS_API_GUIDE.md), [SSE streaming guide](docs/guides/SSE_STREAMING_GUIDE.md) |
 | Routing | 124 strategies chosen per request with `X-Router-Strategy` (default `rule-based`), from cost-optimal and latency-aware to token-budget, long-context, A/B, and canary routing | [Routing Strategies](#routing-strategies), [CONFIGURATION.md](CONFIGURATION.md) |
 | Reliability | per-provider circuit breakers, health-ranked fallback chains, and no fallback splicing once a stream has started | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md), [Fallback scoreboard guide](docs/guides/FALLBACK_SCOREBOARD_GUIDE.md) |
 | Cost control | provider list prices (including long-prompt tiers), pre-dispatch budget caps, a durable spend ledger, and Prometheus cost metrics | [Built-in model catalog](CONFIGURATION.md#built-in-model-catalog) |
@@ -125,9 +125,9 @@ Mock providers answer `[<model>] routed response`; routing, budgets, rate limits
 
 ```mermaid
 flowchart LR
-    client["OpenAI SDK / curl / any OpenAI-compatible client"]
+    client["OpenAI or Anthropic SDK / curl / any compatible client"]
     subgraph nexus["nexus-llm-router"]
-        api["FastAPI gateway<br/>/v1/chat/completions · /v1/responses<br/>key fingerprint · rate limits · idempotency · cache"]
+        api["FastAPI gateway<br/>/v1/chat/completions · /v1/responses · /v1/messages<br/>key fingerprint · rate limits · idempotency · cache"]
         observe["Observe<br/>RequestAnalyzer: domain, complexity,<br/>latency need, token estimate"]
         decide["Decide<br/>X-Router-Strategy → model + fallback chain"]
         act["Act<br/>provider adapters with circuit breakers<br/>and health-ranked fallback"]
@@ -150,6 +150,7 @@ Each request moves `RECEIVED → CLASSIFIED → ROUTED → DISPATCHED → RESPON
 | run nexus locally, step by step | [QUICKSTART.md](QUICKSTART.md) |
 | follow three end-to-end scenarios with real output | [Use cases](docs/guides/USE_CASES.md) |
 | call nexus through the OpenAI Responses API | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) |
+| call nexus through the Anthropic Messages API (Anthropic SDK, text only) | [Anthropic Messages API guide](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md) |
 | fill a client's model picker with nexus models | [Models API guide](docs/guides/MODELS_API_GUIDE.md) |
 | configure strategies, budgets, limits, and models | [CONFIGURATION.md](CONFIGURATION.md) |
 | understand the request lifecycle | [ARCHITECTURE.md](ARCHITECTURE.md) |
@@ -178,6 +179,10 @@ The adapters also price `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `cla
 ## Demo Gallery
 
 The OpenAI Responses API demo is the hero GIF at the top of this page.
+
+Anthropic Messages API (`POST /v1/messages`, streaming, `count_tokens`) with curl and the official Anthropic SDK:
+
+![Nexus Anthropic Messages API demo](assets/demo/anthropic-messages-api.gif)
 
 Model discovery (`GET /v1/models`) with the official OpenAI SDK:
 
@@ -317,6 +322,7 @@ Soft rate-limit avoidance demo:
 - **Semantic fuzzy cache** (trigram Jaccard) for near-duplicate prompts
 - **SSE streaming** for `stream=true` chat completions
 - **OpenAI Responses API** (`POST /v1/responses`): text-only subset with the official SSE event stream, OpenAI error envelopes, and a `nexus` routing block — see `docs/guides/RESPONSES_API_GUIDE.md`
+- **Anthropic Messages API** (`POST /v1/messages`, `POST /v1/messages/count_tokens`): text-only subset for Anthropic SDK apps (`base_url` swap), with Anthropic SSE events, Anthropic error envelopes, `x-api-key` auth, gateway-enforced `stop_sequences`, and a `nexus` routing block; tools and thinking are rejected, so it is not a Claude Code backend — see `docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md`
 - **Model discovery** (`GET /v1/models`, `GET /v1/models/{id}`): OpenAI-compatible model list for client model pickers, with nexus pricing, token limits, capabilities, and live provider health — see `docs/guides/MODELS_API_GUIDE.md`
 - **Router engine** with configurable strategies
 - **Adapter pipeline** with full observability
@@ -574,6 +580,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Architecture](ARCHITECTURE.md) | System design and component overview |
 | [Configuration](CONFIGURATION.md) | All configuration options |
 | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) | OpenAI Responses API compatibility (`POST /v1/responses`), streaming events, supported fields |
+| [Anthropic Messages API guide](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md) | Anthropic Messages API compatibility (`POST /v1/messages`, `count_tokens`), streaming events, supported fields, error mapping, limitations |
 | [Models API guide](docs/guides/MODELS_API_GUIDE.md) | OpenAI-compatible model discovery (`GET /v1/models`) with pricing, limits, capabilities, and live health |
 | [Use cases](docs/guides/USE_CASES.md) | Three end-to-end scenarios (cost control, OpenAI SDK migration with tenant guards, regulated domains) with real output |
 | [Advisor catalog](docs/ADVISOR_CATALOG.md) | Every advisor entry with its guide and module |

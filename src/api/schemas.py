@@ -4,7 +4,7 @@ from time import time
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
 
 from router.schemas import ChatMessage, RouterResponse, RoutingStrategyName
 
@@ -211,13 +211,31 @@ class ResponseErrorInfo(BaseModel):
 
 
 class NexusRoutingMetadata(BaseModel):
-    """Nexus routing decision attached to a Responses API ``response``."""
+    """Nexus routing decision attached to a Responses ``response`` or Anthropic ``message``."""
 
     routing_strategy: RoutingStrategyName
     rationale: str
     cost_usd: float
     latency_ms: float
     request_id: str
+
+    @classmethod
+    def from_router_response(cls, router_response: RouterResponse) -> "NexusRoutingMetadata":
+        """Return the routing block for a routed completion.
+
+        Args:
+            router_response: Router response.
+
+        Returns:
+            Strategy, rationale, cost, latency, and request id of the route.
+        """
+        return cls(
+            routing_strategy=router_response.routing_strategy,
+            rationale=router_response.rationale,
+            cost_usd=router_response.cost_usd,
+            latency_ms=router_response.latency_ms,
+            request_id=router_response.request_id,
+        )
 
 
 class ResponseObject(BaseModel):
@@ -304,3 +322,95 @@ class ModelList(BaseModel):
 
     object: Literal["list"] = "list"
     data: list[ModelObject]
+
+
+class AnthropicMetadata(BaseModel):
+    """Anthropic ``metadata``; ``user_id`` is the end user nexus budgets for."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: str | None = Field(default=None, max_length=512)
+
+
+class AnthropicInputMessage(BaseModel):
+    """One Anthropic ``messages`` entry; ``content`` is checked by the translation layer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: Any
+
+
+class MessageCountTokensRequest(BaseModel):
+    """Anthropic ``POST /v1/messages/count_tokens`` request (supported subset).
+
+    Unknown fields are rejected, as the Anthropic API does ("Extra inputs are
+    not permitted"). Known features nexus cannot honor (tools, thinking,
+    structured outputs) are declared only so the endpoint can reject them with
+    a precise message instead of silently dropping them.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    model: str = Field(min_length=1)
+    messages: list[AnthropicInputMessage]
+    system: Any = None
+    tools: list[dict[str, Any]] | None = None
+    tool_choice: dict[str, Any] | None = None
+    thinking: dict[str, Any] | None = None
+    output_config: dict[str, Any] | None = None
+    cache_control: dict[str, Any] | None = None
+    speed: Literal["standard", "fast"] | None = None
+
+
+class MessageCreateRequest(MessageCountTokensRequest):
+    """Anthropic ``POST /v1/messages`` request (documented text-only subset)."""
+
+    max_tokens: StrictInt = Field(ge=1)
+    stream: StrictBool = False
+    stop_sequences: list[str] | None = None
+    temperature: float | None = Field(default=None, ge=0.0, le=1.0)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    top_k: StrictInt | None = Field(default=None, ge=0)
+    metadata: AnthropicMetadata | None = None
+    service_tier: Literal["auto", "standard_only"] | None = None
+    inference_geo: str | None = None
+    container: Any = None
+    diagnostics: dict[str, Any] | None = None
+
+
+class AnthropicTextBlock(BaseModel):
+    """``text`` content block of an Anthropic ``message``."""
+
+    type: Literal["text"] = "text"
+    text: str
+
+
+class AnthropicUsage(BaseModel):
+    """Anthropic token usage (provider-reported counts)."""
+
+    input_tokens: int
+    output_tokens: int
+
+
+AnthropicStopReason = Literal["end_turn", "max_tokens", "stop_sequence"]
+
+
+class AnthropicMessage(BaseModel):
+    """Anthropic ``message`` object plus a namespaced ``nexus`` routing block."""
+
+    id: str
+    type: Literal["message"] = "message"
+    role: Literal["assistant"] = "assistant"
+    model: str
+    content: list[AnthropicTextBlock] = Field(default_factory=list)
+    stop_reason: AnthropicStopReason | None = None
+    stop_sequence: str | None = None
+    usage: AnthropicUsage
+    nexus: NexusRoutingMetadata | None = None
+
+
+class AnthropicTokenCount(BaseModel):
+    """Anthropic ``POST /v1/messages/count_tokens`` response."""
+
+    input_tokens: int

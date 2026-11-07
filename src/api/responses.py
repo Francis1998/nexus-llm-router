@@ -312,13 +312,7 @@ def complete_response(
                 output_tokens=router_response.output_tokens,
                 total_tokens=router_response.input_tokens + router_response.output_tokens,
             ),
-            "nexus": NexusRoutingMetadata(
-                routing_strategy=router_response.routing_strategy,
-                rationale=router_response.rationale,
-                cost_usd=router_response.cost_usd,
-                latency_ms=router_response.latency_ms,
-                request_id=router_response.request_id,
-            ),
+            "nexus": NexusRoutingMetadata.from_router_response(router_response),
         }
     )
 

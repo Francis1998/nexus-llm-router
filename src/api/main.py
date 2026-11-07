@@ -1,20 +1,32 @@
 """FastAPI application for Nexus LLM Router."""
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass
 from functools import lru_cache
 from time import time
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import FastAPI, Header, HTTPException, Request, status
-from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi import FastAPI, Header, HTTPException, Request, Response, status
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from adapters.registry import AdapterRegistry, build_adapter_registry
-from api.errors import ROUTING_ERRORS, GatewayError, conversation_error, routing_error
+from api import anthropic_messages
+from api.anthropic_messages import COUNT_TOKENS_PATH, MESSAGES_PATH
+from api.errors import (
+    ROUTING_ERRORS,
+    GatewayError,
+    anthropic_error_body,
+    conversation_error,
+    routing_error,
+)
 from api.models import model_object
 from api.responses import (
     RESPONSES_PATH,
@@ -28,8 +40,11 @@ from api.responses import (
 )
 from api.schemas import (
     DEFAULT_MAX_TOKENS,
+    AnthropicTokenCount,
     ChatCompletionRequest,
     ChatCompletionResponse,
+    MessageCountTokensRequest,
+    MessageCreateRequest,
     ModelHealth,
     ModelList,
     ModelObject,
@@ -46,6 +61,7 @@ from observability.metrics import (
     response_cache_misses_total,
 )
 from observability.tracing import configure_tracing
+from router.analyzer import estimate_prompt_tokens
 from router.config import RouterSettings, load_settings
 from router.engine import NexusRouter, RoutingFailedError
 from router.schemas import ChatMessage, RouterRequest, RouterResponse, RoutingStrategyName
@@ -57,7 +73,11 @@ from safety.idempotency import (
     IdempotencyReservation,
     IdempotencyStore,
 )
-from safety.key_fingerprint import fingerprint_api_key
+from safety.key_fingerprint import (
+    ConflictingCredentialsError,
+    fingerprint_api_key,
+    fingerprint_request_credentials,
+)
 from safety.rate_limiter import RateLimitExceededError
 from safety.spend_ledger import SpendLedger
 from safety.tenant_rate_limiter import TenantRateLimiter, TenantRateLimitExceededError
@@ -220,15 +240,23 @@ def _parse_strategy(header: str | None) -> RoutingStrategyName | None:
         ) from exception
 
 
-def _admit_caller(request: Request, tenant_id: str | None, end_user: str | None) -> _Caller:
-    """Fingerprint the API key and enforce the optional hard tenant rate limit."""
+def _admit_caller(
+    request: Request,
+    tenant_id: str | None,
+    end_user: str | None,
+    *,
+    api_key_id: str | None = None,
+) -> _Caller:
+    """Fingerprint the API key and enforce the optional hard tenant rate limit.
+
+    ``api_key_id`` replaces the ``Authorization`` fingerprint for endpoints that
+    also accept another credential header (``x-api-key`` on ``/v1/messages``).
+    """
     # Never use the raw Authorization header as an identifier: it would leak the
     # secret into error details, the spend ledger, and idempotency/cache tenants.
-    caller = _Caller(
-        api_key_id=fingerprint_api_key(request.headers.get("authorization")),
-        end_user=end_user,
-        tenant_id=tenant_id,
-    )
+    if api_key_id is None:
+        api_key_id = fingerprint_api_key(request.headers.get("authorization"))
+    caller = _Caller(api_key_id=api_key_id, end_user=end_user, tenant_id=tenant_id)
     # Hard tenant limit only when X-Tenant-Id is present (backward compatible).
     if tenant_id:
         try:
@@ -243,14 +271,41 @@ def _admit_caller(request: Request, tenant_id: str | None, end_user: str | None)
     return caller
 
 
-def _responses_idempotency_scope(idempotency_key: str) -> str:
-    """Scope a ``/v1/responses`` Idempotency-Key away from chat-completion keys.
+def _anthropic_api_key_id(request: Request) -> str:
+    """Fingerprint ``x-api-key`` and/or ``Authorization`` for ``/v1/messages*``.
 
-    Chat keys stay raw so records stored before this endpoint existed still
-    replay. HTTP header values cannot contain line breaks, so a key ending in
-    ``"\\n/v1/responses"`` can never equal any client-supplied chat key.
+    Both headers carrying the same key is fine; different keys are a 401 so a
+    request is never billed to an ambiguous identity.
     """
-    return f"{idempotency_key}\n{RESPONSES_PATH}"
+    try:
+        return fingerprint_request_credentials(
+            request.headers.get("authorization"), request.headers.get("x-api-key")
+        )
+    except ConflictingCredentialsError as exception:
+        raise GatewayError(
+            status.HTTP_401_UNAUTHORIZED, str(exception), error_type="authentication_error"
+        ) from exception
+
+
+def _idempotency_scope(idempotency_key: str, path: str) -> str:
+    """Scope an ``Idempotency-Key`` to one endpoint, away from chat-completion keys.
+
+    Chat keys stay raw so records stored before the other endpoints existed
+    still replay. HTTP header values cannot contain line breaks, so a key ending
+    in ``"\\n/v1/responses"`` or ``"\\n/v1/messages"`` can never equal any
+    client-supplied key.
+    """
+    return f"{idempotency_key}\n{path}"
+
+
+def _claim_idempotency(
+    guards: GatewayGuardService, scoped_key: str, caller: _Caller
+) -> IdempotencyRecord | IdempotencyReservation:
+    """Return the stored response to replay, or reserve the key for this request."""
+    try:
+        return guards.reserve_idempotency(scoped_key, caller.idempotency_tenant)
+    except IdempotencyKeyInUseError as exception:
+        raise GatewayError(409, str(exception), code="idempotency_key_in_use") from exception
 
 
 async def _complete_cached(
@@ -422,7 +477,10 @@ async def chat_completions(
 async def request_validation_error_handler(
     request: Request, exception: RequestValidationError
 ) -> JSONResponse:
-    """Return OpenAI-style 400s for ``/v1/responses``; keep FastAPI 422s elsewhere.
+    """Return API-style 400s for ``/v1/responses`` and ``/v1/messages*``.
+
+    ``/v1/responses`` gets the OpenAI envelope and ``/v1/messages*`` the
+    Anthropic one; every other route keeps FastAPI's 422s.
 
     Args:
         request: FastAPI request object.
@@ -431,10 +489,34 @@ async def request_validation_error_handler(
     Returns:
         JSON error response.
     """
-    if request.url.path != RESPONSES_PATH:
+    path = request.url.path
+    if anthropic_messages.is_messages_path(path):
+        error = anthropic_messages.validation_error(exception.errors())
+        return JSONResponse(status_code=error.status_code, content=error.to_anthropic_body())
+    if path != RESPONSES_PATH:
         return await request_validation_exception_handler(request, exception)
     error = validation_error(exception.errors())
     return JSONResponse(status_code=error.status_code, content=error.to_openai_body())
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(request: Request, exception: StarletteHTTPException) -> Response:
+    """Use the Anthropic error envelope below ``/v1/messages``; keep FastAPI's elsewhere.
+
+    Args:
+        request: FastAPI request object.
+        exception: HTTP error such as an unknown path (404) or method (405).
+
+    Returns:
+        Error response.
+    """
+    if not anthropic_messages.is_messages_path(request.url.path):
+        return await http_exception_handler(request, exception)
+    return JSONResponse(
+        status_code=exception.status_code,
+        content=anthropic_error_body(exception.status_code, str(exception.detail)),
+        headers=exception.headers,
+    )
 
 
 @app.post(RESPONSES_PATH, response_model=None)
@@ -479,13 +561,11 @@ async def _create_response(
     end_user = payload.safety_identifier or payload.user
     caller = _admit_caller(request, x_tenant_id, end_user)
     guards = get_gateway_guards()
-    replay_key = _responses_idempotency_scope(idempotency_key) if idempotency_key else None
     reservation: IdempotencyReservation | None = None
-    if replay_key and not payload.stream:
-        try:
-            claim = guards.reserve_idempotency(replay_key, caller.idempotency_tenant)
-        except IdempotencyKeyInUseError as exception:
-            raise GatewayError(409, str(exception), code="idempotency_key_in_use") from exception
+    if idempotency_key and not payload.stream:
+        claim = _claim_idempotency(
+            guards, _idempotency_scope(idempotency_key, RESPONSES_PATH), caller
+        )
         if isinstance(claim, IdempotencyRecord):
             return JSONResponse(
                 content=json.loads(claim.response_json),
@@ -543,14 +623,23 @@ async def _route_response(
     return JSONResponse(content=body)
 
 
-async def _stream_response(
-    router_request: RouterRequest, draft: ResponseObject
-) -> StreamingResponse:
-    """Start a routed stream and render it as Responses API SSE events.
+@dataclass(frozen=True, slots=True)
+class _RoutedStream:
+    """A routed stream whose output was pulled up to its first non-empty chunk."""
 
-    The stream is pulled until its first non-empty chunk before the HTTP
-    response starts, so routing failures before any output return a normal
-    HTTP error.
+    first_chunk: tuple[str, str] | None
+    chunks: AsyncGenerator[tuple[str, str], None]
+    completed: list[RouterResponse]
+
+
+async def _start_stream(router_request: RouterRequest) -> _RoutedStream:
+    """Start a routed stream and pull it until its first non-empty chunk.
+
+    Routing failures before any output (rate limits, every provider failed)
+    therefore surface as normal HTTP errors instead of a 200 event stream.
+    ``completed`` receives the final ``RouterResponse`` (usage, cost, stop
+    reason) once the stream finished; spend is recorded by the router exactly
+    as for ``/v1/chat/completions`` streams.
     """
     completed: list[RouterResponse] = []
     chunks = get_router().complete_stream(router_request, on_complete=completed.append)
@@ -564,10 +653,166 @@ async def _stream_response(
                 break
     except ROUTING_ERRORS as exception:
         raise routing_error(exception) from exception
+    return _RoutedStream(first_chunk=first_chunk, chunks=chunks, completed=completed)
+
+
+async def _stream_response(
+    router_request: RouterRequest, draft: ResponseObject
+) -> StreamingResponse:
+    """Start a routed stream and render it as Responses API SSE events."""
+    stream = await _start_stream(router_request)
     return StreamingResponse(
-        stream_response_events(draft, first_chunk, chunks, completed),
+        stream_response_events(draft, stream.first_chunk, stream.chunks, stream.completed),
         media_type="text/event-stream",
     )
+
+
+@app.post(MESSAGES_PATH, response_model=None)
+async def create_message(
+    payload: MessageCreateRequest,
+    request: Request,
+    x_router_strategy: Annotated[str | None, Header(alias="X-Router-Strategy")] = None,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> JSONResponse | StreamingResponse:
+    """Route an Anthropic Messages API request (documented text-only subset).
+
+    Accepts ``x-api-key`` or ``Authorization`` credentials; ``anthropic-version``
+    and ``anthropic-beta`` headers are accepted and ignored.
+
+    Args:
+        payload: Messages API request body.
+        request: FastAPI request object.
+        x_router_strategy: Optional routing strategy header.
+        idempotency_key: Optional idempotency key (non-streaming requests only).
+        x_tenant_id: Optional tenant id for hard per-tenant rate limiting.
+
+    Returns:
+        A ``message`` object, an SSE event stream, or an Anthropic-style error.
+    """
+    try:
+        return await _create_message(
+            payload, request, x_router_strategy, idempotency_key, x_tenant_id
+        )
+    except GatewayError as exception:
+        return JSONResponse(
+            status_code=exception.status_code, content=exception.to_anthropic_body()
+        )
+
+
+async def _create_message(
+    payload: MessageCreateRequest,
+    request: Request,
+    x_router_strategy: str | None,
+    idempotency_key: str | None,
+    x_tenant_id: str | None,
+) -> JSONResponse | StreamingResponse:
+    """Validate, route, and render one ``POST /v1/messages`` request."""
+    anthropic_messages.reject_unsupported(payload)
+    messages = anthropic_messages.to_router_messages(payload)
+    strategy = _parse_strategy(x_router_strategy)
+    end_user = payload.metadata.user_id if payload.metadata else None
+    caller = _admit_caller(
+        request, x_tenant_id, end_user, api_key_id=_anthropic_api_key_id(request)
+    )
+    guards = get_gateway_guards()
+    reservation: IdempotencyReservation | None = None
+    if idempotency_key and not payload.stream:
+        claim = _claim_idempotency(
+            guards, _idempotency_scope(idempotency_key, MESSAGES_PATH), caller
+        )
+        if isinstance(claim, IdempotencyRecord):
+            return JSONResponse(
+                content=json.loads(claim.response_json),
+                status_code=claim.status_code,
+            )
+        reservation = claim
+    try:
+        return await _route_message(payload, messages, strategy, caller, guards, reservation)
+    except BaseException:
+        if reservation is not None:
+            guards.release_idempotency(reservation)
+        raise
+
+
+async def _route_message(
+    payload: MessageCreateRequest,
+    messages: list[ChatMessage],
+    strategy: RoutingStrategyName | None,
+    caller: _Caller,
+    guards: GatewayGuardService,
+    reservation: IdempotencyReservation | None,
+) -> JSONResponse | StreamingResponse:
+    """Route an admitted ``/v1/messages`` request and store its idempotent result."""
+    router_request = RouterRequest(
+        request_id=uuid4().hex,
+        messages=messages,
+        api_key_id=caller.api_key_id,
+        user_id=caller.principal,
+        session_id=caller.end_user or "default",
+        requested_model=payload.model,
+        strategy=strategy,
+        max_tokens=payload.max_tokens,
+        stream=payload.stream,
+    )
+    message_id = anthropic_messages.new_message_id()
+    stop_sequences = payload.stop_sequences or []
+    if payload.stream:
+        stream = await _start_stream(router_request)
+        return StreamingResponse(
+            anthropic_messages.stream_message_events(
+                message_id=message_id,
+                model=payload.model,
+                input_tokens=estimate_prompt_tokens(router_request.prompt_text),
+                first_chunk=stream.first_chunk,
+                chunks=stream.chunks,
+                completed=stream.completed,
+                stop_sequences=stop_sequences,
+            ),
+            media_type="text/event-stream",
+        )
+
+    # Sampling parameters are never forwarded upstream; temperature only keys the cache.
+    router_response = await _complete_cached(
+        router_request,
+        temperature=1.0 if payload.temperature is None else payload.temperature,
+        tenant=caller.principal,
+    )
+    message = anthropic_messages.complete_message(message_id, router_response, stop_sequences)
+    body = message.model_dump(mode="json")
+    if reservation is not None:
+        guards.complete_idempotency(reservation, json.dumps(body))
+    return JSONResponse(content=body)
+
+
+@app.post(COUNT_TOKENS_PATH, response_model=None)
+async def count_message_tokens(
+    payload: MessageCountTokensRequest, request: Request
+) -> JSONResponse:
+    """Return nexus's input-token estimate for an Anthropic Messages payload.
+
+    The count is the router's own prompt estimate (about four characters per
+    token), the number routing strategies and the budget guardrail use. No
+    provider is called and no rate limit, budget, or spend is touched.
+
+    Args:
+        payload: ``count_tokens`` request body (``model``, ``messages``, ``system``).
+        request: FastAPI request object.
+
+    Returns:
+        ``{"input_tokens": N}`` or an Anthropic-style error.
+    """
+    try:
+        anthropic_messages.reject_unsupported(payload)
+        messages = anthropic_messages.to_router_messages(payload)
+        _anthropic_api_key_id(request)
+    except GatewayError as exception:
+        return JSONResponse(
+            status_code=exception.status_code, content=exception.to_anthropic_body()
+        )
+    prompt_text = RouterRequest(request_id=uuid4().hex, messages=messages).prompt_text
+    count = AnthropicTokenCount(input_tokens=estimate_prompt_tokens(prompt_text))
+    return JSONResponse(content=count.model_dump())
 
 
 def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:

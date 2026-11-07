@@ -49,13 +49,24 @@ curl -s http://localhost:8000/v1/responses \
   -d '{"instructions":"Be terse.","input":"Summarize our refund policy.","max_output_tokens":128}'
 ```
 
+Anthropic Messages API (works with `anthropic.Anthropic(base_url="http://localhost:8000")`; text only):
+
+```bash
+curl -s http://localhost:8000/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <your-nexus-key>" \
+  -d '{"model":"claude-haiku-5-5","max_tokens":128,"system":"Be terse.","messages":[{"role":"user","content":"Summarize our refund policy."}]}'
+```
+
 No provider keys yet? Serve the same API with deterministic mock providers:
 
 ```bash
 PYTHONPATH=src python scripts/serve_mock.py --port 8000
 ```
 
-See [docs/guides/RESPONSES_API_GUIDE.md](docs/guides/RESPONSES_API_GUIDE.md) for streaming and supported fields.
+See [docs/guides/RESPONSES_API_GUIDE.md](docs/guides/RESPONSES_API_GUIDE.md) and
+[docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md)
+for streaming and supported fields.
 
 ## 4. Run the Offline Demo
 
