@@ -231,6 +231,8 @@ async def chat_completions(
         messages=payload.messages,
         temperature=payload.temperature,
         tenant=tenant,
+        max_tokens=payload.max_tokens,
+        strategy=(strategy or get_settings().default_strategy).value,
     )
     cached = cache.get(cache_key)
     if cached is not None:

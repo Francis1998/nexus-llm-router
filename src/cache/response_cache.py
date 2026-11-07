@@ -19,10 +19,12 @@ class _CacheEntry:
 
 
 class ResponseCache:
-    """Exact-match response cache keyed by model, messages, and temperature.
+    """Exact-match response cache keyed by every generation-affecting input.
 
-    Keys may be optionally namespaced by tenant so multi-tenant gateways do not
-    share completions across customers. Entries expire after ``ttl_seconds``.
+    Keys cover model, messages, temperature, ``max_tokens``, and the routing
+    strategy, and may be optionally namespaced by tenant so multi-tenant
+    gateways do not share completions across customers. Entries expire after
+    ``ttl_seconds``.
     """
 
     def __init__(self, ttl_seconds: float = 300.0, *, enabled: bool = True) -> None:
@@ -57,6 +59,9 @@ class ResponseCache:
         messages: Sequence[object],
         temperature: float,
         tenant: str | None = None,
+        *,
+        max_tokens: int | None = None,
+        strategy: str | None = None,
     ) -> str:
         """Build a stable SHA-256 cache key.
 
@@ -65,6 +70,10 @@ class ResponseCache:
             messages: Chat messages as dicts or objects with role/content.
             temperature: Sampling temperature included in the fingerprint.
             tenant: Optional tenant namespace for isolation.
+            max_tokens: Output token limit; a completion truncated at a small
+                limit must not be replayed for a request allowing more tokens.
+            strategy: Effective routing strategy; different strategies may pick
+                different models for the same prompt.
 
         Returns:
             Hex digest cache key.
@@ -83,6 +92,8 @@ class ResponseCache:
             "model": model or "",
             "messages": normalized_messages,
             "temperature": float(temperature),
+            "max_tokens": max_tokens,
+            "strategy": strategy or "",
         }
         blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
