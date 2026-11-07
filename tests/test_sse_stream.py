@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncGenerator
+from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
+from adapters.base import BaseProviderAdapter, ProviderError
 from adapters.mock import MockProviderAdapter
 from adapters.registry import AdapterRegistry
 from api.main import app, get_adapter_registry, get_router, get_settings
-from router.config import load_settings
-from router.engine import NexusRouter
+from router.config import RouterSettings, load_settings
+from router.engine import NexusRouter, RoutingFailedError
+from router.schemas import ChatMessage, RouterRequest
 
 
 def _install_mock_router() -> NexusRouter:
@@ -94,3 +99,76 @@ def test_stream_false_still_returns_json_completion() -> None:
     body = response.json()
     assert body["object"] == "chat.completion"
     assert "routed response" in body["choices"][0]["message"]["content"]
+
+
+def test_stream_fails_instead_of_splicing_a_fallback_after_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A provider dropping mid-stream must not get a fallback answer appended."""
+
+    class _PartialStreamAdapter(MockProviderAdapter):
+        async def stream(
+            self, model: str, messages: list[ChatMessage], max_tokens: int
+        ) -> AsyncGenerator[str, None]:
+            yield f"[{model}] partial "
+            raise ProviderError("connection reset mid-stream")
+
+    import api.main as main
+
+    settings = RouterSettings(
+        audit_log_path=str(tmp_path / "audit-log.jsonl"),
+        spend_ledger_path=str(tmp_path / "spend-ledger.sqlite3"),
+    )
+    adapters: dict[str, BaseProviderAdapter] = {
+        name: MockProviderAdapter(name) for name in ("openai", "anthropic", "moonshot")
+    }
+    adapters["google"] = _PartialStreamAdapter("google")
+    router = NexusRouter(settings, AdapterRegistry(adapters))
+    monkeypatch.setattr(main, "get_router", lambda: router)
+
+    response = TestClient(app).post(
+        "/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "hi"}], "stream": True},
+    )
+
+    frames = _parse_sse_frames(response.text)
+    content = "".join(
+        str(frame["choices"][0]["delta"].get("content", ""))  # type: ignore[index]
+        for frame in frames
+        if isinstance(frame, dict) and "choices" in frame
+    )
+    assert content == "[gemini-3.5-flash] partial "
+    assert frames[-2] == {
+        "error": {
+            "message": "provider google failed after streaming output began: "
+            "connection reset mid-stream",
+            "type": "routing_failed",
+        }
+    }
+    assert frames[-1] == "[DONE]"
+
+
+async def test_stream_post_output_failure_after_responded_state_raises_routing_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure while finalizing a streamed answer surfaces as RoutingFailedError."""
+    settings = RouterSettings(
+        audit_log_path=str(tmp_path / "audit-log.jsonl"),
+        spend_ledger_path=str(tmp_path / "spend-ledger.sqlite3"),
+    )
+    registry = AdapterRegistry(
+        {name: MockProviderAdapter(name) for name in ("openai", "anthropic", "google", "moonshot")}
+    )
+    router = NexusRouter(settings, registry)
+
+    def _broken_audit_log(record: object) -> None:
+        raise OSError("audit log volume is read-only")
+
+    monkeypatch.setattr(router._audit_log, "append", _broken_audit_log)
+    request = RouterRequest(request_id="stream-audit", messages=[ChatMessage(content="hi")])
+
+    chunks: list[str] = []
+    with pytest.raises(RoutingFailedError, match="after streaming output began"):
+        async for _, chunk in router.complete_stream(request):
+            chunks.append(chunk)
+    assert "".join(chunks) == "[gemini-3.5-flash] routed response"

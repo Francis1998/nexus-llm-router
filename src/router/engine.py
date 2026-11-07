@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 
 from adapters.registry import AdapterRegistry
 from observability.logging import get_logger
@@ -408,8 +408,19 @@ class NexusRouter:
         message = f"all provider attempts failed: {last_error}"
         raise RoutingFailedError(message)
 
-    async def complete_stream(self, request: RouterRequest) -> AsyncIterator[tuple[str, str]]:
+    async def complete_stream(
+        self,
+        request: RouterRequest,
+        *,
+        on_complete: Callable[[RouterResponse], None] | None = None,
+    ) -> AsyncGenerator[tuple[str, str], None]:
         """Route a request and stream provider chunks.
+
+        Args:
+            request: Router request.
+            on_complete: Optional callback receiving the final ``RouterResponse``
+                (usage, cost, latency, rationale) once the stream finished
+                successfully, so callers can report it after the last chunk.
 
         Yields:
             Pairs of ``(model_name, text_chunk)`` from the selected provider.
@@ -417,7 +428,9 @@ class NexusRouter:
             send the SSE terminal frame themselves after the iterator ends.
 
         Raises:
-            RoutingFailedError: If all provider attempts fail.
+            RoutingFailedError: If all provider attempts fail, or if a provider
+                fails after it already streamed text (falling back then would
+                splice a second answer onto the partial one).
         """
         state_machine = RoutingStateMachine()
         started_at = time.perf_counter()
@@ -464,6 +477,7 @@ class NexusRouter:
                 continue
 
             attempt_started_at = time.perf_counter()
+            output_started = False
             try:
                 adapter = self._adapter_registry.get(candidate.provider)
                 dispatchable_state = state_machine.current_state in {
@@ -481,6 +495,7 @@ class NexusRouter:
                     stream = adapter.stream(model_name, sanitized_messages, request.max_tokens)
                     async for chunk in stream:
                         assembled += chunk
+                        output_started = output_started or bool(chunk)
                         yield model_name, chunk
                 finally:
                     self._inflight_stats.finish_for_tenant(tenant_key, candidate.provider)
@@ -495,7 +510,7 @@ class NexusRouter:
                         model_name, signals.prompt_tokens_estimate, output_tokens
                     ),
                 )
-                self._respond(
+                router_response = self._respond(
                     request=request,
                     provider_response=provider_response,
                     strategy=strategy,
@@ -506,7 +521,6 @@ class NexusRouter:
                     prompt_tokens_estimate=signals.prompt_tokens_estimate,
                     attempt_started_at=attempt_started_at,
                 )
-                return
             except Exception as exception:
                 last_error = exception
                 attempt_latency_ms = (time.perf_counter() - attempt_started_at) * 1000.0
@@ -542,11 +556,25 @@ class NexusRouter:
                     model=model_name,
                     error=str(exception),
                 )
+                if output_started:
+                    # The caller already received this attempt's text; retrying a
+                    # fallback would splice a second answer onto the first.
+                    if state_machine.current_state is RequestState.DISPATCHED:
+                        state_machine.transition(RequestState.FAILED)
+                    message = (
+                        f"provider {candidate.provider} failed after streaming output began: "
+                        f"{exception}"
+                    )
+                    raise RoutingFailedError(message) from exception
                 if not is_last_attempt:
                     if state_machine.current_state is RequestState.DISPATCHED:
                         state_machine.transition(RequestState.FALLBACK)
                     continue
                 state_machine.transition(RequestState.FAILED)
+            else:
+                if on_complete is not None:
+                    on_complete(router_response)
+                return
 
         message = f"all provider attempts failed: {last_error}"
         raise RoutingFailedError(message)

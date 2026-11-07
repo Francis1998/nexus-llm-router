@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-1974%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-1997%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -368,12 +368,16 @@ Nexus is designed for AI infrastructure engineers running multi-model production
   Nexus solves this with optional regex redaction and a Presidio extension path before provider dispatch.
 
 - Issue: teams need OpenAI compatibility without giving up provider choice.
-  Nexus solves this by exposing `/v1/chat/completions` while normalizing OpenAI, Anthropic, Gemini, and Moonshot adapters behind one interface.
+  Nexus solves this by exposing `/v1/chat/completions` and the OpenAI Responses API (`/v1/responses`) while normalizing OpenAI, Anthropic, Gemini, and Moonshot adapters behind one interface.
 
 - Issue: model routing becomes a hidden product decision.
   Nexus solves this by making routing policy explicit, testable, observable, and owned in infra.
 
 ## Demo Gallery
+
+OpenAI Responses API (`POST /v1/responses`) with the official OpenAI SDK:
+
+![Nexus OpenAI Responses API demo](assets/demo/responses-api.gif)
 
 Request cost forecast demo:
 
@@ -582,6 +586,7 @@ Soft rate-limit avoidance demo:
 - **Exact-match response cache** with TTL + tenant namespaces
 - **Semantic fuzzy cache** (trigram Jaccard) for near-duplicate prompts
 - **SSE streaming** for `stream=true` chat completions
+- **OpenAI Responses API** (`POST /v1/responses`): text-only subset with the official SSE event stream, OpenAI error envelopes, and a `nexus` routing block — see `docs/guides/RESPONSES_API_GUIDE.md`
 - **Router engine** with configurable strategies
 - **Adapter pipeline** with full observability
 - **Async-first** design using `asyncio` + `httpx`
@@ -752,6 +757,7 @@ Select a strategy with `X-Router-Strategy`:
 |----------|-------------|
 | [Architecture](ARCHITECTURE.md) | System design and component overview |
 | [Configuration](CONFIGURATION.md) | All configuration options |
+| [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) | OpenAI Responses API compatibility (`POST /v1/responses`), streaming events, supported fields |
 | [Epsilon-greedy guide](docs/guides/EPSILON_GREEDY_GUIDE.md) | Explore/exploit routing walkthrough |
 | [Adaptive-exploration guide](docs/guides/ADAPTIVE_EXPLORATION_GUIDE.md) | Decaying epsilon explore/exploit walkthrough |
 | [Token-budget guide](docs/guides/TOKEN_BUDGET_GUIDE.md) | Context-window-aware quality routing |

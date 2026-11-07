@@ -40,6 +40,23 @@ curl -s http://localhost:8000/v1/chat/completions \
   -d '{"messages":[{"role":"user","content":"Design a robust async retry policy."}],"max_tokens":128,"user":"demo"}'
 ```
 
+OpenAI Responses API (works with `client.responses.create(...)` in the OpenAI SDKs):
+
+```bash
+curl -s http://localhost:8000/v1/responses \
+  -H "Content-Type: application/json" \
+  -H "X-Router-Strategy: cost-optimal" \
+  -d '{"instructions":"Be terse.","input":"Summarize our refund policy.","max_output_tokens":128}'
+```
+
+No provider keys yet? Serve the same API with deterministic mock providers:
+
+```bash
+PYTHONPATH=src python scripts/serve_mock.py --port 8000
+```
+
+See [docs/guides/RESPONSES_API_GUIDE.md](docs/guides/RESPONSES_API_GUIDE.md) for streaming and supported fields.
+
 ## 4. Run the Offline Demo
 
 The demo uses mock providers and prints model choice plus rationale traces.
