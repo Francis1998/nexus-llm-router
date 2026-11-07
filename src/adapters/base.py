@@ -33,7 +33,7 @@ class BaseProviderAdapter(ABC):
     @abstractmethod
     def stream(
         self, model: str, messages: list[ChatMessage], max_tokens: int
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[str | ProviderResponse]:
         """Stream completion chunks.
 
         Args:
@@ -42,7 +42,9 @@ class BaseProviderAdapter(ABC):
             max_tokens: Maximum completion tokens.
 
         Yields:
-            Text chunks from the provider.
+            Text chunks from the provider, optionally followed by one final
+            ``ProviderResponse`` carrying provider-reported usage, cost, and stop
+            reason. Streams that end without it are accounted from estimates.
         """
 
     @abstractmethod

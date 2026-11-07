@@ -16,9 +16,11 @@ receive `text/event-stream` chunks instead of a hard 400.
 
 1. Request arrives with `"stream": true`.
 2. Router selects a model with the configured strategy (same Observe→Decide path).
-3. The chosen provider adapter's `stream()` yields text chunks.
+3. The chosen provider adapter's `stream()` yields text chunks, then its final
+   response (provider-reported usage, cost, and stop reason).
 4. The API frames each chunk as an OpenAI `chat.completion.chunk` SSE event.
-5. A final chunk with `finish_reason=stop` is followed by `data: [DONE]`.
+5. A final chunk carries the provider stop reason (`finish_reason=stop`, or
+   `length` when `max_tokens` cut the answer) and is followed by `data: [DONE]`.
 
 ## Failure semantics
 

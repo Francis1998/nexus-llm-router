@@ -9,15 +9,18 @@ from router.schemas import ChatMessage, ProviderResponse
 class MockProviderAdapter(BaseProviderAdapter):
     """In-memory provider adapter with configurable failures."""
 
-    def __init__(self, provider_name: str, fail: bool = False) -> None:
+    def __init__(self, provider_name: str, fail: bool = False, output_tokens: int = 16) -> None:
         """Initialize mock adapter.
 
         Args:
             provider_name: Provider name returned by the adapter.
             fail: Whether calls should fail.
+            output_tokens: Length of the mock answer in tokens; a smaller
+                ``max_tokens`` truncates it and reports ``finish_reason="length"``.
         """
         self.provider_name = provider_name
         self._fail = fail
+        self._output_tokens = output_tokens
 
     async def complete(
         self, model: str, messages: list[ChatMessage], max_tokens: int
@@ -27,25 +30,27 @@ class MockProviderAdapter(BaseProviderAdapter):
             raise ProviderError(f"mock provider failed: {self.provider_name}")
         prompt = "\n".join(message.content for message in messages)
         input_tokens = max(1, len(prompt) // 4)
-        output_tokens = min(max_tokens, 16)
+        output_tokens = min(max_tokens, self._output_tokens)
         return ProviderResponse(
             content=f"[{model}] routed response",
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=self.estimate_cost(model, input_tokens, output_tokens),
+            finish_reason="length" if max_tokens < self._output_tokens else "stop",
         )
 
     async def stream(
         self, model: str, messages: list[ChatMessage], max_tokens: int
-    ) -> AsyncIterator[str]:
-        """Stream deterministic mock chunks."""
+    ) -> AsyncIterator[str | ProviderResponse]:
+        """Stream deterministic mock chunks, then the final response."""
         response = await self.complete(model, messages, max_tokens)
         # Split into a few chunks so SSE clients exercise multi-frame parsing.
         words = response.content.split(" ")
         for index, word in enumerate(words):
             suffix = " " if index < len(words) - 1 else ""
             yield f"{word}{suffix}"
+        yield response
 
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Estimate mock completion cost."""

@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
-from adapters.http_utils import json_object, nested_int
+from adapters.http_utils import finish_reason, json_object, nested_int
 from router.model_ids import HAIKU_5_5_LONG_PROMPT_THRESHOLD_TOKENS
 from router.schemas import ChatMessage, LongPromptPricing, ProviderResponse
 
@@ -132,14 +132,16 @@ class AnthropicAdapter(BaseProviderAdapter):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=self.estimate_cost(model, input_tokens, output_tokens),
+            finish_reason=finish_reason(body.get("stop_reason"), {"max_tokens"}),
         )
 
     async def stream(
         self, model: str, messages: list[ChatMessage], max_tokens: int
-    ) -> AsyncIterator[str]:
-        """Stream normalized Anthropic text chunks."""
+    ) -> AsyncIterator[str | ProviderResponse]:
+        """Stream normalized Anthropic text chunks, then the final response."""
         response = await self.complete(model, messages, max_tokens)
         yield response.content
+        yield response
 
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Estimate Anthropic completion cost, including Haiku 5.5 long-prompt pricing."""

@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
-from adapters.http_utils import json_object, nested_int
+from adapters.http_utils import finish_reason, json_object, nested_int
 from router.schemas import ChatMessage, ProviderResponse
 
 
@@ -87,7 +87,11 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         if response.status_code >= 400:
             raise ProviderError(f"google request failed with status {response.status_code}")
         body = json_object(response)
-        content = _extract_gemini_text(body.get("candidates", []))
+        candidates = body.get("candidates", [])
+        content = _extract_gemini_text(candidates)
+        stop_reason: object = None
+        if isinstance(candidates, list) and candidates and isinstance(candidates[0], dict):
+            stop_reason = candidates[0].get("finishReason")
         input_tokens = nested_int(body, ["usageMetadata", "promptTokenCount"])
         output_tokens = nested_int(body, ["usageMetadata", "candidatesTokenCount"])
         return ProviderResponse(
@@ -96,14 +100,16 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=self.estimate_cost(model, input_tokens, output_tokens),
+            finish_reason=finish_reason(stop_reason, {"MAX_TOKENS"}),
         )
 
     async def stream(
         self, model: str, messages: list[ChatMessage], max_tokens: int
-    ) -> AsyncIterator[str]:
-        """Stream normalized Gemini text chunks."""
+    ) -> AsyncIterator[str | ProviderResponse]:
+        """Stream normalized Gemini text chunks, then the final response."""
         response = await self.complete(model, messages, max_tokens)
         yield response.content
+        yield response
 
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Estimate Gemini completion cost."""

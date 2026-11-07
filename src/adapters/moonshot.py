@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
-from adapters.http_utils import json_object, message_text, nested_int
+from adapters.http_utils import finish_reason, json_object, message_text, nested_int
 from router.schemas import ChatMessage, ProviderResponse
 
 
@@ -59,8 +59,10 @@ class MoonshotAdapter(BaseProviderAdapter):
         body = json_object(response)
         choices = body.get("choices", [])
         content = ""
+        stop_reason: object = None
         if isinstance(choices, list) and choices and isinstance(choices[0], dict):
             content = message_text(choices[0].get("message"))
+            stop_reason = choices[0].get("finish_reason")
         input_tokens = nested_int(body, ["usage", "prompt_tokens"])
         output_tokens = nested_int(body, ["usage", "completion_tokens"])
         return ProviderResponse(
@@ -69,14 +71,16 @@ class MoonshotAdapter(BaseProviderAdapter):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=self.estimate_cost(model, input_tokens, output_tokens),
+            finish_reason=finish_reason(stop_reason, {"length"}),
         )
 
     async def stream(
         self, model: str, messages: list[ChatMessage], max_tokens: int
-    ) -> AsyncIterator[str]:
-        """Stream normalized Moonshot text chunks."""
+    ) -> AsyncIterator[str | ProviderResponse]:
+        """Stream normalized Moonshot text chunks, then the final response."""
         response = await self.complete(model, messages, max_tokens)
         yield response.content
+        yield response
 
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Estimate Moonshot completion cost."""

@@ -76,6 +76,7 @@ class ChatCompletionResponse(BaseModel):
             choices=[
                 ChatCompletionChoice(
                     message=ChatCompletionMessage(content=router_response.content),
+                    finish_reason=router_response.finish_reason,
                 ),
             ],
             usage=Usage(
@@ -225,7 +226,7 @@ class ResponseObject(BaseModel):
     id: str
     object: Literal["response"] = "response"
     created_at: int
-    status: Literal["in_progress", "completed", "failed"]
+    status: Literal["in_progress", "completed", "incomplete", "failed"]
     completed_at: int | None = None
     error: ResponseErrorInfo | None = None
     incomplete_details: dict[str, str] | None = None

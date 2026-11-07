@@ -59,7 +59,7 @@ Concrete adapters live in `src/adapters/`.
 ### Response normalization contract
 
 Each adapter normalizes a provider-specific payload into a `ProviderResponse`
-(`content`, `model`, `input_tokens`, `output_tokens`, `cost_usd`). Because
+(`content`, `model`, `input_tokens`, `output_tokens`, `cost_usd`, `finish_reason`). Because
 provider content is a *list* (OpenAI `choices`, Gemini `content.parts`,
 Anthropic `content` blocks), an adapter must reconstruct the full text rather
 than reading only the first element: it concatenates every text segment in
@@ -73,6 +73,14 @@ gateways may return `message.content` as a structured list of
 `{"type": "text", "text": ...}` parts rather than a string. The shared
 `adapters.http_utils.message_text` helper accepts either shape and joins the
 text parts, so the OpenAI and Moonshot adapters never drop a valid completion.
+
+Adapters also normalize the provider stop reason into
+`ProviderResponse.finish_reason` with `adapters.http_utils.finish_reason`.
+`length` means the output-token cap was hit (OpenAI/Kimi `length`, Anthropic
+`max_tokens`, Gemini `MAX_TOKENS`); every other reason is `stop`. `stream()`
+yields text chunks and then ends with the final `ProviderResponse`, so the
+engine records provider-reported usage, cost, and stop reason for streams too.
+A custom adapter whose stream yields text only falls back to estimates.
 
 ## API Surface
 

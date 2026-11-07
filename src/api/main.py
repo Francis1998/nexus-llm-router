@@ -478,9 +478,11 @@ def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:
         completion_id = f"chatcmpl-{uuid4().hex}"
         created = int(time())
         model_name = router_request.requested_model or "nexus-routed"
+        completed: list[RouterResponse] = []
         try:
             first = True
-            async for model_name, chunk in get_router().complete_stream(router_request):
+            stream = get_router().complete_stream(router_request, on_complete=completed.append)
+            async for model_name, chunk in stream:
                 delta: dict[str, str] = {"content": chunk}
                 if first:
                     delta = {"role": "assistant", "content": chunk}
@@ -508,7 +510,7 @@ def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:
                     {
                         "index": 0,
                         "delta": {},
-                        "finish_reason": "stop",
+                        "finish_reason": completed[-1].finish_reason if completed else "stop",
                     }
                 ],
             }
