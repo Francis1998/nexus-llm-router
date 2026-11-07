@@ -10,13 +10,16 @@ short-circuiting identical chat completions before provider dispatch.
 
 Gateway fleets often repeat the same prompt (evals, retries, fan-out agents).
 LiteLLM and Portkey already expose response caches; Nexus now keeps an
-in-memory exact-match cache so duplicate `model + messages + temperature`
-requests skip the provider hop.
+in-memory exact-match cache so duplicate
+`model + messages + temperature + max_tokens + strategy` requests skip the
+provider hop.
 
 ## How it works
 
-1. Build a SHA-256 key from `model`, normalized messages, `temperature`, and an
-   optional tenant namespace (`user` or API key id).
+1. Build a SHA-256 key from `model`, normalized messages, `temperature`,
+   `max_tokens`, the effective routing strategy (`X-Router-Strategy`, or
+   `NEXUS_DEFAULT_STRATEGY` when the header is absent), and an optional tenant
+   namespace (`user` or the API key fingerprint).
 2. On a hit, return the cached `RouterResponse` and increment
    `response_cache_hits_total` — the router engine is not called.
 3. On a miss, route and dispatch normally, store the successful response, and
@@ -25,6 +28,12 @@ requests skip the provider hop.
 
 Tenant namespaces keep customer A from reading customer B's completions even
 when prompts are identical.
+
+Every input that changes the generated answer is part of the key: a completion
+truncated at `max_tokens=1` is never replayed for a `max_tokens=512` request, and
+a response routed by `cost-optimal` is never replayed for a `rule-based` request.
+Omitting `X-Router-Strategy` is equivalent to sending the default strategy, so
+those requests share entries.
 
 ## Configuration
 

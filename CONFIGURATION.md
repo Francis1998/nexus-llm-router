@@ -2346,8 +2346,9 @@ NEXUS_RESPONSE_CACHE_TTL_SECONDS=300.0
 
 `NEXUS_RESPONSE_CACHE_ENABLED` turns the API-layer cache on or off.
 `NEXUS_RESPONSE_CACHE_TTL_SECONDS` is the entry lifetime in seconds (default
-`300`). Cache keys include model, messages, temperature, and an optional tenant
-namespace derived from `user` / API key. See
+`300`). Cache keys include model, messages, temperature, `max_tokens`, the
+effective routing strategy (`X-Router-Strategy` or `NEXUS_DEFAULT_STRATEGY`), and
+an optional tenant namespace derived from `user` / the API key fingerprint. See
 [docs/guides/RESPONSE_CACHE_GUIDE.md](docs/guides/RESPONSE_CACHE_GUIDE.md).
 
 ## Semantic Fuzzy Cache
