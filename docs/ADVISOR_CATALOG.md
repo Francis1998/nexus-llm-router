@@ -68,6 +68,7 @@ New advisor entries belong in this file, not in `README.md` (see
 | [PrefixCachePoisonAdvisor](#prefixcachepoisonadvisor) | [PREFIX_CACHE_POISON_ADVISOR_GUIDE.md](guides/PREFIX_CACHE_POISON_ADVISOR_GUIDE.md) | `src/safety/prefix_cache_poison.py` |
 | [PrefixSharingDepthCollapseBandAdvisor](#prefixsharingdepthcollapsebandadvisor) | [PREFIX_SHARING_DEPTH_COLLAPSE_BAND_ADVISOR_GUIDE.md](guides/PREFIX_SHARING_DEPTH_COLLAPSE_BAND_ADVISOR_GUIDE.md) | `src/safety/prefix_sharing_depth_collapse_band.py` |
 | [LoraRankSkewBandAdvisor](#lorarankskewbandadvisor) | [LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md](guides/LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md) | `src/safety/lora_rank_skew_band.py` |
+| [KvBlockFragmentationBandAdvisor](#kvblockfragmentationbandadvisor) | [KV_BLOCK_FRAGMENTATION_BAND_ADVISOR_GUIDE.md](guides/KV_BLOCK_FRAGMENTATION_BAND_ADVISOR_GUIDE.md) | `src/safety/kv_block_fragmentation_band.py` |
 | [PromptCacheHitCollapseBandAdvisor](#promptcachehitcollapsebandadvisor) | [PROMPT_CACHE_HIT_COLLAPSE_BAND_ADVISOR_GUIDE.md](guides/PROMPT_CACHE_HIT_COLLAPSE_BAND_ADVISOR_GUIDE.md) | `src/safety/prompt_cache_hit_collapse_band.py` |
 | [PromptCacheHitRateFloorAdvisor](#promptcachehitrateflooradvisor) | [PROMPT_CACHE_HIT_RATE_FLOOR_ADVISOR_GUIDE.md](guides/PROMPT_CACHE_HIT_RATE_FLOOR_ADVISOR_GUIDE.md) | `src/safety/prompt_cache_hit_rate_floor.py` |
 | [PromptInjectionCanaryFloorAdvisor](#promptinjectioncanaryflooradvisor) | [PROMPT_INJECTION_CANARY_FLOOR_ADVISOR_GUIDE.md](guides/PROMPT_INJECTION_CANARY_FLOOR_ADVISOR_GUIDE.md) | `src/safety/prompt_injection_canary_floor.py` |
@@ -556,6 +557,13 @@ HITL `pad_waste_ratio` band. Gap vs vLLM/SGLang/TGI continuous-batch pad-waste m
 ![LoraRankSkewBandAdvisor](../assets/demo/lora-rank-skew-band-advisor.gif)
 
 offline LoRA rank skew_ratio bands. Gap vs vLLM/SGLang/TGI LoRA adapter rank-skew monitors. Distinct from `LoraHotSwapStallBandAdvisor` / `AdapterWeightDriftAdvisor`. Stack: GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3. Guide: [`LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md`](guides/LORA_RANK_SKEW_BAND_ADVISOR_GUIDE.md).
+
+
+### KvBlockFragmentationBandAdvisor
+
+![KvBlockFragmentationBandAdvisor](../assets/demo/kv-block-fragmentation-band-advisor.gif)
+
+offline KV-block fragmentation_ratio bands. Gap vs vLLM/SGLang/TGI KV-block fragmentation monitors. Distinct from `PagedAttentionFragmentationBandAdvisor` / `GpuMemoryFragmentationBandAdvisor`. Stack: GPT-6.1 / Claude Sonnet 5.5 / Gemini 3.x / Kimi K3. Guide: [`KV_BLOCK_FRAGMENTATION_BAND_ADVISOR_GUIDE.md`](guides/KV_BLOCK_FRAGMENTATION_BAND_ADVISOR_GUIDE.md).
 
 ### PromptCacheHitCollapseBandAdvisor
 
