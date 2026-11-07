@@ -1,7 +1,7 @@
 # Idempotency Store Guide
 
-Durable `Idempotency-Key` storage for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 chat completions. Safe client retries replay the original
+Durable `Idempotency-Key` storage for GPT-6 / Claude 5.5 /
+Gemini 4 / Kimi K3.1 chat completions. Safe client retries replay the original
 response instead of double-dispatching (and double-billing) the provider.
 
 ![Idempotency store demo](../../assets/demo/idempotency-store.gif)
@@ -15,13 +15,25 @@ idempotency stores; Nexus now provides the same building block via
 
 ## How it works
 
-1. `put(key, tenant, response_json, status_code)` stores the response when the
-   key is new and returns `True`. A duplicate unexpired key returns `False`
-   without overwriting.
-2. `get(key, tenant)` returns an `IdempotencyRecord` (or `None` on miss /
-   expiry) so middleware can replay `status_code` + `response_json`.
-3. Expired rows are evicted on `put` / `get` and via `evict_expired()`.
-4. Use `":memory:"` in unit tests (persistent connection, like
+1. `reserve(key, tenant, lease_seconds=...)` atomically claims a key before
+   routing. It uses `INSERT OR IGNORE` on the `(key, tenant)` primary key, so
+   exactly one concurrent caller wins, even across processes sharing the file.
+   It returns an `IdempotencyReservation` (with a random ownership token) to
+   the winner, returns the completed record to replay, or raises
+   `IdempotencyKeyInUseError` while another request holds the key. Pending
+   reservations expire after `lease_seconds`.
+2. `complete(reservation, response_json, status_code)` stores the response for
+   a reservation the caller still owns. If the lease expired, the response is
+   stored only when the key is free, never over a newer request's claim.
+   `release(reservation)` drops the caller's pending reservation after a
+   failure and leaves anyone else's untouched. `put(key, tenant, ...)` stores a
+   response without a reservation when the key is new, and returns `False`
+   otherwise.
+3. `get(key, tenant)` returns an `IdempotencyRecord` (or `None` on miss,
+   expiry, or a still-pending reservation) so middleware can replay
+   `status_code` + `response_json`.
+4. Expired rows are evicted on `reserve` / `put` / `get` and via `evict_expired()`.
+5. Use `":memory:"` in unit tests (persistent connection, like
    `VirtualKeyStore`). Prefer a filesystem path in production.
 
 Wire the store in front of `/v1/chat/completions` when clients send an

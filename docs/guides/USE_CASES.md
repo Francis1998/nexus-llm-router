@@ -169,10 +169,10 @@ ping 3: HTTP 429 {'message': 'tenant rate limit exceeded for acme', 'type': 'rat
 What to notice:
 
 - The retry with the same `Idempotency-Key` replayed the stored response (same
-  `resp_...` id) instead of calling a provider again. Replays cover completed
-  requests only: a retry that arrives while the original request is still
-  running is routed, and billed, again (see
-  [Known limitations](RESPONSES_API_GUIDE.md#known-limitations)).
+  `resp_...` id) instead of calling a provider again. A retry that arrives
+  while the original request is still running gets HTTP 409
+  (`idempotency_key_in_use`) rather than a second, billed provider call; retry
+  it after the original finishes to receive the replay.
 - `model="gpt-6-luna"` is a hint. For this short prompt the default `rule-based`
   strategy preferred `gemini-3.8-flash`, and `response.model` reports the model
   that actually served it. [Choosing a model](RESPONSES_API_GUIDE.md#choosing-a-model)

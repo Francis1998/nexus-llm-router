@@ -276,7 +276,7 @@ of being silently dropped.
 | `Authorization` | Never used verbatim: nexus derives a non-reversible `key_<16 hex>` fingerprint for per-key rate limits, budgets, cache and idempotency scopes (see [SECURITY.md](../../SECURITY.md#credential-handling)). |
 | `X-Router-Strategy` | Any [routing strategy](../../CONFIGURATION.md) name; unknown names → 400 `invalid_value` with `param: "X-Router-Strategy"`. |
 | `X-Tenant-Id` | Optional hard per-tenant token bucket (`NEXUS_TENANT_RATE_LIMIT_*`), checked before routing. |
-| `Idempotency-Key` | Non-streaming requests only: a retry with the same key and tenant replays the stored `response` verbatim. Keys are scoped per endpoint, so a Responses key never replays a Chat Completions body or vice versa (whatever the key spells). Ignored when `stream: true`. |
+| `Idempotency-Key` | Non-streaming requests only: a retry with the same key and tenant replays the stored `response` verbatim. While the original is still running, a duplicate gets HTTP 409 `idempotency_key_in_use` instead of a second provider call; a failed request releases the key. Keys are scoped per endpoint, so a Responses key never replays a Chat Completions body or vice versa (whatever the key spells). Ignored when `stream: true`. |
 
 Non-streaming requests also use the exact-match response cache (shared with
 Chat Completions, keyed on messages, model, temperature, `max_output_tokens`,
@@ -294,6 +294,7 @@ typed exceptions (`BadRequestError`, `RateLimitError`, …).
 | 400 | `invalid_request_error` | `unsupported_value` | Non-text content part or non-message input item (`param` like `input[0].content[1].type`). |
 | 400 | `invalid_request_error` | `missing_required_parameter` / `empty_array` / `invalid_value` / `invalid_type` | Missing or empty `input`, out-of-range values, bad roles or types, malformed `text.format`, unknown `X-Router-Strategy`. |
 | 400 | `invalid_request_error` | `null` | Body is not valid JSON. |
+| 409 | `invalid_request_error` | `idempotency_key_in_use` | Another request with the same `Idempotency-Key` is still running; retry after it completes to get the replay. |
 | 429 | `rate_limit_error` | `rate_limit_exceeded` | Per-key router rate limit or `X-Tenant-Id` bucket exhausted. |
 | 402 | `budget_exceeded` | `budget_exceeded` | Budget guardrail rejected the request. |
 | 503 | `routing_failed` | `routing_failed` | Every provider attempt in the fallback chain failed (including candidates skipped by the budget cap). |
@@ -334,9 +335,6 @@ adapters do not surface provider cache/reasoning counters yet.
   usage, cost, and stop reasons are provider-reported. A custom adapter whose
   `stream()` yields text only is accounted from the router's estimate (prompt
   estimate in, about 4 characters per output token) and reports `stop`.
-- **Idempotency replays completed responses only.** A retry that arrives while
-  the original request is still in flight is routed again (same as
-  `/v1/chat/completions` today); keys are not reserved before routing yet.
 
 ## Choosing a model
 

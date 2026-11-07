@@ -44,10 +44,15 @@ from observability.metrics import (
 from observability.tracing import configure_tracing
 from router.config import RouterSettings, load_settings
 from router.engine import NexusRouter, RoutingFailedError
-from router.schemas import RouterRequest, RouterResponse, RoutingStrategyName
+from router.schemas import ChatMessage, RouterRequest, RouterResponse, RoutingStrategyName
 from safety.budget import BudgetExceededError
 from safety.gateway_guards import GatewayGuardService
-from safety.idempotency import IdempotencyStore
+from safety.idempotency import (
+    IdempotencyKeyInUseError,
+    IdempotencyRecord,
+    IdempotencyReservation,
+    IdempotencyStore,
+)
 from safety.key_fingerprint import fingerprint_api_key
 from safety.rate_limiter import RateLimitExceededError
 from safety.spend_ledger import SpendLedger
@@ -150,6 +155,7 @@ def get_gateway_guards() -> GatewayGuardService:
     return GatewayGuardService(
         idempotency_store=get_idempotency_store(),
         tenant_rate_limiter=get_tenant_rate_limiter(),
+        idempotency_lease_seconds=get_settings().idempotency_lease_seconds,
     )
 
 
@@ -304,41 +310,54 @@ async def chat_completions(
     except GatewayError as exception:
         raise HTTPException(exception.status_code, detail=exception.message) from exception
     guards = get_gateway_guards()
+    reservation: IdempotencyReservation | None = None
     if idempotency_key:
-        existing = guards.check_idempotency(idempotency_key, caller.idempotency_tenant)
+        existing: IdempotencyRecord | None
+        if payload.stream:
+            # Streams are never stored, so they only replay a completed response.
+            existing = guards.check_idempotency(idempotency_key, caller.idempotency_tenant)
+        else:
+            try:
+                claim = guards.reserve_idempotency(idempotency_key, caller.idempotency_tenant)
+            except IdempotencyKeyInUseError as exception:
+                raise HTTPException(409, detail=str(exception)) from exception
+            if isinstance(claim, IdempotencyReservation):
+                reservation, existing = claim, None
+            else:
+                existing = claim
         if existing is not None:
             return JSONResponse(
                 content=json.loads(existing.response_json),
                 status_code=existing.status_code,
             )
-    router_request = RouterRequest(
-        request_id=uuid4().hex,
-        messages=payload.messages,
-        api_key_id=caller.api_key_id,
-        user_id=caller.principal,
-        session_id=payload.user or "default",
-        requested_model=payload.model,
-        strategy=strategy,
-        max_tokens=payload.max_tokens,
-        stream=payload.stream,
-    )
-    if payload.stream:
-        return _stream_chat_completion(router_request)
-
     try:
-        router_response = await _complete_cached(
-            router_request, temperature=payload.temperature, tenant=caller.principal
+        router_request = RouterRequest(
+            request_id=uuid4().hex,
+            messages=payload.messages,
+            api_key_id=caller.api_key_id,
+            user_id=caller.principal,
+            session_id=payload.user or "default",
+            requested_model=payload.model,
+            strategy=strategy,
+            max_tokens=payload.max_tokens,
+            stream=payload.stream,
         )
-    except GatewayError as exception:
-        raise HTTPException(exception.status_code, detail=exception.message) from exception
-    completion = ChatCompletionResponse.from_router_response(router_response)
-    if idempotency_key:
-        guards.remember_response(
-            idempotency_key,
-            caller.idempotency_tenant,
-            completion.model_dump_json(),
-            status_code=200,
-        )
+        if payload.stream:
+            return _stream_chat_completion(router_request)
+
+        try:
+            router_response = await _complete_cached(
+                router_request, temperature=payload.temperature, tenant=caller.principal
+            )
+        except GatewayError as exception:
+            raise HTTPException(exception.status_code, detail=exception.message) from exception
+        completion = ChatCompletionResponse.from_router_response(router_response)
+        if reservation is not None:
+            guards.complete_idempotency(reservation, completion.model_dump_json())
+    except BaseException:
+        if reservation is not None:
+            guards.release_idempotency(reservation)
+        raise
     return completion
 
 
@@ -404,13 +423,38 @@ async def _create_response(
     caller = _admit_caller(request, x_tenant_id, end_user)
     guards = get_gateway_guards()
     replay_key = _responses_idempotency_scope(idempotency_key) if idempotency_key else None
+    reservation: IdempotencyReservation | None = None
     if replay_key and not payload.stream:
-        existing = guards.check_idempotency(replay_key, caller.idempotency_tenant)
-        if existing is not None:
+        try:
+            claim = guards.reserve_idempotency(replay_key, caller.idempotency_tenant)
+        except IdempotencyKeyInUseError as exception:
+            raise GatewayError(409, str(exception), code="idempotency_key_in_use") from exception
+        if isinstance(claim, IdempotencyRecord):
             return JSONResponse(
-                content=json.loads(existing.response_json),
-                status_code=existing.status_code,
+                content=json.loads(claim.response_json),
+                status_code=claim.status_code,
             )
+        reservation = claim
+    try:
+        return await _route_response(
+            payload, messages, strategy, caller, end_user, guards, reservation
+        )
+    except BaseException:
+        if reservation is not None:
+            guards.release_idempotency(reservation)
+        raise
+
+
+async def _route_response(
+    payload: ResponseCreateRequest,
+    messages: list[ChatMessage],
+    strategy: RoutingStrategyName | None,
+    caller: _Caller,
+    end_user: str | None,
+    guards: GatewayGuardService,
+    reservation: IdempotencyReservation | None,
+) -> JSONResponse | StreamingResponse:
+    """Route an admitted ``/v1/responses`` request and store its idempotent result."""
     router_request = RouterRequest(
         request_id=uuid4().hex,
         messages=messages,
@@ -437,10 +481,8 @@ async def _create_response(
         tenant=caller.principal,
     )
     body = complete_response(draft, router_response, f"msg_{uuid4().hex}").model_dump(mode="json")
-    if replay_key:
-        guards.remember_response(
-            replay_key, caller.idempotency_tenant, json.dumps(body), status_code=200
-        )
+    if reservation is not None:
+        guards.complete_idempotency(reservation, json.dumps(body))
     return JSONResponse(content=body)
 
 
