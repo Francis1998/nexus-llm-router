@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import multiprocessing
+from multiprocessing.queues import Queue
+from multiprocessing.synchronize import Barrier
 from pathlib import Path
 
 import pytest
@@ -90,3 +93,43 @@ def test_expired_owner_still_stores_result_when_key_is_free(
     replay = store.reserve("k4", "tenant", lease_seconds=30.0)
     assert isinstance(replay, IdempotencyRecord)
     assert replay.response_json == '{"owner": "late"}'
+
+
+def _race_for_key(db_path: str, start: Barrier, attempted: Barrier, results: Queue[str]) -> None:
+    """Worker process: reserve the shared key with its own store and connection."""
+    store = IdempotencyStore(db_path)
+    start.wait()
+    try:
+        claim = store.reserve("shared", "tenant", lease_seconds=30.0)
+    except IdempotencyKeyInUseError:
+        results.put("in_use")
+        attempted.wait()
+        return
+    results.put("reserved")
+    attempted.wait()
+    assert isinstance(claim, IdempotencyReservation)
+    store.complete(claim, '{"winner": true}', 200)
+
+
+def test_reservation_is_atomic_across_processes(tmp_path: Path) -> None:
+    """Independent workers sharing one SQLite file: exactly one wins the key."""
+    context = multiprocessing.get_context("spawn")
+    workers = 4
+    start, attempted, results = context.Barrier(workers), context.Barrier(workers), context.Queue()
+    db_path = str(tmp_path / "idempotency.sqlite3")
+    IdempotencyStore(db_path)
+    processes = [
+        context.Process(target=_race_for_key, args=(db_path, start, attempted, results))
+        for _ in range(workers)
+    ]
+    for process in processes:
+        process.start()
+    outcomes = sorted(results.get(timeout=30) for _ in range(workers))
+    for process in processes:
+        process.join(timeout=30)
+
+    assert outcomes == ["in_use"] * (workers - 1) + ["reserved"]
+    assert [process.exitcode for process in processes] == [0] * workers
+    replay = IdempotencyStore(db_path).reserve("shared", "tenant", lease_seconds=30.0)
+    assert isinstance(replay, IdempotencyRecord)
+    assert replay.response_json == '{"winner": true}'
