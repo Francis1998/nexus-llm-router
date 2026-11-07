@@ -45,6 +45,11 @@ Optional request region:
 { "region": "eu" }
 ```
 
+> **HTTP note:** the request region is `RouterRequest.region`. `POST /v1/chat/completions`,
+> `/v1/responses`, and `/v1/messages` do not accept or forward a `region` yet, so over
+> HTTP this strategy routes for `global`. Set `region` on `RouterRequest` when embedding
+> `NexusRouter`, as the demo does (`scripts/render_strategy_demos.py`).
+
 ## Tuning notes
 
 - Lower the threshold (for example `1500`) when regional SLOs are tight.

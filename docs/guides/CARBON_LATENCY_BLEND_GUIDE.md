@@ -41,12 +41,20 @@ Or per request:
 X-Router-Strategy: carbon-latency-blend
 ```
 
-Example provider-region telemetry:
+Example provider-region telemetry (request metadata):
 
 ```json
 {
-  "region": "eu",
-  "carbon_intensity:anthropic:eu": "180",
-  "carbon_intensity:openai:eu": "260"
+  "metadata": {
+    "region": "eu",
+    "carbon_intensity:anthropic:eu": "180",
+    "carbon_intensity:openai:eu": "260"
+  }
 }
 ```
+
+> **HTTP note:** strategies read `RouterRequest.metadata`. `POST /v1/chat/completions`,
+> `/v1/responses`, and `/v1/messages` do not forward request-body `metadata` to routing
+> yet, so over HTTP this strategy takes its no-signal path. Set `metadata` on
+> `RouterRequest` when embedding `NexusRouter`, as the demo does
+> (`scripts/render_strategy_demos.py`).

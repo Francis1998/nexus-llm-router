@@ -59,3 +59,9 @@ X-Router-Strategy: tenant-soft-isolation
 
 A tenant reporting `75` requests-per-minute against the default ceiling of
 `60` is soft-isolated to the lowest-cost healthy model for this request.
+
+> **HTTP note:** strategies read `RouterRequest.metadata`. `POST /v1/chat/completions`,
+> `/v1/responses`, and `/v1/messages` do not forward request-body `metadata` to routing
+> yet, so over HTTP this strategy takes its no-signal path. Set `metadata` on
+> `RouterRequest` when embedding `NexusRouter`, as the demo does
+> (`scripts/render_strategy_demos.py`).

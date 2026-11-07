@@ -54,3 +54,9 @@ X-Router-Strategy: prompt-injection-risk-shed
 
 A request reporting `0.85` against the default threshold of `0.7` is shed
 to the lowest-cost healthy model for this request.
+
+> **HTTP note:** strategies read `RouterRequest.metadata`. `POST /v1/chat/completions`,
+> `/v1/responses`, and `/v1/messages` do not forward request-body `metadata` to routing
+> yet, so over HTTP this strategy takes its no-signal path. Set `metadata` on
+> `RouterRequest` when embedding `NexusRouter`, as the demo does
+> (`scripts/render_strategy_demos.py`).
