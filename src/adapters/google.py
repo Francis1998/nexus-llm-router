@@ -78,12 +78,12 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         if not self._api_key:
             raise ProviderError("GOOGLE_API_KEY is not configured")
         payload = _build_gemini_payload(messages, max_tokens)
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={self._api_key}"
-        )
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        # Send the key as a header, never as ``?key=``: httpx logs every request
+        # URL at INFO, which would write the key to the gateway logs.
+        headers = {"x-goog-api-key": self._api_key}
         async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-            response = await client.post(url, json=payload)
+            response = await client.post(url, json=payload, headers=headers)
         if response.status_code >= 400:
             raise ProviderError(f"google request failed with status {response.status_code}")
         body = json_object(response)
