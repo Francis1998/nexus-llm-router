@@ -168,6 +168,12 @@ class RouterSettings(BaseSettings):
 def default_model_catalog() -> dict[str, ModelCandidate]:
     """Return the built-in model catalog with cost and quality priors.
 
+    Costs are provider list prices per 1K tokens (input, output) as published
+    on 2026-11-06; context windows come from the provider model pages. Quality
+    scores are per-role routing priors. Gemini 4 Argon list prices rise to
+    $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8 Flash to $1.50 / $7.50
+    on 2027-01-01; override the catalog when they change.
+
     Returns:
         Mapping of model names to model candidates.
     """
@@ -176,53 +182,53 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             model=OPENAI_FRONTIER_MODEL,
             provider="openai",
             quality_score=0.97,
-            input_cost_per_1k=0.006,
-            output_cost_per_1k=0.018,
+            input_cost_per_1k=0.010,
+            output_cost_per_1k=0.050,
             supports_domains={DomainTag.CODE, DomainTag.LEGAL, DomainTag.GENERAL},
-            context_window=200_000,
+            context_window=1_050_000,
             supported_regions={"us", "global"},
         ),
         OPENAI_BALANCED_MODEL: ModelCandidate(
             model=OPENAI_BALANCED_MODEL,
             provider="openai",
             quality_score=0.84,
-            input_cost_per_1k=0.0002,
-            output_cost_per_1k=0.0008,
+            input_cost_per_1k=0.0001,
+            output_cost_per_1k=0.0005,
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
-            context_window=128_000,
+            context_window=1_050_000,
             supported_regions={"us", "global"},
         ),
         ANTHROPIC_SAFETY_MODEL: ModelCandidate(
             model=ANTHROPIC_SAFETY_MODEL,
             provider="anthropic",
             quality_score=0.98,
-            input_cost_per_1k=0.003,
-            output_cost_per_1k=0.015,
+            input_cost_per_1k=0.004,
+            output_cost_per_1k=0.020,
             supports_domains={
                 DomainTag.CODE,
                 DomainTag.MEDICAL,
                 DomainTag.LEGAL,
                 DomainTag.GENERAL,
             },
-            context_window=200_000,
+            context_window=1_000_000,
             supported_regions={"us", "eu", "global"},
         ),
         ANTHROPIC_FAST_MODEL: ModelCandidate(
             model=ANTHROPIC_FAST_MODEL,
             provider="anthropic",
             quality_score=0.82,
-            input_cost_per_1k=0.0008,
-            output_cost_per_1k=0.004,
+            input_cost_per_1k=0.0001,
+            output_cost_per_1k=0.0005,
             supports_domains={DomainTag.GENERAL, DomainTag.LEGAL},
-            context_window=200_000,
+            context_window=1_000_000,
             supported_regions={"us", "eu", "global"},
         ),
         GEMINI_PRO_MODEL: ModelCandidate(
             model=GEMINI_PRO_MODEL,
             provider="google",
             quality_score=0.95,
-            input_cost_per_1k=0.0035,
-            output_cost_per_1k=0.0105,
+            input_cost_per_1k=0.002,
+            output_cost_per_1k=0.010,
             supports_domains={
                 DomainTag.CODE,
                 DomainTag.MEDICAL,
@@ -230,27 +236,27 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
                 DomainTag.GENERAL,
             },
             supports_realtime=False,
-            context_window=1_000_000,
+            context_window=1_048_576,
             supported_regions={"us", "eu", "global"},
         ),
         GEMINI_FLASH_MODEL: ModelCandidate(
             model=GEMINI_FLASH_MODEL,
             provider="google",
             quality_score=0.81,
-            input_cost_per_1k=0.0015,
-            output_cost_per_1k=0.009,
+            input_cost_per_1k=0.00075,
+            output_cost_per_1k=0.00375,
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
-            context_window=1_000_000,
+            context_window=1_048_576,
             supported_regions={"us", "eu", "global"},
         ),
         MOONSHOT_BALANCED_MODEL: ModelCandidate(
             model=MOONSHOT_BALANCED_MODEL,
             provider="moonshot",
             quality_score=0.76,
-            input_cost_per_1k=0.0005,
-            output_cost_per_1k=0.002,
+            input_cost_per_1k=0.002,
+            output_cost_per_1k=0.010,
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
-            context_window=128_000,
+            context_window=1_048_576,
             supported_regions={"cn", "global"},
         ),
     }

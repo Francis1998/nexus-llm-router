@@ -5,7 +5,6 @@ from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_PRO_MODEL,
     MOONSHOT_BALANCED_MODEL,
-    OPENAI_FRONTIER_MODEL,
 )
 from router.schemas import (
     ChatMessage,
@@ -155,10 +154,11 @@ def test_audio_input_prefer_respects_model_capabilities_override() -> None:
 
 
 def test_audio_input_prefer_known_map_audio_capability() -> None:
-    # Default known map marks gpt-5.5 / gemini* as audio-capable; gpt-5.5 leads quality.
+    # Default known map marks the Gemini models as audio-capable (GPT-6 Astra takes
+    # text + image only); Gemini 4 Argon leads quality among them.
     decision = _strategy().choose(_request({"requires_audio": True}), _signals())
 
-    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
+    assert decision.chosen_model == GEMINI_PRO_MODEL
     assert "audio-capable" in decision.rationale
 
 

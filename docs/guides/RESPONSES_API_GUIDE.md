@@ -56,30 +56,31 @@ curl -s http://localhost:8000/v1/responses \
 ```
 
 Real response from the mock-provider server (`scripts/serve_mock.py`); echo-only
-fields such as `text`, `tools`, and `truncation` are trimmed:
+fields such as `text`, `tools`, and `truncation` are trimmed. `cost-optimal`
+picks GPT-6 Luna, the cheapest model in the default catalog:
 
 ```json
 {
-  "id": "resp_1abf480f9854405e9feceb5f9a40e84a",
+  "id": "resp_c3dd41b848994362b5d1927a96136931",
   "object": "response",
-  "created_at": 1794034918,
+  "created_at": 1794039055,
   "status": "completed",
-  "completed_at": 1794034918,
+  "completed_at": 1794039055,
   "error": null,
   "incomplete_details": null,
   "instructions": "You are a terse support agent.",
   "max_output_tokens": 256,
-  "model": "gpt-4.1-mini",
+  "model": "gpt-6-luna",
   "output": [
     {
-      "id": "msg_feb2506b855945abaf058653728b1869",
+      "id": "msg_54db9e04742c48428ec677321a5c5f87",
       "type": "message",
       "status": "completed",
       "role": "assistant",
       "content": [
         {
           "type": "output_text",
-          "text": "[gpt-4.1-mini] routed response",
+          "text": "[gpt-6-luna] routed response",
           "annotations": [],
           "logprobs": []
         }
@@ -90,18 +91,24 @@ fields such as `text`, `tools`, and `truncation` are trimmed:
   "temperature": 1.0,
   "usage": {
     "input_tokens": 17,
-    "input_tokens_details": {"cached_tokens": 0},
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
     "output_tokens": 16,
-    "output_tokens_details": {"reasoning_tokens": 0},
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
     "total_tokens": 33
   },
-  "metadata": {"ticket": "T-42"},
+  "metadata": {
+    "ticket": "T-42"
+  },
   "nexus": {
     "routing_strategy": "cost-optimal",
-    "rationale": "LP objective minimized estimated cost $0.000208 with quality floor 0.72",
-    "cost_usd": 0.000033,
-    "latency_ms": 0.1088753342628479,
-    "request_id": "da0c43750f464b33aad9713d8687dc95"
+    "rationale": "LP objective minimized estimated cost $0.000130 with quality floor 0.72",
+    "cost_usd": 3.3e-05,
+    "latency_ms": 0.3442917950451374,
+    "request_id": "f3f80f31db3143008524bdd591718f7c"
   }
 }
 ```
@@ -114,7 +121,7 @@ from openai import OpenAI
 client = OpenAI(base_url="http://localhost:8000/v1", api_key="<your-nexus-key>")
 
 response = client.responses.create(
-    model="gpt-6.1-sol",  # a routing hint, see "Choosing a model"
+    model="gpt-6-astra",  # a routing hint, see "Choosing a model"
     instructions="You are a terse support agent.",
     input="Summarize our refund policy in one line.",
     extra_headers={"X-Router-Strategy": "cost-optimal"},
@@ -133,10 +140,10 @@ history = [
     {"role": "developer", "content": "Cite the policy section."},
     {"role": "user", "content": [{"type": "input_text", "text": "Can I return shoes after 40 days?"}]},
 ]
-first = client.responses.create(model="gpt-6.1-sol", input=history)
+first = client.responses.create(model="claude-opus-5-5", input=history)
 history += [item.model_dump() for item in first.output]
 history.append({"role": "user", "content": "And sandals?"})
-second = client.responses.create(model="gpt-6.1-sol", input=history)
+second = client.responses.create(model="claude-opus-5-5", input=history)
 ```
 
 ## Streaming
@@ -296,40 +303,32 @@ explicit requests (`rule-based` does for prompts no stronger rule claims).
 Otherwise the strategy decides, and `response.model` always reports the model
 that actually served the request.
 
-Current provider models (verified against provider docs on 2026-11-06):
+The default catalog ships the current provider line-ups (verified against the
+provider docs on 2026-11-06):
 
-| Provider | Model IDs (newest first) | Typical use |
+| Role in the catalog | Default model | Other current IDs with prices in the adapters |
 | --- | --- | --- |
-| OpenAI | `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna` | Astra: hardest tasks; Sol: balanced default; Terra: fast/efficient; Luna: cheapest. ([models](https://developers.openai.com/api/docs/models)) |
-| Anthropic | `claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` | Opus: recommended default; Haiku: routing/classification. ([models](https://platform.claude.com/docs/en/models/overview)) |
-| Google | `gemini-4-argon`, `gemini-3.8-flash` | Argon: flagship reasoning; 3.8 Flash: fast default. ([models](https://aistudio.google.com/docs/models)) |
-| Kimi (Moonshot) | `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed` | 1M-context flagship; temperature fixed at 1.0. ([models](https://platform.kimi.ai/docs/api/models-overview.md)) |
+| OpenAI frontier / balanced | `gpt-6-astra` / `gpt-6-luna` | `gpt-6.1-sol`, `gpt-6.1-terra` ([models](https://developers.openai.com/api/docs/models)) |
+| Anthropic safety / fast | `claude-opus-5-5` / `claude-haiku-5-5` | `claude-fable-5-1`, `claude-sonnet-5-5` ([models](https://platform.claude.com/docs/en/models/overview)) |
+| Google pro / flash | `gemini-4-argon` / `gemini-3.8-flash` | — ([models](https://aistudio.google.com/docs/models)) |
+| Kimi (Moonshot) | `kimi-k3.1-pro` | `kimi-k3.1-pro-highspeed`, `kimi-k3` ([pricing](https://platform.kimi.ai/docs/pricing/chat)) |
 
-Examples with the OpenAI SDK:
+Real behavior against the mock-provider server with the default `rule-based`
+strategy and a non-trivial prompt (`Compare three approaches to multi-region
+failover … recommend one with a phased rollout plan …`):
 
-```python
-# Ask for GPT-6.1 Sol (balanced) and let nexus fall back if its provider fails.
-client.responses.create(model="gpt-6.1-sol", input="Draft a migration plan for billing.")
+| Requested `model` | `response.model` | `nexus.rationale` |
+| --- | --- | --- |
+| `gpt-6-astra` | `gpt-6-astra` | explicit compatible model request honored |
+| `claude-opus-5-5` | `claude-opus-5-5` | explicit compatible model request honored |
+| `kimi-k3.1-pro` | `kimi-k3.1-pro` | explicit compatible model request honored |
+| `gpt-6.1-sol` (not in the default catalog) | `gpt-6-luna` | general prompt routed to balanced low-cost model |
 
-# Ask for Claude Opus 5.5 on a legal review, routed by the rule-based strategy.
-client.responses.create(
-    model="claude-opus-5-5",
-    input="Review this contract clause for indemnity risk.",
-    extra_headers={"X-Router-Strategy": "rule-based"},
-)
-
-# Ask for Kimi K3.1 Pro Highspeed for a quick yes/no classification.
-client.responses.create(
-    model="kimi-k3.1-pro-highspeed",
-    instructions="Answer yes or no.",
-    input="Is this a refund request?",
-)
-```
-
-Short prompts like the last one are claimed by the `rule-based` "simple
-realtime prompt" rule before an explicit model is considered, and IDs that are
-not in your catalog are never pinned, so always read `response.model` (and
-`response.model_extra["nexus"]["rationale"]`) to see what ran and why.
+Short prompts (for example "Is this a refund request?") are claimed by the
+`rule-based` "simple realtime prompt" rule before an explicit model is
+considered and go to `gemini-3.8-flash`. Always read `response.model` (and
+`response.model_extra["nexus"]["rationale"]`) to see what ran and why; add
+other current IDs such as `gpt-6.1-sol` to the catalog to make them pinnable.
 
 ## Nexus vs LiteLLM vs OpenRouter
 
@@ -375,18 +374,18 @@ uses the official `openai` package (3.46.0 at recording time) for
 ```text
 $ PYTHONPATH=src python scripts/serve_mock.py --port 8765 > /dev/null 2>&1 &
 $ curl -s localhost:8765/v1/responses -H 'content-type: application/json' -H 'X-Router-Strategy: cost-optimal' -d '{"instructions":"Be terse.","input":"Summarize the refund policy.","metadata":{"ticket":"T-42"}}' | jq -c '{id, status, model, text: .output[0].content[0].text, strategy: .nexus.routing_strategy}'
-{"id":"resp_354aae395e3d45169c162d3577fd78f7","status":"completed","model":"gpt-4.1-mini","text":"[gpt-4.1-mini] routed response","strategy":"cost-optimal"}
+{"id":"resp_9a273ba4bce5444c849a4dda744ffa39","status":"completed","model":"gpt-6-luna","text":"[gpt-6-luna] routed response","strategy":"cost-optimal"}
 $ uv run --quiet --no-project --with openai python scripts/responses_api_demo.py --base-url http://localhost:8765/v1
-create: resp_0b8be539... completed model=gpt-4.1-mini
-  output_text='[gpt-4.1-mini] routed response' metadata={'ticket': 'T-42'}
+create: resp_7f18fe0f... completed model=gpt-6-luna
+  output_text='[gpt-6-luna] routed response' metadata={'ticket': 'T-42'}
   usage in=17 out=16 total=33 | nexus strategy=cost-optimal cost_usd=0.000033
 stream=True events (sequence_number:type):
   0:response.created 1:response.in_progress 2:response.output_item.added
   3:response.content_part.added 4:response.output_text.delta 5:response.output_text.delta
   6:response.output_text.delta 7:response.output_text.done 8:response.content_part.done
   9:response.output_item.done 10:response.completed
-  deltas=['[gemini-3.5-flash] ', 'routed ', 'response']
-responses.stream(): '[gemini-3.5-flash] routed response' total_tokens=13
+  deltas=['[gemini-3.8-flash] ', 'routed ', 'response']
+responses.stream(): '[gemini-3.8-flash] routed response' total_tokens=13
 unsupported: HTTP 400 code=unsupported_parameter param=previous_response_id
 ```
 

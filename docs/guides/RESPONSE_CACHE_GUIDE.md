@@ -2,8 +2,8 @@
 
 ![Response cache demo](../../assets/demo/response-cache.gif)
 
-Exact-match response caching for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic. Closes the gap versus LiteLLM and Portkey response caching by
+Exact-match response caching for GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1 traffic. Closes the gap versus LiteLLM and Portkey response caching by
 short-circuiting identical chat completions before provider dispatch.
 
 ## Why
@@ -49,7 +49,7 @@ POST /v1/chat/completions
 Content-Type: application/json
 
 {
-  "model": "gpt-5.5",
+  "model": "gpt-6-astra",
   "temperature": 0,
   "user": "tenant-a",
   "messages": [{"role": "user", "content": "Summarize refund policy"}]

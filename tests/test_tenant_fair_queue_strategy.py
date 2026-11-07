@@ -4,8 +4,8 @@ import pytest
 
 from router.config import RouterSettings, default_model_catalog
 from router.model_ids import (
+    ANTHROPIC_FAST_MODEL,
     ANTHROPIC_SAFETY_MODEL,
-    MOONSHOT_BALANCED_MODEL,
     OPENAI_BALANCED_MODEL,
 )
 from router.schemas import (
@@ -127,8 +127,8 @@ def test_tenant_fair_queue_relief_lane_respects_provider_health() -> None:
         _signals(),
     )
 
-    assert decision.chosen_model == MOONSHOT_BALANCED_MODEL
-    assert decision.provider == "moonshot"
+    assert decision.chosen_model == ANTHROPIC_FAST_MODEL
+    assert decision.provider == "anthropic"
 
 
 def test_tenant_fair_queue_records_selected_tenant() -> None:

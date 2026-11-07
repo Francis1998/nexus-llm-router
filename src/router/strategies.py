@@ -122,7 +122,7 @@ class RuleBasedStrategy(RoutingStrategy):
             )
         if signals.domain_tag is DomainTag.CODE and signals.complexity_score >= 0.55:
             return self._decision(
-                OPENAI_FRONTIER_MODEL, "complex code prompt favors GPT-5.5 quality"
+                OPENAI_FRONTIER_MODEL, "complex code prompt favors GPT-6 Astra quality"
             )
         if (
             signals.complexity_score <= 0.35
@@ -461,18 +461,26 @@ class ModelTier(StrEnum):
 def infer_model_tier(model_name: str) -> ModelTier:
     """Infer a model's capability tier from its name using catalog heuristics.
 
-    Economy markers (mini, nano, flash, etc.) are checked first so names such as
-    ``gemini-3.5-flash`` classify as economy rather than frontier.
+    Economy markers (mini, nano, flash, luna, etc.) are checked first so names
+    such as ``gemini-3.8-flash`` or ``gpt-6-luna`` classify as economy rather
+    than frontier.
     """
     normalized = model_name.lower()
-    economy_markers = ("-mini", "nano", "flash", "haiku-light", "-lite", "lite-")
+    economy_markers = ("-mini", "nano", "flash", "haiku-light", "-lite", "lite-", "-luna")
     if any(marker in normalized for marker in economy_markers):
         return ModelTier.ECONOMY
     frontier_markers = (
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6.1-sol",
         "gpt-5",
-        "claude-sonnet-4",
+        "claude-fable",
         "claude-opus",
+        "claude-sonnet-5",
+        "claude-sonnet-4",
+        "gemini-4",
         "gemini-3",
+        "kimi-k3",
         "kimi-k2",
         "o3",
     )
@@ -487,9 +495,9 @@ def infer_model_tier(model_name: str) -> ModelTier:
 def infer_target_tier(complexity_score: float) -> ModelTier:
     """Map a classifier complexity score onto a target capability tier.
 
-    High-complexity prompts prefer frontier SKUs (GPT-5.5, Claude Sonnet 4.6,
-    Gemini 3.x, Kimi K2); medium prompts prefer mid-tier; low-complexity prompts
-    prefer economy SKUs. Thresholds are fixed so routing stays deterministic and
+    High-complexity prompts prefer frontier SKUs (GPT-6 Astra, Claude Opus 5.5,
+    Gemini 4 Argon, Kimi K3.1 Pro); medium prompts prefer mid-tier; low-complexity
+    prompts prefer economy SKUs. Thresholds are fixed so routing stays deterministic and
     needs no extra ``NEXUS_*`` knobs.
     """
     if complexity_score >= 0.7:
@@ -10436,26 +10444,27 @@ class ProviderSuccessFloorStrategy(RoutingStrategy):
 
 
 _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
+    # GPT-6 Astra: text + image input only, no Realtime API, and no logprobs
+    # (it cannot run with reasoning effort ``none``).
     OPENAI_FRONTIER_MODEL: frozenset(
         {
             "agents_api",
-            "audio",
             "background_mode",
             "deep_research",
             "json",
-            "logprobs",
             "long_context",
             "mcp",
             "memory_tool",
             "parallel_tool_calls",
-            "realtime_api",
             "streaming",
             "tools",
             "vision",
             "webhook",
         }
     ),
-    OPENAI_BALANCED_MODEL: frozenset({"logprobs", "parallel_tool_calls", "streaming", "tools"}),
+    OPENAI_BALANCED_MODEL: frozenset(
+        {"logprobs", "long_context", "parallel_tool_calls", "streaming", "tools", "vision"}
+    ),
     ANTHROPIC_SAFETY_MODEL: frozenset(
         {
             "deep_research",
@@ -10470,20 +10479,22 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
             "webhook",
         }
     ),
-    ANTHROPIC_FAST_MODEL: frozenset({"tools", "streaming"}),
+    ANTHROPIC_FAST_MODEL: frozenset({"tools", "streaming", "long_context"}),
     GEMINI_PRO_MODEL: frozenset({"vision", "tools", "long_context", "json", "streaming", "audio"}),
-    GEMINI_FLASH_MODEL: frozenset({"vision", "tools", "json", "streaming", "audio"}),
-    MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context", "json", "streaming"}),
+    GEMINI_FLASH_MODEL: frozenset(
+        {"vision", "tools", "json", "streaming", "audio", "long_context"}
+    ),
+    MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context", "json", "streaming", "vision"}),
 }
 
 _KNOWN_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
-    OPENAI_FRONTIER_MODEL: 200_000,
-    OPENAI_BALANCED_MODEL: 128_000,
-    ANTHROPIC_SAFETY_MODEL: 200_000,
-    ANTHROPIC_FAST_MODEL: 200_000,
-    GEMINI_PRO_MODEL: 1_000_000,
-    GEMINI_FLASH_MODEL: 1_000_000,
-    MOONSHOT_BALANCED_MODEL: 128_000,
+    OPENAI_FRONTIER_MODEL: 1_050_000,
+    OPENAI_BALANCED_MODEL: 1_050_000,
+    ANTHROPIC_SAFETY_MODEL: 1_000_000,
+    ANTHROPIC_FAST_MODEL: 1_000_000,
+    GEMINI_PRO_MODEL: 1_048_576,
+    GEMINI_FLASH_MODEL: 1_048_576,
+    MOONSHOT_BALANCED_MODEL: 1_048_576,
 }
 
 
@@ -10905,7 +10916,7 @@ class StructuredOutputPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _JSON_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _JSON_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi")
     _STRUCTURED_CAPABILITIES = frozenset({"json", "structured", "json_mode"})
 
     def __init__(
@@ -11489,7 +11500,7 @@ class ToolCallingPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _TOOL_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _TOOL_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi")
 
     def __init__(
         self,
@@ -11672,7 +11683,7 @@ class MultimodalInputPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _VISION_NAME_TOKENS = ("gpt-5", "claude", "gemini", "vision")
+    _VISION_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi-k3", "vision")
 
     def __init__(
         self,
@@ -11856,7 +11867,7 @@ class StreamingPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _STREAMING_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _STREAMING_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi")
 
     def __init__(
         self,
@@ -12039,7 +12050,7 @@ class LongContextPreferStrategy(RoutingStrategy):
 
     _TRUTHY_TOKENS = frozenset({"true", "1", "yes", "on"})
     _FALSY_TOKENS = frozenset({"false", "0", "no", "off", ""})
-    _LONG_CONTEXT_NAME_TOKENS = ("gpt-5", "claude", "gemini", "kimi")
+    _LONG_CONTEXT_NAME_TOKENS = ("gpt-5", "gpt-6", "claude", "gemini", "kimi")
     _DEFAULT_LONG_CONTEXT_THRESHOLD = 100_000
     _HEURISTIC_CONTEXT_WINDOW = 200_000
 

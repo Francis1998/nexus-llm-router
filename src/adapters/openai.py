@@ -8,6 +8,8 @@ from adapters.base import BaseProviderAdapter, ProviderError
 from adapters.http_utils import json_object, message_text, nested_int
 from router.schemas import ChatMessage, ProviderResponse
 
+_LEGACY_MAX_TOKENS_PREFIXES = ("gpt-4", "gpt-3.5")
+
 
 class OpenAIAdapter(BaseProviderAdapter):
     """Adapter for OpenAI chat completions."""
@@ -23,7 +25,12 @@ class OpenAIAdapter(BaseProviderAdapter):
         """
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
+        # USD per 1K tokens (input, output); GPT-6 list prices as of 2026-11-06.
         self._costs: dict[str, tuple[float, float]] = {
+            "gpt-6-astra": (0.010, 0.050),
+            "gpt-6.1-sol": (0.002, 0.010),
+            "gpt-6.1-terra": (0.001, 0.005),
+            "gpt-6-luna": (0.0001, 0.0005),
             "gpt-5.5": (0.006, 0.018),
             "gpt-4.1-mini": (0.0002, 0.0008),
         }
@@ -38,13 +45,13 @@ class OpenAIAdapter(BaseProviderAdapter):
             "model": model,
             "messages": [message.model_dump() for message in messages],
         }
-        # GPT-5.x chat completions reject ``max_tokens`` and require
-        # ``max_completion_tokens`` instead (same pattern as o-series reasoning
-        # models). Older GPT-4.x / mini SKUs still expect ``max_tokens``.
-        if model.startswith("gpt-5"):
-            payload["max_completion_tokens"] = max_tokens
-        else:
+        # Reasoning-era models (GPT-5.x, GPT-6, o-series) reject ``max_tokens``
+        # and require ``max_completion_tokens``. Only legacy GPT-4.x / GPT-3.5
+        # SKUs still expect ``max_tokens``.
+        if model.startswith(_LEGACY_MAX_TOKENS_PREFIXES):
             payload["max_tokens"] = max_tokens
+        else:
+            payload["max_completion_tokens"] = max_tokens
         headers = {"Authorization": f"Bearer {self._api_key}"}
         async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
             response = await client.post(

@@ -1,7 +1,7 @@
 # Model Deprecation Guard Guide
 
 Warn-or-block mapping from retired model aliases to current replacements for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ![Model deprecation guard demo](../../assets/demo/model-deprecation-guard.gif)
 
@@ -36,10 +36,10 @@ from safety.model_deprecation import ModelDeprecationGuard
 guard = ModelDeprecationGuard()
 verdict = guard.check("gpt-4o")
 assert verdict.is_deprecated
-assert verdict.replacement == "gpt-5.5"
+assert verdict.replacement == "gpt-6.1-sol"
 assert verdict.severity == "warn"
 
-guard.register("legacy-x", "kimi-k2", severity="block")
+guard.register("legacy-x", "kimi-k3.1-pro", severity="block")
 blocked = guard.check("legacy-x")
 assert blocked.severity == "block"
 ```
@@ -48,10 +48,17 @@ assert blocked.severity == "block"
 
 | Deprecated | Replacement | Severity |
 | --- | --- | --- |
-| `gpt-4o` / `gpt-4o-mini` | `gpt-5.5` | warn |
-| `claude-3-5-sonnet` (+ dated) | `claude-sonnet-4.6` | warn |
-| `gemini-1.5-pro` | `gemini-3.1-pro-preview` | warn |
-| `moonshot-v1-128k` | `kimi-k2` | warn |
+| `gpt-4o` / `gpt-4o-mini` | `gpt-6.1-sol` / `gpt-6-luna` | warn |
+| `claude-3-5-sonnet` (+ dated) | `claude-sonnet-5-5` | warn |
+| `gemini-1.5-pro` | `gemini-4-argon` | warn |
+| `moonshot-v1-128k` | `kimi-k3.1-pro` | warn |
+| `kimi-k2`, `kimi-k2.6`, `kimi-k2.7-code` | `kimi-k3.1-pro` | warn |
+| `kimi-k2.7-code-highspeed` | `kimi-k3.1-pro-highspeed` | warn |
+
+Kimi closed the K2 series to new users on 2026-10-31 and plans to retire all K2
+models by the end of December 2026
+([Kimi pricing](https://platform.kimi.ai/docs/pricing/chat)), so K2 IDs now warn
+with their K3.1 replacements.
 
 ## Gap vs LiteLLM / OpenRouter
 

@@ -2,8 +2,10 @@
 
 from router.config import default_model_catalog
 from router.model_ids import (
+    ANTHROPIC_FAST_MODEL,
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_PRO_MODEL,
+    OPENAI_BALANCED_MODEL,
     OPENAI_FRONTIER_MODEL,
 )
 from router.schemas import (
@@ -134,16 +136,16 @@ def test_least_busy_strategy_is_registered_by_builder() -> None:
         LatencyStats(),
         InflightStats(),
         0.72,
-        "gpt-4.1-mini",
-        "claude-haiku-4-5",
+        OPENAI_BALANCED_MODEL,
+        ANTHROPIC_FAST_MODEL,
         0.5,
         CircuitBreakerRegistry(),
         0.5,
         0.3,
         0.2,
         0.05,
-        "gpt-4.1-mini",
-        "gpt-5.5",
+        OPENAI_BALANCED_MODEL,
+        OPENAI_FRONTIER_MODEL,
         0.1,
         750.0,
         success_stats=SuccessStats(),

@@ -116,7 +116,7 @@ class ModelLatencySlaTracker:
         """Record one observation and return the updated advisory snapshot.
 
         Args:
-            model: Model identifier (for example ``gpt-5.5``).
+            model: Model identifier (for example ``gpt-6.1-sol``).
             latency_ms: Observed end-to-end latency in milliseconds (``>= 0``).
 
         Returns:

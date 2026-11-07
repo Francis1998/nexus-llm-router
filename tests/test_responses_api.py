@@ -19,6 +19,7 @@ from adapters.registry import AdapterRegistry
 from cache.response_cache import ResponseCache
 from router.config import RouterSettings
 from router.engine import NexusRouter, RoutingFailedError
+from router.model_ids import GEMINI_FLASH_MODEL
 from router.schemas import ChatMessage, RouterRequest, RouterResponse
 from safety.budget import BudgetExceededError
 from safety.gateway_guards import GatewayGuardService
@@ -593,8 +594,8 @@ def test_stream_does_not_splice_fallback_output_after_text_was_sent(
     assert "response.completed" not in names
     deltas = [data["delta"] for name, data in events if name == "response.output_text.delta"]
     failed = events[-1][1]["response"]
-    assert deltas == ["[gemini-3.5-flash] partial "]
-    assert failed["output"][0]["content"][0]["text"] == "[gemini-3.5-flash] partial "
+    assert deltas == [f"[{GEMINI_FLASH_MODEL}] partial "]
+    assert failed["output"][0]["content"][0]["text"] == f"[{GEMINI_FLASH_MODEL}] partial "
     assert failed["error"]["type"] == "routing_failed"
     assert "after streaming output began" in failed["error"]["message"]
 
@@ -627,7 +628,7 @@ def test_stream_failure_before_any_text_still_falls_back(gateway: GatewayFactory
     events = _sse_events(response.text)
     completed = events[-1][1]["response"]
     assert events[-1][0] == "response.completed"
-    assert completed["model"] != "gemini-3.5-flash"
+    assert completed["model"] != GEMINI_FLASH_MODEL
     assert completed["output"][0]["content"][0]["text"] == f"[{completed['model']}] routed response"
     assert "fallback attempt 1 succeeded" in completed["nexus"]["rationale"]
 
@@ -645,9 +646,9 @@ def test_stream_with_empty_answer_completes_with_selected_model(
     names = [name for name, _ in events]
     assert "response.output_text.delta" not in names
     assert names[-1] == "response.completed"
-    assert events[0][1]["response"]["model"] == "gemini-3.5-flash"
+    assert events[0][1]["response"]["model"] == GEMINI_FLASH_MODEL
     completed = events[-1][1]["response"]
-    assert completed["model"] == "gemini-3.5-flash"
+    assert completed["model"] == GEMINI_FLASH_MODEL
     assert completed["output"][0]["content"][0]["text"] == ""
 
 
@@ -661,6 +662,6 @@ def test_stream_reports_fallback_model_after_silent_fallback(gateway: GatewayFac
     events = _sse_events(response.text)
     completed = events[-1][1]["response"]
     assert events[-1][0] == "response.completed"
-    assert completed["model"] != "gemini-3.5-flash"
+    assert completed["model"] != GEMINI_FLASH_MODEL
     assert events[0][1]["response"]["model"] == completed["model"]
     assert events[1][1]["response"]["model"] == completed["model"]

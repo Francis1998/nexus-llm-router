@@ -1,7 +1,7 @@
 # Model Capability Catalog Guide
 
 Refreshable, thread-safe catalog of model capability frozensets for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 routing. Strategies can
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 routing. Strategies can
 read a live snapshot instead of a process-frozen
 `_KNOWN_MODEL_CAPABILITIES` map.
 
@@ -17,8 +17,8 @@ process.
 
 ## How it works
 
-1. Construction auto-seeds `gpt-5.5`, `claude-sonnet-4-6`, `gemini-3.5-flash`,
-   and `kimi-k2` (or pass a custom `seed=` / `auto_seed=False`).
+1. Construction auto-seeds `gpt-6-astra`, `claude-opus-5-5`, `gemini-3.8-flash`,
+   and `kimi-k3.1-pro` (or pass a custom `seed=` / `auto_seed=False`).
 2. `get(model)` returns a frozenset (or `None`).
 3. `upsert(model, capabilities)` inserts or replaces an entry.
 4. `refresh_from_static()` replaces the map with the built-in seed.
@@ -34,8 +34,8 @@ Pass `catalog.snapshot()` (or the catalog itself via a thin adapter) as the
 from router.capability_catalog import ModelCapabilityCatalog
 
 catalog = ModelCapabilityCatalog()
-print(catalog.get("gpt-5.5"))  # frozenset with tools, vision, ...
-catalog.upsert("gpt-5.5", catalog.get("gpt-5.5") | {"mcp"})
+print(catalog.get("gpt-6-astra"))  # frozenset with tools, vision, ...
+catalog.upsert("gpt-6.1-sol", catalog.get("gpt-6-astra") | {"logprobs"})
 capability_map = catalog.snapshot()
 # hand capability_map to ModelCapabilityGateStrategy / prefer strategies
 catalog.refresh_from_static()
@@ -48,4 +48,4 @@ catalog.refresh_from_static()
 | Static known-model map | Yes | `_KNOWN_MODEL_CAPABILITIES` |
 | Live refresh without restart | Yes (provider sync) | `ModelCapabilityCatalog` |
 | Thread-safe shared catalog | Yes | RLock + `snapshot()` |
-| Seed frontier SKUs | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Seed frontier SKUs | Yes | GPT-6 Astra / Claude Opus 5.5 / Gemini 3.8 Flash / Kimi K3.1 Pro |

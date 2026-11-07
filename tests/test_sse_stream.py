@@ -15,6 +15,7 @@ from adapters.registry import AdapterRegistry
 from api.main import app, get_adapter_registry, get_router, get_settings
 from router.config import RouterSettings, load_settings
 from router.engine import NexusRouter, RoutingFailedError
+from router.model_ids import GEMINI_FLASH_MODEL
 from router.schemas import ChatMessage, RouterRequest
 
 
@@ -137,7 +138,7 @@ def test_stream_fails_instead_of_splicing_a_fallback_after_output(
         for frame in frames
         if isinstance(frame, dict) and "choices" in frame
     )
-    assert content == "[gemini-3.5-flash] partial "
+    assert content == f"[{GEMINI_FLASH_MODEL}] partial "
     assert frames[-2] == {
         "error": {
             "message": "provider google failed after streaming output began: "
@@ -171,4 +172,4 @@ async def test_stream_post_output_failure_after_responded_state_raises_routing_e
     with pytest.raises(RoutingFailedError, match="after streaming output began"):
         async for _, chunk in router.complete_stream(request):
             chunks.append(chunk)
-    assert "".join(chunks) == "[gemini-3.5-flash] routed response"
+    assert "".join(chunks) == f"[{GEMINI_FLASH_MODEL}] routed response"

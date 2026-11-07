@@ -26,8 +26,8 @@ Use the `canary-tier-blend` strategy when progressive canary delivery must respe
 
 ```bash
 export NEXUS_DEFAULT_STRATEGY=canary-tier-blend
-export NEXUS_CANARY_STABLE_MODEL=gpt-4.1-mini
-export NEXUS_CANARY_MODEL=gpt-5.5
+export NEXUS_CANARY_STABLE_MODEL=gpt-6-luna
+export NEXUS_CANARY_MODEL=gpt-6-astra
 export NEXUS_CANARY_WEIGHT=0.1
 ```
 

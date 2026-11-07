@@ -3,9 +3,8 @@
 from router.config import default_model_catalog
 from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
-    GEMINI_FLASH_MODEL,
-    GEMINI_PRO_MODEL,
     OPENAI_BALANCED_MODEL,
+    OPENAI_FRONTIER_MODEL,
 )
 from router.schemas import (
     ChatMessage,
@@ -58,20 +57,22 @@ def test_token_budget_picks_highest_quality_when_all_fit() -> None:
 def test_token_budget_excludes_models_below_needed_capacity() -> None:
     """Models whose effective capacity is below tokens_needed are excluded.
 
-    With a 200k request budget and ~150k tokens needed, 128k-context models
-    (``min(128k, 200k) = 128k``) drop out while 200k+/1M-context models remain,
-    so the highest-quality remaining SKU (Claude Sonnet 4.6) wins.
+    With a 200k request budget and ~150k tokens needed, a 128k-context model
+    (``min(128k, 200k) = 128k``) drops out even though it has the highest
+    quality, so the best remaining 1M-context SKU wins.
     """
-    strategy = TokenBudgetStrategy(default_model_catalog())
+    catalog = default_model_catalog()
+    catalog[ANTHROPIC_SAFETY_MODEL] = catalog[ANTHROPIC_SAFETY_MODEL].model_copy(
+        update={"context_window": 128_000}
+    )
+    strategy = TokenBudgetStrategy(catalog)
     request = _request(token_budget=200_000, max_tokens=1_000)
     signals = _signals(prompt_tokens_estimate=149_000, token_budget=200_000)
 
     decision = strategy.choose(request, signals)
 
-    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
-    assert default_model_catalog()[decision.chosen_model].context_window >= 150_000
-    # Balanced OpenAI (128k) must not win when it cannot hold the estimate.
-    assert decision.chosen_model != OPENAI_BALANCED_MODEL
+    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
+    assert catalog[decision.chosen_model].context_window >= 150_000
 
 
 def test_token_budget_falls_back_to_largest_context_when_none_fit() -> None:
@@ -83,7 +84,8 @@ def test_token_budget_falls_back_to_largest_context_when_none_fit() -> None:
 
     decision = strategy.choose(request, signals)
 
-    assert decision.chosen_model in {GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL}
+    # GPT-6 models have the largest default window (1,050,000 tokens).
+    assert decision.chosen_model in {OPENAI_FRONTIER_MODEL, OPENAI_BALANCED_MODEL}
     assert "no model fitting" in decision.rationale
 
 

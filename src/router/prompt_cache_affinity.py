@@ -69,7 +69,7 @@ class PromptCacheAffinityRouter:
         Args:
             prefix_fingerprint: Stable prefix digest (for example from
                 :func:`fingerprint`).
-            model_id: Model identifier to stick to (for example ``gpt-5.5``).
+            model_id: Model identifier to stick to (for example ``gpt-6.1-sol``).
 
         Raises:
             ValueError: If either argument is empty.

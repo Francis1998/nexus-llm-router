@@ -4,7 +4,6 @@ from router.config import RouterSettings, default_model_catalog
 from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
     MOONSHOT_BALANCED_MODEL,
-    OPENAI_FRONTIER_MODEL,
 )
 from router.schemas import (
     ChatMessage,
@@ -204,11 +203,13 @@ def test_realtime_api_prefer_skips_unhealthy_providers() -> None:
     assert decision.provider != "moonshot"
 
 
-def test_realtime_api_prefer_known_model_has_capability() -> None:
+def test_realtime_api_prefer_falls_back_when_no_default_model_is_realtime_capable() -> None:
+    # GPT-6 models do not support the Realtime API, so no default catalog model
+    # carries ``realtime_api``; the strategy falls back to the best healthy model.
     decision = _strategy().choose(_request({"requires_realtime": True}), _signals())
 
-    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
-    assert "realtime_api-capable" in decision.rationale
+    assert decision.chosen_model == ANTHROPIC_SAFETY_MODEL
+    assert "non-realtime_api fallback" in decision.rationale
 
 
 def test_realtime_api_prefer_registered_by_strategy_factory() -> None:

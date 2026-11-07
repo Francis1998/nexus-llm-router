@@ -75,15 +75,15 @@ open) a circuit for otherwise-healthy traffic. Only genuine dispatch errors
 SHA-256 fingerprint and flags identical payloads inside a short TTL window. It is
 distinct from `IdempotencyStore` (durable client-key response replay): this control
 never stores response bodies and never rejects traffic — callers decide how to
-handle `is_duplicate` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 bursts.
+handle `is_duplicate` for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 bursts.
 
 ## First-token latency SLO advisor
 
 `FirstTokenLatencySloAdvisor` classifies time-to-first-token (TTFT) into `within` /
 `warn` / `breach` bands against a default or per-model `slo_ttft_ms`. It is distinct
 from `ModelLatencySlaTracker` (end-to-end p50/p95 windows): this control is for
-streaming first-token latency only and never rejects traffic for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+streaming first-token latency only and never rejects traffic for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ## Provider fallback chain planner
 
@@ -92,7 +92,7 @@ chains from explicit preference lists, skipping unavailable providers and
 optionally anchoring on a caller-supplied primary. It is distinct from
 `ProviderFallbackScoreboard` (live health ranking via `record_outcome` / `rank()`):
 this planner never observes latency or errors — preference order only — for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ## Prompt cache hit-rate advisor
 
@@ -100,8 +100,8 @@ GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 `cold` / `warm` / `hot` bands. It is distinct from `RequestFingerprintDeduper`
 (identical-request content-hash windows) and `SemanticCacheStrategy`
 (near-duplicate response routing): this control never rejects traffic and never
-stores response bodies — callers log or alert on `band` for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+stores response bodies — callers log or alert on `band` for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ## Output token ceiling guard
 
@@ -109,8 +109,8 @@ Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 ceiling into `ok` / `near` / `over` bands. It is distinct from
 `StreamingTokenBudgetGate` (hard mid-stream cut-off) and
 `ContextWindowFitAdvisor` (prompt tokens vs model context window): this control
-never kills requests itself — callers clamp, warn, or proceed for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+never kills requests itself — callers clamp, warn, or proceed for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ## Provider region affinity advisor
 
@@ -119,24 +119,24 @@ Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
 `ProviderHealthScoreboard` (success/error health bands) and
 `StickyProviderAffinity` (session sticky map): this control never rejects
 traffic and never mutates sticky state — callers reorder or log from
-`rankings` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+`rankings` for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ## Model temperature clamp advisor
 
 `ModelTemperatureClampAdvisor` classifies requested `temperature` against a
 policy `max_allowed` into `ok` / `high` / `extreme` bands and returns a
 `suggested_clamp`. It never rejects traffic itself — callers clamp, warn, or
-proceed for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+proceed for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 
 ### StructuredOutputRepairAdvisor
-Advisory accept/repair/fail bands for structured JSON outputs against required keys. Never auto-forwards invalid payloads. Prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 for narrative repair prompts. See `docs/guides/STRUCTURED_OUTPUT_REPAIR_ADVISOR_GUIDE.md`.
+Advisory accept/repair/fail bands for structured JSON outputs against required keys. Never auto-forwards invalid payloads. Prefer GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 for narrative repair prompts. See `docs/guides/STRUCTURED_OUTPUT_REPAIR_ADVISOR_GUIDE.md`.
 
 ### ProviderWarmPoolAdvisor
-Advisory cold/warming/hot bands from warm replica counts vs target. Never auto-routes. Prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/PROVIDER_WARM_POOL_ADVISOR_GUIDE.md`.
+Advisory cold/warming/hot bands from warm replica counts vs target. Never auto-routes. Prefer GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/PROVIDER_WARM_POOL_ADVISOR_GUIDE.md`.
 
 ### CostAttributionTagLedger
-Offline Helicone-style cost attribution tags with per-tag rollups. Never enforces spend caps. Prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. See `docs/guides/COST_ATTRIBUTION_TAG_LEDGER_GUIDE.md`.
+Offline Helicone-style cost attribution tags with per-tag rollups. Never enforces spend caps. Prefer GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. See `docs/guides/COST_ATTRIBUTION_TAG_LEDGER_GUIDE.md`.
 ### ToolLoopDepthGateAdvisor
 `ToolLoopDepthGateAdvisor` advises `loop_depth` bands for HITL review. Never auto-blocks production traffic without human policy. Gap vs LiteLLM/vLLM/OpenAI-compatible tool-loop depth gates.
 

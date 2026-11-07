@@ -5,6 +5,7 @@ from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_PRO_MODEL,
     MOONSHOT_BALANCED_MODEL,
+    OPENAI_FRONTIER_MODEL,
 )
 from router.schemas import (
     ChatMessage,
@@ -83,16 +84,17 @@ def test_long_context_prefer_falsy_long_context_stays_quality_first() -> None:
 def test_long_context_prefer_min_context_tokens_prefers_largest() -> None:
     decision = _strategy().choose(_request({"min_context_tokens": 500_000}), _signals())
 
-    assert decision.chosen_model == GEMINI_PRO_MODEL
+    # GPT-6 models have the largest default window (1,050,000 tokens).
+    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
     assert "long-context-capable" in decision.rationale
-    assert "context 1000000" in decision.rationale
+    assert "context 1050000" in decision.rationale
 
 
 def test_long_context_prefer_long_context_default_threshold() -> None:
     # Default threshold 100k; all catalog models meet it → rank by context then quality.
     decision = _strategy().choose(_request({"long_context": True}), _signals())
 
-    assert decision.chosen_model == GEMINI_PRO_MODEL
+    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
     assert "long-context-capable" in decision.rationale
 
 
@@ -131,7 +133,7 @@ def test_long_context_prefer_name_heuristic_when_maps_absent() -> None:
         _request({"min_context_tokens": 500_000}), _signals()
     )
 
-    assert decision.chosen_model == GEMINI_PRO_MODEL
+    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
     assert "long-context-capable" in decision.rationale
 
 

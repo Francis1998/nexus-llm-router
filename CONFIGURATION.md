@@ -41,12 +41,12 @@ REQUEST_TIMEOUT_SECONDS=30
 The `ab` strategy assigns a stable bucket from the request ID and compares two configured model arms without changing application code.
 
 ```dotenv
-NEXUS_AB_MODEL_A=gpt-4.1-mini
-NEXUS_AB_MODEL_B=claude-haiku-4-5
+NEXUS_AB_MODEL_A=gpt-6-luna
+NEXUS_AB_MODEL_B=claude-haiku-5-5
 NEXUS_AB_MODEL_A_WEIGHT=0.5
 ```
 
-Use `gpt-5.5`, `claude-sonnet-4-6`, `gemini-3.1-pro-preview`, or `kimi-k2` for higher-quality evaluation arms when the experiment budget allows it.
+Use `gpt-6-astra`, `claude-opus-5-5`, `gemini-4-argon`, or `kimi-k3.1-pro` for higher-quality evaluation arms when the experiment budget allows it.
 
 ## Weighted-Blend Routing Settings
 
@@ -80,8 +80,8 @@ The `provider-family-cost-ceiling` strategy applies OpenRouter/LiteLLM-style
 spend ceilings per provider family (`openai`, `anthropic`, `google`,
 `moonshot`). It selects the highest-quality domain-eligible model whose
 estimated request cost stays within that family's ceiling (default from
-`NEXUS_PROVIDER_FAMILY_COST_CEILING_USD` for every family), covering GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog priors. When no family has an
+`NEXUS_PROVIDER_FAMILY_COST_CEILING_USD` for every family), covering GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 catalog priors. When no family has an
 affordable eligible model it falls back across families to the cheapest
 eligible candidate. Constructor-level `family_ceilings_usd` overrides can
 tighten or relax one family without changing the default.
@@ -145,8 +145,8 @@ traffic is routed to the stable model so a failing canary cannot keep drawing
 its share of live traffic.
 
 ```dotenv
-NEXUS_CANARY_STABLE_MODEL=gpt-4.1-mini
-NEXUS_CANARY_MODEL=gpt-5.5
+NEXUS_CANARY_STABLE_MODEL=gpt-6-luna
+NEXUS_CANARY_MODEL=gpt-6-astra
 NEXUS_CANARY_WEIGHT=0.1
 ```
 
@@ -164,8 +164,8 @@ tier and falls back to top quality when no tier match exists. It reuses the
 same `NEXUS_CANARY_*` settings as `canary`.
 
 ```dotenv
-NEXUS_CANARY_STABLE_MODEL=gpt-4.1-mini
-NEXUS_CANARY_MODEL=gpt-5.5
+NEXUS_CANARY_STABLE_MODEL=gpt-6-luna
+NEXUS_CANARY_MODEL=gpt-6-astra
 NEXUS_CANARY_WEIGHT=0.1
 ```
 
@@ -236,7 +236,7 @@ See
 The `prompt-length-tier-shed` strategy sheds frontier-tier models when
 `prompt_tokens_estimate` exceeds `NEXUS_PROMPT_LENGTH_TIER_TOKENS`. Long prompts
 prefer the highest-quality mid/economy candidate; short prompts keep pure
-quality ranking so frontier GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+quality ranking so frontier GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 models remain available for compact hard tasks.
 
 ```dotenv
@@ -255,8 +255,8 @@ See
 The `retry-budget-aware-failover` strategy reads `metadata.retry_remaining`
 (falling back to `NEXUS_RETRY_BUDGET_DEFAULT`) and prefers highest-quality
 healthy models while budget remains. On the last attempt (`<= 1`) it failovers
-to the lowest rolling-p95 healthy model so GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic still has a fast final try.
+to the lowest rolling-p95 healthy model so GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1 traffic still has a fast final try.
 
 ```dotenv
 NEXUS_RETRY_BUDGET_DEFAULT=3
@@ -272,8 +272,8 @@ See
 ## Cache-Hit-Sticky-Warm-Pool Routing
 
 The `cache-hit-sticky-warm-pool` strategy pins identical long prompt prefixes
-onto one domain-eligible model so provider prompt caches stay warm for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Short prefixes fall back to
+onto one domain-eligible model so provider prompt caches stay warm for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. Short prefixes fall back to
 `session_id`. Unhealthy sticky primaries failover along a deterministic ring.
 
 ```dotenv
@@ -290,7 +290,7 @@ See
 
 The `embedding-cache-key-namespace` strategy pins sticky/cache routing under a
 tenant-isolated namespace so embedding-cache keys do not collide across tenants
-for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX=embed
@@ -307,7 +307,7 @@ See
 
 The `circuit-breaker-half-open-probe` strategy prefers healthy closed providers
 and allows only limited concurrent probes into half-open/recovering providers
-for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET=2
@@ -324,8 +324,8 @@ See
 ## Tenant-Concurrency-Lease Routing
 
 The `tenant-concurrency-lease` strategy prefers providers with remaining
-per-tenant in-flight headroom so one noisy tenant cannot saturate GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 backends for everyone else.
+per-tenant in-flight headroom so one noisy tenant cannot saturate GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 backends for everyone else.
 
 ```dotenv
 NEXUS_TENANT_CONCURRENCY_LEASE=8
@@ -344,7 +344,7 @@ The `provider-error-budget-shed` strategy prefers healthy domain-eligible
 providers whose rolling provider error rate stays within budget. Error rate is
 derived from shared `SuccessStats` as `1 - success_rate(provider)`, so providers
 with no observations start at 0% error and remain eligible for cold-start
-traffic across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 backends.
+traffic across GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 backends.
 
 ```dotenv
 NEXUS_PROVIDER_ERROR_BUDGET_RATE=0.15
@@ -364,7 +364,7 @@ See
 The `region-latency-p99-shed` strategy prefers domain-eligible models that match
 the request region and whose rolling provider p99 latency stays under threshold.
 Providers above `NEXUS_REGION_LATENCY_P99_MS` are shed when faster regional
-alternatives exist, so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+alternatives exist, so GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 traffic avoids hot regional tails.
 
 ```dotenv
@@ -384,7 +384,7 @@ See
 
 The `sticky-canary-cost` strategy pins tenants to a primary model via consistent
 hashing, then blends a deterministic explore slice toward cheaper healthy
-models. Off-slice GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
+models. Off-slice GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic
 keeps sticky affinity with healthy ring failover.
 
 ```dotenv
@@ -405,8 +405,8 @@ See
 
 The `queue-depth-fairness` strategy prefers domain-eligible providers whose live
 `InflightStats` queue depth stays under a soft fairness cap. Providers at or
-above the cap are shed when shallower alternatives exist, so GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic shares capacity fairly instead
+above the cap are shed when shallower alternatives exist, so GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic shares capacity fairly instead
 of concentrating on one deep queue.
 
 ```dotenv
@@ -429,7 +429,7 @@ The `provider-quota-fair-share` strategy keeps a bounded local window of recent
 provider selections and computes equal share across providers eligible for the
 current request domain. Providers at or above equal share are shed whenever an
 under-share alternative exists; quality and estimated cost break ties within the
-preferred pool for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+preferred pool for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_PROVIDER_QUOTA_LOOKBACK=100
@@ -451,7 +451,7 @@ Bucketing matches canary/A/B (`sha256(request_id)[:8] / 0xFFFFFFFF`), so a given
 request always resolves to the same arm for replay and auditability while
 distinct requests still explore at the configured rate. Useful when quality
 priors are mostly trusted but you still want a small live sample across
-GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2.
+GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1.
 
 ```dotenv
 NEXUS_EPSILON=0.1
@@ -470,8 +470,8 @@ while `SuccessStats` are empty, then decays toward
 `epsilon = min + (base - min) / (1 + total_successes)`.
 
 Explore/exploit bucketing matches canary/A/B/`epsilon-greedy`, so a given
-request stays replayable while early traffic still samples GPT-5.5, Claude Sonnet
-4.6, Gemini 3.x, and Kimi K2 more broadly than a fixed epsilon.
+request stays replayable while early traffic still samples GPT-6, Claude Opus
+5.5, Gemini 4, and Kimi K3.1 more broadly than a fixed epsilon.
 
 ```dotenv
 NEXUS_ADAPTIVE_EXPLORATION_BASE=0.2
@@ -508,7 +508,7 @@ The `sticky-tenant-hash` strategy pins each tenant to a primary model using
 consistent hashing on `metadata.tenant_id` (then `metadata.user_id`,
 `metadata.sticky_key`, top-level `user_id`, and finally `session_id`). Unlike
 `sticky-session`, which hashes only `session_id` for multi-turn conversational
-affinity, this strategy keeps GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+affinity, this strategy keeps GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 traffic stable per customer across sessions. When the sticky primary provider is
 unhealthy the strategy walks a deterministic ring to the next healthy candidate.
 
@@ -521,8 +521,8 @@ See
 
 ## Multi-Region-Latency-Hedge Routing
 
-The `multi-region-latency-hedge` strategy keeps GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic on the highest-quality model in the request's
+The `multi-region-latency-hedge` strategy keeps GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1 traffic on the highest-quality model in the request's
 primary region (`request.region`, default `global`). When that model's provider
 rolling **p50** exceeds `NEXUS_LATENCY_HEDGE_MS`, and at least one
 secondary-region candidate exists, it hedges to the lowest-p50 secondary model.
@@ -545,7 +545,7 @@ The `token-budget` strategy maximizes quality subject to a hard token ceiling: i
 selects the highest-quality domain-eligible model whose
 `min(context_window, request.token_budget)` can hold
 `prompt_tokens_estimate + max_tokens`. Useful for long RAG contexts across
-GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 without risking provider
+GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1 without risking provider
 context overflows. When no model fits it falls back to the largest-context
 eligible candidate. Requires no additional env vars; set `token_budget` on the
 request (default `4096`). See
@@ -556,8 +556,8 @@ request (default `4096`). See
 The `slo-aware` strategy maximizes quality subject to a rolling availability SLO:
 it selects the highest-quality domain-eligible model whose provider success rate
 meets `NEXUS_AVAILABILITY_SLO` (default `0.99`). Useful when soft degradation
-would otherwise keep routing to GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi
-K2 providers that are burning error budget. Providers with no observations yet
+would otherwise keep routing to GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi
+K3.1 providers that are burning error budget. Providers with no observations yet
 are treated as healthy; when nothing meets the SLO it falls back to the highest
 success-rate eligible model. See
 [docs/guides/SLO_AWARE_GUIDE.md](docs/guides/SLO_AWARE_GUIDE.md).
@@ -573,7 +573,7 @@ stores: it derives a timeout budget from the request latency requirement,
 provider rolling p95 latency, and recent success/error signals. Realtime
 requests use `NEXUS_LATENCY_SLA_MS` as the base budget, batch requests receive a
 wider budget, and provider failures inflate the effective latency. Useful when
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic should prefer faster
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic should prefer faster
 models during provider latency spikes but keep higher-quality slower models when
 the budget is comfortable. See
 [docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md).
@@ -609,8 +609,8 @@ The `token-bucket-tenant` strategy maintains an independent local request-token
 bucket for each `metadata.tenant_id` (with metadata user/sticky, top-level user,
 and session fallbacks). Each routing decision consumes one quota token.
 In-budget requests select the highest-quality domain-eligible model; over-budget
-requests remain available but shed to the cheapest eligible GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 model.
+requests remain available but shed to the cheapest eligible GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 model.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=token-bucket-tenant
@@ -631,8 +631,8 @@ The `region-carbon-blend` strategy blends inverse-normalized carbon intensity
 with rolling provider p95 latency. Intensity comes from
 `carbon_intensity:<provider>` metadata or regional heuristics (`eu`/`us`/`cn`/
 `global`). `NEXUS_REGION_CARBON_BLEND_WEIGHT` defaults to `0.5` (`0` = latency
-only, `1` = carbon only) for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic.
+only, `1` = carbon only) for GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=region-carbon-blend
@@ -649,8 +649,8 @@ The `provider-weight-decay` strategy multiplies each provider's selection weight
 by model quality. Failures multiply weight by
 `NEXUS_PROVIDER_WEIGHT_DECAY_FACTOR` (default `0.5`); successes add
 `NEXUS_PROVIDER_WEIGHT_RECOVER` (default `0.1`, capped at `1.0`). Cold-start
-weights are `1.0`. Targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic.
+weights are `1.0`. Targets GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=provider-weight-decay
@@ -669,8 +669,8 @@ cooldown window and prefers the highest-quality healthy ready provider. When
 every healthy provider is cooling it falls back to the next healthy provider
 with the soonest remaining wait. The engine records cooldowns on rate-limit
 failures using the response `Retry-After` value when present, otherwise
-`NEXUS_RETRY_AFTER_DEFAULT_SECONDS` (default `30`) for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+`NEXUS_RETRY_AFTER_DEFAULT_SECONDS` (default `30`) for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=retry-after-respect
@@ -687,8 +687,8 @@ The `latency-slope-shed` strategy tracks a short per-provider latency sample
 window (`NEXUS_LATENCY_SLOPE_WINDOW`, default `10`) and computes an EWMA slope
 in ms per sample step. When the quality leader's slope exceeds
 `NEXUS_LATENCY_SLOPE_THRESHOLD_MS` (default `25`), traffic sheds to a
-lower-latency / cheaper healthy alternative for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2.
+lower-latency / cheaper healthy alternative for GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=latency-slope-shed
@@ -705,8 +705,8 @@ The `provider-hourly-cost-ceiling` strategy tracks rolling hourly estimated
 spend per provider and hard-skips providers already over
 `NEXUS_PROVIDER_HOURLY_COST_CEILING_USD` (default `5.0`). Distinct from
 `provider-family-cost-ceiling` (per-request family ceilings). Among
-under-ceiling providers it selects highest quality for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2; when every provider is over it
+under-ceiling providers it selects highest quality for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1; when every provider is over it
 falls back to the cheapest eligible model.
 
 ```dotenv
@@ -724,8 +724,8 @@ a rolling 60-second window. Before routing a request, it adds
 `prompt_tokens_estimate` to each provider's current total and sheds providers
 whose projected total would exceed the ceiling. The next highest-quality
 domain-eligible provider receives the request; if every provider is projected
-over, the least-loaded provider is selected. This protects GPT-5.5 / Claude
-Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic from token-per-minute throttles.
+over, the least-loaded provider is selected. This protects GPT-6 / Claude
+Opus 5.5 / Gemini 4 / Kimi K3.1 traffic from token-per-minute throttles.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=token-rpm-ceiling
@@ -739,8 +739,8 @@ See
 
 The `quality-weighted-sticky` strategy pins `session_id` via consistent hashing
 like `sticky-session`, but allocates hash-ring share proportional to each
-candidate's `quality_score`. Higher-quality models (for example Claude Sonnet
-4.6 / GPT-5.5) absorb more sticky sessions while Gemini 3.x / Kimi K2 arms
+candidate's `quality_score`. Higher-quality models (for example Claude Opus
+5.5 / GPT-6 Astra) absorb more sticky sessions while Gemini / Kimi K3.1 arms
 still receive some. No extra `NEXUS_*` knobs — weights come from catalog
 quality priors. Distinct from `sticky-tenant-hash`.
 
@@ -755,7 +755,7 @@ See
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
 `request.metadata.cache_hit` is truthy it prefers the cheapest domain-eligible
-realtime model among GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2; on a
+realtime model among GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1; on a
 miss it falls through to `cost-optimal` under `NEXUS_QUALITY_FLOOR`. Useful when
 an upstream semantic cache already resolved the answer and frontier spend would
 be wasted. See
@@ -764,21 +764,21 @@ be wasted. See
 ## Failover-Priority Routing
 
 The `failover-priority` strategy is LiteLLM-style ordered failover: it walks
-`NEXUS_FAILOVER_PRIORITY` (default GPT-5.5 → Claude Sonnet 4.6 → Gemini 3.x →
-Kimi K2) and selects the first model whose provider circuit is closed. Unhealthy
+`NEXUS_FAILOVER_PRIORITY` (default GPT-6 Astra → Claude Opus 5.5 → Gemini 4 Argon →
+Kimi K3.1 Pro) and selects the first model whose provider circuit is closed. Unhealthy
 providers are skipped; when every preference is unhealthy it still routes to the
 first listed catalog model. The fallback chain preserves the remaining priority
 order. See
 [docs/guides/FAILOVER_PRIORITY_GUIDE.md](docs/guides/FAILOVER_PRIORITY_GUIDE.md).
 
 ```dotenv
-NEXUS_FAILOVER_PRIORITY=["gpt-5.5","claude-sonnet-4-6","gemini-3.1-pro-preview","kimi-k2"]
+NEXUS_FAILOVER_PRIORITY=["gpt-6-astra","claude-opus-5-5","gemini-4-argon","kimi-k3.1-pro"]
 ```
 
 ## Provider-Health Score Blend Routing
 The `provider-health-score-blend` strategy is LiteLLM/Portkey-style
-health-aware routing for the default GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 catalog mix. It scores domain-eligible models by blending rolling
+health-aware routing for the default GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1 catalog mix. It scores domain-eligible models by blending rolling
 provider success rate, inverse normalized provider p95 latency, model
 `quality_score`, and inverse normalized estimated request cost. Provider circuit
 availability is a hard gate: when any candidate's circuit is closed, open
@@ -796,7 +796,7 @@ All-zero weights fall back to pure quality. See
 
 ## Health/Cost/Latency Routing
 The `health-cost-latency` strategy is LiteLLM/Portkey-style ternary routing for
-the default GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog mix. It
+the default GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 catalog mix. It
 scores domain-eligible models by blending rolling provider success rate, inverse
 normalized estimated request cost, and inverse normalized rolling provider p95
 latency — without circuit-breaker gating or a separate quality component.
@@ -814,8 +814,8 @@ The `soft-rate-limit` strategy is LiteLLM/Portkey-style soft backoff for
 providers that recently returned 429 or rate-limit shaped errors. It prefers
 healthy domain-eligible providers with fewer recent rate-limit observations,
 then breaks ties by quality and estimated request cost. Successful attempts add
-non-rate-limit observations, so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi
-K2 traffic can return to a provider after quota pressure cools down. No
+non-rate-limit observations, so GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi
+K3.1 traffic can return to a provider after quota pressure cools down. No
 additional `NEXUS_*` setting is required; select it with
 `NEXUS_DEFAULT_STRATEGY=soft-rate-limit` or per request with
 `X-Router-Strategy: soft-rate-limit`. See
@@ -836,8 +836,8 @@ The `prompt-prefix-cache` strategy gives long reusable system prompts sticky
 provider/model affinity for OpenRouter/LiteLLM-style prompt caching. It hashes
 the first `NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS` characters of joined `system`
 messages and buckets that prefix across domain-eligible candidates, so requests
-sharing a long prefix keep hitting the same GPT-5.5 / Claude Sonnet 4.6 / Gemini
-3.x / Kimi K2 provider/model cache. Requests without a sufficiently long system
+sharing a long prefix keep hitting the same GPT-6 / Claude Opus 5.5 / Gemini
+4 / Kimi K3.1 provider/model cache. Requests without a sufficiently long system
 prompt fall back to `cost-optimal` under `NEXUS_QUALITY_FLOOR`.
 NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
 See
@@ -854,7 +854,7 @@ or per request with `X-Router-Strategy: cost-latency-pareto`. See
 
 ## Concurrency-Cap Routing
 The `concurrency-cap` strategy is a LiteLLM/Portkey-style provider saturation
-guard for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. It reads
+guard for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. It reads
 the same live `InflightStats` counters as `least-busy`, skips providers whose
 current in-flight count is at or above `NEXUS_CONCURRENCY_CAP`, and selects the
 highest-quality domain-eligible model among the remaining providers. If every
@@ -872,7 +872,7 @@ primary traffic is steered elsewhere (minimum `1`). See
 
 ## Token-Bucket-Burst Routing
 The `token-bucket-burst` strategy is LiteLLM/Portkey/OpenRouter-style bursty quota
-routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Each
+routing for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. Each
 provider keeps a shared token bucket that refills over time. Primary selection
 prefers providers with at least one available token, then breaks ties by quality
 and estimated request cost. When every bucket is empty, Nexus falls back to the
@@ -893,7 +893,7 @@ must be positive. See
 
 ## Model-Tier-Rate-Limit Routing
 The `model-tier-rate-limit` strategy is LiteLLM/Portkey-style tier-aware soft RPM
-routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. It
+routing for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. It
 infers each candidate's frontier/mid/economy tier from its model name, tracks
 rolling per-provider request timestamps, and prefers providers still under the
 tier-specific RPM ceiling. When every eligible provider is saturated it falls
@@ -968,10 +968,20 @@ If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
 
 The default catalog lives in `src/router/config.py` and includes:
 
-- OpenAI: `gpt-5.5`, `gpt-4.1-mini`
-- Anthropic: `claude-sonnet-4-6`, `claude-haiku-4-5`
-- Google: `gemini-3.1-pro-preview`, `gemini-3.5-flash`
-- Moonshot: `kimi-k2`
+- OpenAI: `gpt-6-astra` (frontier), `gpt-6-luna` (balanced, lowest cost)
+- Anthropic: `claude-opus-5-5` (safety / medical / legal), `claude-haiku-5-5` (fast)
+- Google: `gemini-4-argon` (pro), `gemini-3.8-flash` (flash)
+- Moonshot: `kimi-k3.1-pro`
+
+Costs are provider list prices as of 2026-11-06 (GPT-6, Claude 5.5, Gemini 4 Argon /
+3.8 Flash, Kimi K3.1) and context windows come from the provider model pages.
+Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8 Flash
+to $1.50 / $7.50 on 2027-01-01. Adapter price tables (`src/adapters/*.py`) also
+cover `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `claude-sonnet-5-5`,
+`kimi-k3.1-pro-highspeed`, and `kimi-k3`. OpenAI GPT-6 models and Kimi K3.x
+receive `max_completion_tokens`, and nexus never forwards sampling parameters
+(`temperature`, `top_p`), which GPT-6 rejects unless reasoning effort is `none`
+and Kimi K3.x fixes at `1.0` / `0.95`.
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
 
@@ -1041,12 +1051,12 @@ REQUEST_TIMEOUT_SECONDS=30
 The `ab` strategy assigns a stable bucket from the request ID and compares two configured model arms without changing application code.
 
 ```dotenv
-NEXUS_AB_MODEL_A=gpt-4.1-mini
-NEXUS_AB_MODEL_B=claude-haiku-4-5
+NEXUS_AB_MODEL_A=gpt-6-luna
+NEXUS_AB_MODEL_B=claude-haiku-5-5
 NEXUS_AB_MODEL_A_WEIGHT=0.5
 ```
 
-Use `gpt-5.5`, `claude-sonnet-4-6`, `gemini-3.1-pro-preview`, or `kimi-k2` for higher-quality evaluation arms when the experiment budget allows it.
+Use `gpt-6-astra`, `claude-opus-5-5`, `gemini-4-argon`, or `kimi-k3.1-pro` for higher-quality evaluation arms when the experiment budget allows it.
 
 ## Weighted-Blend Routing Settings
 
@@ -1080,8 +1090,8 @@ The `provider-family-cost-ceiling` strategy applies OpenRouter/LiteLLM-style
 spend ceilings per provider family (`openai`, `anthropic`, `google`,
 `moonshot`). It selects the highest-quality domain-eligible model whose
 estimated request cost stays within that family's ceiling (default from
-`NEXUS_PROVIDER_FAMILY_COST_CEILING_USD` for every family), covering GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog priors. When no family has an
+`NEXUS_PROVIDER_FAMILY_COST_CEILING_USD` for every family), covering GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 catalog priors. When no family has an
 affordable eligible model it falls back across families to the cheapest
 eligible candidate. Constructor-level `family_ceilings_usd` overrides can
 tighten or relax one family without changing the default.
@@ -1145,8 +1155,8 @@ traffic is routed to the stable model so a failing canary cannot keep drawing
 its share of live traffic.
 
 ```dotenv
-NEXUS_CANARY_STABLE_MODEL=gpt-4.1-mini
-NEXUS_CANARY_MODEL=gpt-5.5
+NEXUS_CANARY_STABLE_MODEL=gpt-6-luna
+NEXUS_CANARY_MODEL=gpt-6-astra
 NEXUS_CANARY_WEIGHT=0.1
 ```
 
@@ -1164,8 +1174,8 @@ tier and falls back to top quality when no tier match exists. It reuses the
 same `NEXUS_CANARY_*` settings as `canary`.
 
 ```dotenv
-NEXUS_CANARY_STABLE_MODEL=gpt-4.1-mini
-NEXUS_CANARY_MODEL=gpt-5.5
+NEXUS_CANARY_STABLE_MODEL=gpt-6-luna
+NEXUS_CANARY_MODEL=gpt-6-astra
 NEXUS_CANARY_WEIGHT=0.1
 ```
 
@@ -1236,7 +1246,7 @@ See
 The `prompt-length-tier-shed` strategy sheds frontier-tier models when
 `prompt_tokens_estimate` exceeds `NEXUS_PROMPT_LENGTH_TIER_TOKENS`. Long prompts
 prefer the highest-quality mid/economy candidate; short prompts keep pure
-quality ranking so frontier GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+quality ranking so frontier GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 models remain available for compact hard tasks.
 
 ```dotenv
@@ -1255,8 +1265,8 @@ See
 The `retry-budget-aware-failover` strategy reads `metadata.retry_remaining`
 (falling back to `NEXUS_RETRY_BUDGET_DEFAULT`) and prefers highest-quality
 healthy models while budget remains. On the last attempt (`<= 1`) it failovers
-to the lowest rolling-p95 healthy model so GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic still has a fast final try.
+to the lowest rolling-p95 healthy model so GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1 traffic still has a fast final try.
 
 ```dotenv
 NEXUS_RETRY_BUDGET_DEFAULT=3
@@ -1272,8 +1282,8 @@ See
 ## Cache-Hit-Sticky-Warm-Pool Routing
 
 The `cache-hit-sticky-warm-pool` strategy pins identical long prompt prefixes
-onto one domain-eligible model so provider prompt caches stay warm for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Short prefixes fall back to
+onto one domain-eligible model so provider prompt caches stay warm for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. Short prefixes fall back to
 `session_id`. Unhealthy sticky primaries failover along a deterministic ring.
 
 ```dotenv
@@ -1290,7 +1300,7 @@ See
 
 The `embedding-cache-key-namespace` strategy pins sticky/cache routing under a
 tenant-isolated namespace so embedding-cache keys do not collide across tenants
-for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_EMBEDDING_CACHE_NAMESPACE_PREFIX=embed
@@ -1307,7 +1317,7 @@ See
 
 The `circuit-breaker-half-open-probe` strategy prefers healthy closed providers
 and allows only limited concurrent probes into half-open/recovering providers
-for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET=2
@@ -1331,7 +1341,7 @@ Bucketing matches canary/A/B (`sha256(request_id)[:8] / 0xFFFFFFFF`), so a given
 request always resolves to the same arm for replay and auditability while
 distinct requests still explore at the configured rate. Useful when quality
 priors are mostly trusted but you still want a small live sample across
-GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2.
+GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1.
 
 ```dotenv
 NEXUS_EPSILON=0.1
@@ -1350,8 +1360,8 @@ while `SuccessStats` are empty, then decays toward
 `epsilon = min + (base - min) / (1 + total_successes)`.
 
 Explore/exploit bucketing matches canary/A/B/`epsilon-greedy`, so a given
-request stays replayable while early traffic still samples GPT-5.5, Claude Sonnet
-4.6, Gemini 3.x, and Kimi K2 more broadly than a fixed epsilon.
+request stays replayable while early traffic still samples GPT-6, Claude Opus
+5.5, Gemini 4, and Kimi K3.1 more broadly than a fixed epsilon.
 
 ```dotenv
 NEXUS_ADAPTIVE_EXPLORATION_BASE=0.2
@@ -1388,7 +1398,7 @@ The `sticky-tenant-hash` strategy pins each tenant to a primary model using
 consistent hashing on `metadata.tenant_id` (then `metadata.user_id`,
 `metadata.sticky_key`, top-level `user_id`, and finally `session_id`). Unlike
 `sticky-session`, which hashes only `session_id` for multi-turn conversational
-affinity, this strategy keeps GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+affinity, this strategy keeps GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 traffic stable per customer across sessions. When the sticky primary provider is
 unhealthy the strategy walks a deterministic ring to the next healthy candidate.
 
@@ -1401,8 +1411,8 @@ See
 
 ## Multi-Region-Latency-Hedge Routing
 
-The `multi-region-latency-hedge` strategy keeps GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic on the highest-quality model in the request's
+The `multi-region-latency-hedge` strategy keeps GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1 traffic on the highest-quality model in the request's
 primary region (`request.region`, default `global`). When that model's provider
 rolling **p50** exceeds `NEXUS_LATENCY_HEDGE_MS`, and at least one
 secondary-region candidate exists, it hedges to the lowest-p50 secondary model.
@@ -1425,7 +1435,7 @@ The `token-budget` strategy maximizes quality subject to a hard token ceiling: i
 selects the highest-quality domain-eligible model whose
 `min(context_window, request.token_budget)` can hold
 `prompt_tokens_estimate + max_tokens`. Useful for long RAG contexts across
-GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 without risking provider
+GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1 without risking provider
 context overflows. When no model fits it falls back to the largest-context
 eligible candidate. Requires no additional env vars; set `token_budget` on the
 request (default `4096`). See
@@ -1436,8 +1446,8 @@ request (default `4096`). See
 The `slo-aware` strategy maximizes quality subject to a rolling availability SLO:
 it selects the highest-quality domain-eligible model whose provider success rate
 meets `NEXUS_AVAILABILITY_SLO` (default `0.99`). Useful when soft degradation
-would otherwise keep routing to GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi
-K2 providers that are burning error budget. Providers with no observations yet
+would otherwise keep routing to GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi
+K3.1 providers that are burning error budget. Providers with no observations yet
 are treated as healthy; when nothing meets the SLO it falls back to the highest
 success-rate eligible model. See
 [docs/guides/SLO_AWARE_GUIDE.md](docs/guides/SLO_AWARE_GUIDE.md).
@@ -1453,7 +1463,7 @@ stores: it derives a timeout budget from the request latency requirement,
 provider rolling p95 latency, and recent success/error signals. Realtime
 requests use `NEXUS_LATENCY_SLA_MS` as the base budget, batch requests receive a
 wider budget, and provider failures inflate the effective latency. Useful when
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic should prefer faster
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic should prefer faster
 models during provider latency spikes but keep higher-quality slower models when
 the budget is comfortable. See
 [docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md](docs/guides/ADAPTIVE_TIMEOUT_GUIDE.md).
@@ -1467,7 +1477,7 @@ NEXUS_LATENCY_SLA_MS=750
 
 The `semantic-cache` strategy is Portkey/LiteLLM-style cache-aware routing: when
 `request.metadata.cache_hit` is truthy it prefers the cheapest domain-eligible
-realtime model among GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2; on a
+realtime model among GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1; on a
 miss it falls through to `cost-optimal` under `NEXUS_QUALITY_FLOOR`. Useful when
 an upstream semantic cache already resolved the answer and frontier spend would
 be wasted. See
@@ -1476,21 +1486,21 @@ be wasted. See
 ## Failover-Priority Routing
 
 The `failover-priority` strategy is LiteLLM-style ordered failover: it walks
-`NEXUS_FAILOVER_PRIORITY` (default GPT-5.5 → Claude Sonnet 4.6 → Gemini 3.x →
-Kimi K2) and selects the first model whose provider circuit is closed. Unhealthy
+`NEXUS_FAILOVER_PRIORITY` (default GPT-6 Astra → Claude Opus 5.5 → Gemini 4 Argon →
+Kimi K3.1 Pro) and selects the first model whose provider circuit is closed. Unhealthy
 providers are skipped; when every preference is unhealthy it still routes to the
 first listed catalog model. The fallback chain preserves the remaining priority
 order. See
 [docs/guides/FAILOVER_PRIORITY_GUIDE.md](docs/guides/FAILOVER_PRIORITY_GUIDE.md).
 
 ```dotenv
-NEXUS_FAILOVER_PRIORITY=["gpt-5.5","claude-sonnet-4-6","gemini-3.1-pro-preview","kimi-k2"]
+NEXUS_FAILOVER_PRIORITY=["gpt-6-astra","claude-opus-5-5","gemini-4-argon","kimi-k3.1-pro"]
 ```
 
 ## Provider-Health Score Blend Routing
 The `provider-health-score-blend` strategy is LiteLLM/Portkey-style
-health-aware routing for the default GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 catalog mix. It scores domain-eligible models by blending rolling
+health-aware routing for the default GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1 catalog mix. It scores domain-eligible models by blending rolling
 provider success rate, inverse normalized provider p95 latency, model
 `quality_score`, and inverse normalized estimated request cost. Provider circuit
 availability is a hard gate: when any candidate's circuit is closed, open
@@ -1508,7 +1518,7 @@ All-zero weights fall back to pure quality. See
 
 ## Health/Cost/Latency Routing
 The `health-cost-latency` strategy is LiteLLM/Portkey-style ternary routing for
-the default GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog mix. It
+the default GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 catalog mix. It
 scores domain-eligible models by blending rolling provider success rate, inverse
 normalized estimated request cost, and inverse normalized rolling provider p95
 latency — without circuit-breaker gating or a separate quality component.
@@ -1526,8 +1536,8 @@ The `soft-rate-limit` strategy is LiteLLM/Portkey-style soft backoff for
 providers that recently returned 429 or rate-limit shaped errors. It prefers
 healthy domain-eligible providers with fewer recent rate-limit observations,
 then breaks ties by quality and estimated request cost. Successful attempts add
-non-rate-limit observations, so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi
-K2 traffic can return to a provider after quota pressure cools down. No
+non-rate-limit observations, so GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi
+K3.1 traffic can return to a provider after quota pressure cools down. No
 additional `NEXUS_*` setting is required; select it with
 `NEXUS_DEFAULT_STRATEGY=soft-rate-limit` or per request with
 `X-Router-Strategy: soft-rate-limit`. See
@@ -1548,8 +1558,8 @@ The `prompt-prefix-cache` strategy gives long reusable system prompts sticky
 provider/model affinity for OpenRouter/LiteLLM-style prompt caching. It hashes
 the first `NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS` characters of joined `system`
 messages and buckets that prefix across domain-eligible candidates, so requests
-sharing a long prefix keep hitting the same GPT-5.5 / Claude Sonnet 4.6 / Gemini
-3.x / Kimi K2 provider/model cache. Requests without a sufficiently long system
+sharing a long prefix keep hitting the same GPT-6 / Claude Opus 5.5 / Gemini
+4 / Kimi K3.1 provider/model cache. Requests without a sufficiently long system
 prompt fall back to `cost-optimal` under `NEXUS_QUALITY_FLOOR`.
 NEXUS_PROMPT_PREFIX_CACHE_MIN_CHARS=512
 See
@@ -1566,7 +1576,7 @@ or per request with `X-Router-Strategy: cost-latency-pareto`. See
 
 ## Concurrency-Cap Routing
 The `concurrency-cap` strategy is a LiteLLM/Portkey-style provider saturation
-guard for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. It reads
+guard for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. It reads
 the same live `InflightStats` counters as `least-busy`, skips providers whose
 current in-flight count is at or above `NEXUS_CONCURRENCY_CAP`, and selects the
 highest-quality domain-eligible model among the remaining providers. If every
@@ -1584,7 +1594,7 @@ primary traffic is steered elsewhere (minimum `1`). See
 
 ## Token-Bucket-Burst Routing
 The `token-bucket-burst` strategy is LiteLLM/Portkey/OpenRouter-style bursty quota
-routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. Each
+routing for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. Each
 provider keeps a shared token bucket that refills over time. Primary selection
 prefers providers with at least one available token, then breaks ties by quality
 and estimated request cost. When every bucket is empty, Nexus falls back to the
@@ -1605,7 +1615,7 @@ must be positive. See
 
 ## Model-Tier-Rate-Limit Routing
 The `model-tier-rate-limit` strategy is LiteLLM/Portkey-style tier-aware soft RPM
-routing for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. It
+routing for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. It
 infers each candidate's frontier/mid/economy tier from its model name, tracks
 rolling per-provider request timestamps, and prefers providers still under the
 tier-specific RPM ceiling. When every eligible provider is saturated it falls
@@ -1667,10 +1677,20 @@ If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
 
 The default catalog lives in `src/router/config.py` and includes:
 
-- OpenAI: `gpt-5.5`, `gpt-4.1-mini`
-- Anthropic: `claude-sonnet-4-6`, `claude-haiku-4-5`
-- Google: `gemini-3.1-pro-preview`, `gemini-3.5-flash`
-- Moonshot: `kimi-k2`
+- OpenAI: `gpt-6-astra` (frontier), `gpt-6-luna` (balanced, lowest cost)
+- Anthropic: `claude-opus-5-5` (safety / medical / legal), `claude-haiku-5-5` (fast)
+- Google: `gemini-4-argon` (pro), `gemini-3.8-flash` (flash)
+- Moonshot: `kimi-k3.1-pro`
+
+Costs are provider list prices as of 2026-11-06 (GPT-6, Claude 5.5, Gemini 4 Argon /
+3.8 Flash, Kimi K3.1) and context windows come from the provider model pages.
+Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8 Flash
+to $1.50 / $7.50 on 2027-01-01. Adapter price tables (`src/adapters/*.py`) also
+cover `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `claude-sonnet-5-5`,
+`kimi-k3.1-pro-highspeed`, and `kimi-k3`. OpenAI GPT-6 models and Kimi K3.x
+receive `max_completion_tokens`, and nexus never forwards sampling parameters
+(`temperature`, `top_p`), which GPT-6 rejects unless reasoning effort is `none`
+and Kimi K3.x fixes at `1.0` / `0.95`.
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
 
@@ -1714,8 +1734,8 @@ The `provider-circuit-probe` strategy follows the highest-quality eligible
 provider's circuit state. It keeps that leader while closed, actively selects
 the best healthy alternate while the leader is open, and allows only
 `NEXUS_PROVIDER_CIRCUIT_PROBE_BUDGET` probe decisions while the leader is
-half-open. Once that budget is exhausted, GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic remains on a healthy alternate.
+half-open. Once that budget is exhausted, GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1 traffic remains on a healthy alternate.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=provider-circuit-probe
@@ -1733,8 +1753,8 @@ provider-region carbon intensity and rolling provider p95 latency:
 normalized_inverse_latency`. Carbon data resolves from
 `carbon_intensity:<provider>:<region>`, then provider-only metadata, then a
 built-in provider/region map. Unlike `region-carbon-blend`, these two weights do
-not have to be complementary. Defaults are `0.5`/`0.5` for GPT-5.5 / Claude
-Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+not have to be complementary. Defaults are `0.5`/`0.5` for GPT-6 / Claude
+Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=carbon-latency-blend
@@ -1751,8 +1771,8 @@ The `adaptive-concurrency-cap` strategy scales each provider's effective
 in-flight cap by rolling success rate and inverse p95 latency:
 `effective_cap = max(min_cap, int(base_cap * success_rate * min(1, ref_ms /
 p95)))`. Providers at or above their adaptive cap are skipped; the healthiest
-remaining provider wins primary selection. Defaults target GPT-5.5 / Claude
-Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+remaining provider wins primary selection. Defaults target GPT-6 / Claude
+Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=adaptive-concurrency-cap
@@ -1771,8 +1791,8 @@ provider in a rolling 60-second window and selects providers with the most
 remaining fair-share headroom under
 `NEXUS_PROVIDER_TOKEN_FAIR_SHARE_CEILING` (default `100000`). Ties break with
 request-id weighted round-robin. When every provider is over quota, traffic
-falls back to the least-used provider. Targets GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic.
+falls back to the least-used provider. Targets GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=provider-token-fair-share
@@ -1788,8 +1808,8 @@ The `region-failover-hysteresis` strategy combines ordered region preference,
 session stickiness, and hysteresis before returning to a preferred region
 after failover. It reuses `NEXUS_STICKY_REGION_FAILOVER_PREFERENCES` and waits
 for `NEXUS_REGION_FAILOVER_HYSTERESIS_SUCCESSES` (default `3`) consecutive
-preferred-region successes recorded in shared engine state. Targets GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+preferred-region successes recorded in shared engine state. Targets GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=region-failover-hysteresis
@@ -1807,8 +1827,8 @@ in-memory one-hour window per tenant. Requests stay quality-first while their
 projected cost fits `NEXUS_TENANT_BUDGET_CASCADE_SOFT` (default `10.0`). Once
 soft headroom is exhausted they shed to the cheapest hard-safe provider. If no
 eligible request fits `NEXUS_TENANT_BUDGET_CASCADE_HARD` (default `12.5`), the
-strategy fails closed with a tenant-specific rationale. This protects GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 tenant budgets.
+strategy fails closed with a tenant-specific rationale. This protects GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 tenant budgets.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=tenant-budget-cascade
@@ -1829,7 +1849,7 @@ error rate exceeds `NEXUS_PROVIDER_ERROR_BUDGET_RESET_FRACTION` (default
 `0.15`) and restores them after `NEXUS_PROVIDER_ERROR_BUDGET_RESET_SECONDS`
 (default `60`). This explicit timer distinguishes it from
 `provider-error-budget-shed`, which reads cumulative shared `SuccessStats`.
-The strategy targets GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+The strategy targets GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=provider-error-budget-reset
@@ -1848,7 +1868,7 @@ a warmup region, then pins the session to its requested or hash-selected region.
 It reuses `NEXUS_STICKY_REGION_FAILOVER_PREFERENCES`; the first preference is the
 default warmup region and request metadata may override it with
 `metadata.warmup_region`. Durable post-warmup affinity prevents cold-start flaps
-across GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 regional pools.
+across GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 regional pools.
 
 ```dotenv
 NEXUS_DEFAULT_STRATEGY=sticky-region-warmup
@@ -1878,8 +1898,8 @@ NEXUS_TENANT_QUOTA_BURST_WINDOW_SECONDS=60.0
 
 The hard quota must be greater than the soft quota. State is in-memory and
 process-local; use a shared rate-limit service when replicas need a global
-quota. This strategy supports GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic.
+quota. This strategy supports GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1 traffic.
 
 See
 [docs/guides/TENANT_QUOTA_BURST_GUIDE.md](docs/guides/TENANT_QUOTA_BURST_GUIDE.md).
@@ -1899,8 +1919,8 @@ NEXUS_PROVIDER_TAIL_LATENCY_HEDGE_MS=1500.0
 
 This differs from `multi-region-latency-hedge`, which uses primary-region p50,
 and `adaptive-timeout-hedge`, which derives a relative p95 threshold from the
-fastest provider. It supports GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic.
+fastest provider. It supports GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1 traffic.
 
 See
 [docs/guides/PROVIDER_TAIL_LATENCY_HEDGE_GUIDE.md](docs/guides/PROVIDER_TAIL_LATENCY_HEDGE_GUIDE.md).
@@ -1922,8 +1942,8 @@ NEXUS_STICKY_SESSION_MIGRATE_SUCCESS_THRESHOLD=0.9
 
 The threshold must be between `0.0` and `1.0`. Providers without observations
 start at a `1.0` success rate. Session pins are process-local and reset when the
-router restarts. This strategy supports GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic.
+router restarts. This strategy supports GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1 traffic.
 
 See
 [docs/guides/STICKY_SESSION_MIGRATE_GUIDE.md](docs/guides/STICKY_SESSION_MIGRATE_GUIDE.md).
@@ -1946,8 +1966,8 @@ NEXUS_PROVIDER_COLD_START_TARGET=5
 `NEXUS_PROVIDER_COLD_START_LOOKBACK` must be at least `1` and controls how many
 provider selections are retained. `NEXUS_PROVIDER_COLD_START_TARGET` must also
 be at least `1`. Provider circuit health is checked before exploration, so a
-cold unhealthy provider cannot displace a healthy alternate serving GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+cold unhealthy provider cannot displace a healthy alternate serving GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. See
 [docs/guides/PROVIDER_COLD_START_BIAS_GUIDE.md](docs/guides/PROVIDER_COLD_START_BIAS_GUIDE.md).
 
 ## Tenant-Fair-Queue Routing
@@ -1966,8 +1986,8 @@ NEXUS_TENANT_FAIR_QUEUE_LOOKBACK=100
 decisions retained (integer >= 1; default `100`). Tenant identity resolves from
 `metadata.tenant_id`, metadata user/sticky keys, `user_id`, then `session_id`.
 This is request-count fairness across tenants, unlike provider
-`queue-depth-fairness` or `provider-quota-fair-share`, and supports GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+`queue-depth-fairness` or `provider-quota-fair-share`, and supports GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. See
 [docs/guides/TENANT_FAIR_QUEUE_GUIDE.md](docs/guides/TENANT_FAIR_QUEUE_GUIDE.md).
 
 ## Sticky-Region-Drain Routing
@@ -1988,8 +2008,8 @@ NEXUS_STICKY_REGION_FAILOVER_PREFERENCES=["us","eu","cn","global"]
 Requests may add live markers through `metadata.draining_regions`. When no
 healthy non-draining alternate exists, deterministic emergency fallback remains
 available. This Envoy/service-mesh-style drain is distinct from regional warmup,
-provider-driven session migration, and failback hysteresis for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+provider-driven session migration, and failback hysteresis for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. See
 [docs/guides/STICKY_REGION_DRAIN_GUIDE.md](docs/guides/STICKY_REGION_DRAIN_GUIDE.md).
 
 ## Provider-Canary-Shadow-Split Routing
@@ -2012,7 +2032,7 @@ request metadata or `user_id`, with `request_id` as the fallback hash key.
 Process-local `CanaryShadowSplitStats` tracks primary, shadow-provider, and
 provider-pair counts. Nexus returns one primary decision; its rationale and
 first fallback expose the shadow candidate to downstream dual-run integrations
-for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. See
 [docs/guides/PROVIDER_CANARY_SHADOW_SPLIT_GUIDE.md](docs/guides/PROVIDER_CANARY_SHADOW_SPLIT_GUIDE.md).
 
 ## Sticky-Model-Pin-Expire Routing
@@ -2033,8 +2053,8 @@ NEXUS_STICKY_MODEL_PIN_TTL_SECONDS=300.0
 pinned provider triggers an early reselection without counting a TTL expiration.
 This is model-affinity lifetime management, distinct from
 `sticky-region-drain` operational evacuation and `sticky-session-migrate`
-success-threshold migration for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic. See
+success-threshold migration for GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1 traffic. See
 [docs/guides/STICKY_MODEL_PIN_EXPIRE_GUIDE.md](docs/guides/STICKY_MODEL_PIN_EXPIRE_GUIDE.md).
 
 ## Tenant-Priority-Lanes Routing
@@ -2059,8 +2079,8 @@ not overlap. Requests may override their configured mapping with
 `metadata.priority_lane` set to `high`, `normal`, or `low`; invalid values fall
 back to the mapping. The bounded lane counters are process-local, and the lanes
 change routing preference rather than preempting in-flight work. This provides
-capacity-aware differentiation for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic. See
+capacity-aware differentiation for GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1 traffic. See
 [docs/guides/TENANT_PRIORITY_LANES_GUIDE.md](docs/guides/TENANT_PRIORITY_LANES_GUIDE.md).
 
 ## Request-Class-QoS Routing
@@ -2076,8 +2096,8 @@ Supported classes are `interactive` (default), `batch`, and `bulk`. Interactive
 selects the lowest observed healthy latency with quality tie-breaks, batch keeps
 quality-first mid-cost preference, and bulk minimizes estimated request cost.
 Unknown values fall back to interactive. When every provider circuit is open the
-strategy retains an emergency eligible route for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic. See
+strategy retains an emergency eligible route for GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1 traffic. See
 [docs/guides/REQUEST_CLASS_QOS_GUIDE.md](docs/guides/REQUEST_CLASS_QOS_GUIDE.md).
 
 ## Deadline-Aware-Pick Routing
@@ -2095,7 +2115,7 @@ NEXUS_DEADLINE_AWARE_THRESHOLD_MS=500.0
 `NEXUS_DEADLINE_AWARE_THRESHOLD_MS` must be greater than or equal to `0.0`.
 Missing or invalid deadline metadata keeps quality-first selection. When every
 provider circuit is open the strategy retains an emergency eligible route for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. See
 [docs/guides/DEADLINE_AWARE_PICK_GUIDE.md](docs/guides/DEADLINE_AWARE_PICK_GUIDE.md).
 
 ## Provider-Success-Floor Routing
@@ -2113,7 +2133,7 @@ NEXUS_PROVIDER_SUCCESS_FLOOR=0.85
 `NEXUS_PROVIDER_SUCCESS_FLOOR` must be within `[0.0, 1.0]`. Providers with no
 observations are treated as fully healthy. Distinct from cumulative
 `provider-error-budget-shed` and timed `provider-error-budget-reset` for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic. See
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. See
 [docs/guides/PROVIDER_SUCCESS_FLOOR_GUIDE.md](docs/guides/PROVIDER_SUCCESS_FLOOR_GUIDE.md).
 
 ## Model-Capability-Gate Routing
@@ -2130,8 +2150,8 @@ NEXUS_DEFAULT_STRATEGY=model-capability-gate
 
 No additional `NEXUS_*` environment variables are required. When no
 candidate satisfies every required capability the strategy emergency-retains
-the highest-quality healthy candidate so GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic still routes. Requests that omit
+the highest-quality healthy candidate so GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1 traffic still routes. Requests that omit
 `required_capabilities` skip the gate entirely. Inspired by LiteLLM /
 OpenRouter capability-aware model filtering. See
 [docs/guides/MODEL_CAPABILITY_GATE_GUIDE.md](docs/guides/MODEL_CAPABILITY_GATE_GUIDE.md).
@@ -2152,8 +2172,8 @@ applied to the warmup score in `(1 - blend) * quality + blend * warmup`. The
 warmup score is read from `metadata.provider_warmup` — a mapping of provider
 name to a score in `[0.0, 1.0]` — and defaults to `0.5` for any provider
 missing from the mapping, or when a request omits the mapping entirely.
-Inspired by Envoy warm-host preference for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2. See
+Inspired by Envoy warm-host preference for GPT-6 / Claude Opus 5.5 /
+Gemini 4 / Kimi K3.1. See
 [docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md](docs/guides/PROVIDER_WARMUP_WEIGHT_GUIDE.md).
 
 ## Tenant-Soft-Isolation Routing
@@ -2171,8 +2191,8 @@ NEXUS_TENANT_SOFT_ISOLATION_RPM=60
 `NEXUS_TENANT_SOFT_ISOLATION_RPM` must be `>= 1` and bounds the per-tenant
 request rate reported via `metadata.tenant_rpm` (or `metadata.tenant_request_rate`
 as an alias). Tenants at or below the ceiling — or requests that omit both
-keys — stay quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2; tenants whose reported rate exceeds the ceiling route to the
+keys — stay quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1; tenants whose reported rate exceeds the ceiling route to the
 lowest-cost healthy domain-compatible model. A tenant identifier is
 resolved from `metadata.tenant_id`, then `metadata.user_id`,
 `metadata.sticky_key`, top-level `user_id`, and finally `session_id`, and is
@@ -2196,10 +2216,10 @@ values are `true` / `1` / `yes` / `on`, or any other non-empty non-falsy
 token. Capability sets come from `metadata.structured_models`,
 `metadata.model_capabilities`, or the built-in known-model map
 (`json`, `structured`, or `json_mode`); when neither is present for a
-model, names containing `gpt-5`, `claude`, `gemini`, or `kimi` are treated
+model, names containing `gpt-5`, `gpt-6`, `claude`, `gemini`, or `kimi` are treated
 as structured-capable. Ranking is `(supports_structured, quality, cost)`.
 Requests that omit the structured-output signal stay quality-first for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Inspired by LiteLLM /
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1. Inspired by LiteLLM /
 OpenRouter / Portkey structured-output routing. See
 [docs/guides/STRUCTURED_OUTPUT_PREFER_GUIDE.md](docs/guides/STRUCTURED_OUTPUT_PREFER_GUIDE.md).
 
@@ -2217,7 +2237,7 @@ No additional `NEXUS_*` environment variables are required. Parse
 `metadata.excluded_providers` and `metadata.excluded_models` as a
 comma-separated string or list (case-insensitive). When every candidate is
 excluded the strategy emergency-retains the highest-quality domain-eligible
-model so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic still
+model so GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic still
 routes. Inspired by Portkey / Helicone provider allow/deny lists. See
 [docs/guides/PROVIDER_EXCLUSION_GUIDE.md](docs/guides/PROVIDER_EXCLUSION_GUIDE.md).
 
@@ -2235,7 +2255,7 @@ NEXUS_PROMPT_INJECTION_RISK_THRESHOLD=0.7
 `NEXUS_PROMPT_INJECTION_RISK_THRESHOLD` must be within `[0.0, 1.0]` and
 bounds the risk reported via `metadata.prompt_injection_risk`. Requests
 below the threshold — or that omit the key — stay quality-first for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2; requests at or above
+GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1; requests at or above
 the threshold route to the lowest-cost healthy domain-compatible model.
 Missing or non-numeric risk values default to `0.0`; out-of-range values
 are clamped. The strategy never rejects — it only demotes. Inspired by
@@ -2255,7 +2275,7 @@ NEXUS_THINKING_COMPLEXITY_THRESHOLD=0.7
 `NEXUS_THINKING_COMPLEXITY_THRESHOLD` must be within `[0.0, 1.0]`. Complexity
 is read from `metadata.complexity_score` when present and numeric (clamped),
 otherwise from `signals.complexity_score`. Requests below the threshold stay
-quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2; at or
+quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1; at or
 above the threshold, ranking prefers models listed in
 `metadata.thinking_models` or whose names contain `o1`, `o3`, `reasoning`,
 `thinking`, `sonnet`, or `opus`. Inspired by LiteLLM reasoning-model routing.
@@ -2280,10 +2300,10 @@ non-empty non-falsy token; a non-empty `tools` list also triggers
 preference. Tool support is resolved from `metadata.tool_capable_models`,
 then `metadata.model_capabilities` / the built-in known-model map
 (`tools` capability); when neither is present for a model, names
-containing `gpt-5`, `claude`, `gemini`, or `kimi` are treated as
+containing `gpt-5`, `gpt-6`, `claude`, `gemini`, or `kimi` are treated as
 tool-capable. Ranking is `(supports_tools, quality, cost)`. Requests that
-omit the tool-calling signal stay quality-first for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Inspired by OpenRouter tool-use
+omit the tool-calling signal stay quality-first for GPT-6 /
+Claude Opus 5.5 / Gemini 4 / Kimi K3.1. Inspired by OpenRouter tool-use
 routing. See
 [docs/guides/TOOL_CALLING_PREFER_GUIDE.md](docs/guides/TOOL_CALLING_PREFER_GUIDE.md).
 
@@ -2303,11 +2323,11 @@ metadata values are `true` / `1` / `yes` / `on`, or any other non-empty
 non-falsy token. Capability sets come from `metadata.multimodal_models`,
 then `metadata.model_capabilities` / the built-in known-model map
 (`vision`, `audio`, or `multimodal`); when neither is present for a
-model, names containing `gpt-5`, `claude`, `gemini`, or `vision` are
+model, names containing `gpt-5`, `gpt-6`, `claude`, `gemini`, `kimi-k3`, or `vision` are
 treated as multimodal-capable. Ranking is
 `(supports_multimodal, quality, cost)`. Requests that omit the multimodal
-signal stay quality-first for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2. Inspired by OpenRouter multimodal routing. See
+signal stay quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 /
+Kimi K3.1. Inspired by OpenRouter multimodal routing. See
 [docs/guides/MULTIMODAL_INPUT_PREFER_GUIDE.md](docs/guides/MULTIMODAL_INPUT_PREFER_GUIDE.md).
 
 The `streaming-prefer` strategy biases selection toward streaming-capable

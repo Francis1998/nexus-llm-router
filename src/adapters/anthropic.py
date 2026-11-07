@@ -84,7 +84,12 @@ class AnthropicAdapter(BaseProviderAdapter):
         """
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
+        # USD per 1K tokens (input, output); Claude 5.x list prices as of 2026-11-06.
         self._costs: dict[str, tuple[float, float]] = {
+            "claude-fable-5-1": (0.010, 0.050),
+            "claude-opus-5-5": (0.004, 0.020),
+            "claude-sonnet-5-5": (0.002, 0.010),
+            "claude-haiku-5-5": (0.0001, 0.0005),
             "claude-sonnet-4-6": (0.003, 0.015),
             "claude-haiku-4-5": (0.0008, 0.004),
         }

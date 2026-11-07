@@ -44,8 +44,8 @@ def _signals() -> TaskSignals:
 def _strategy(
     stats: TenantBudgetCascadeStats | None = None,
     *,
-    soft: float = 0.01,
-    hard: float = 0.02,
+    soft: float = 0.05,
+    hard: float = 0.10,
 ) -> TenantBudgetCascadeStrategy:
     return TenantBudgetCascadeStrategy(
         default_model_catalog(),
@@ -69,7 +69,7 @@ def test_tenant_budget_cascade_is_quality_first_with_soft_headroom() -> None:
 
 def test_tenant_budget_cascade_sheds_to_cheapest_near_hard_ceiling() -> None:
     stats = TenantBudgetCascadeStats()
-    stats.record_spend("tenant-a", 0.0097)
+    stats.record_spend("tenant-a", 0.0499)
 
     decision = _strategy(stats).choose(_request(), _signals())
 
@@ -80,7 +80,7 @@ def test_tenant_budget_cascade_sheds_to_cheapest_near_hard_ceiling() -> None:
 
 def test_tenant_budget_cascade_fails_closed_before_crossing_hard_ceiling() -> None:
     stats = TenantBudgetCascadeStats()
-    stats.record_spend("tenant-a", 0.0198)
+    stats.record_spend("tenant-a", 0.0999)
 
     with pytest.raises(TenantBudgetExceededError, match="hard ceiling.*fail closed"):
         _strategy(stats).choose(_request(), _signals())
@@ -88,7 +88,7 @@ def test_tenant_budget_cascade_fails_closed_before_crossing_hard_ceiling() -> No
 
 def test_tenant_budget_cascade_keeps_tenant_windows_isolated() -> None:
     stats = TenantBudgetCascadeStats()
-    stats.record_spend("tenant-a", 0.0198)
+    stats.record_spend("tenant-a", 0.0999)
 
     decision = _strategy(stats).choose(_request("tenant-b"), _signals())
 

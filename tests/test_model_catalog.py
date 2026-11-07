@@ -24,7 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_default_catalog_contains_current_routing_models() -> None:
-    """Default catalog must include the June 2026 routing SKUs."""
+    """Default catalog must include the November 2026 routing SKUs."""
     catalog = default_model_catalog()
     expected_models = {
         OPENAI_FRONTIER_MODEL,
@@ -76,8 +76,8 @@ def test_adapter_cost_estimates_match_catalog_priors() -> None:
 def test_readme_documents_current_domain_routing_models() -> None:
     """README domain-routing copy must reference current frontier models."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    assert "Claude Sonnet 4.6" in readme
-    assert "GPT-5.5" in readme
+    assert "Claude Opus 5.5" in readme
+    assert "GPT-6 Astra" in readme
     assert "GPT-4o" not in readme
 
 

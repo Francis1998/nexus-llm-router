@@ -4,7 +4,7 @@ from router.config import RouterSettings, default_model_catalog
 from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
     MOONSHOT_BALANCED_MODEL,
-    OPENAI_FRONTIER_MODEL,
+    OPENAI_BALANCED_MODEL,
 )
 from router.schemas import (
     ChatMessage,
@@ -206,9 +206,11 @@ def test_logprobs_prefer_skips_unhealthy_providers() -> None:
 
 
 def test_logprobs_prefer_known_model_has_capability() -> None:
+    # GPT-6 Astra cannot run with reasoning effort ``none``, which logprobs require;
+    # GPT-6 Luna can, so it is the logprobs-capable default.
     decision = _strategy().choose(_request({"requires_logprobs": True}), _signals())
 
-    assert decision.chosen_model == OPENAI_FRONTIER_MODEL
+    assert decision.chosen_model == OPENAI_BALANCED_MODEL
     assert "logprobs-capable" in decision.rationale
 
 

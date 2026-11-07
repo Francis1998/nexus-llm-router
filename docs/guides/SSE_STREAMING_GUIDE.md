@@ -4,7 +4,7 @@
 
 OpenAI-compatible Server-Sent Events (SSE) for `POST /v1/chat/completions`
 when `stream=true`. Closes the gap versus OpenRouter / LiteLLM, which stream by
-default for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+default for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 
 ## Why
 
@@ -36,7 +36,7 @@ breaker.
 curl -N http://localhost:8000/v1/chat/completions \
   -H 'content-type: application/json' \
   -d '{
-    "model": "gpt-5.5",
+    "model": "gpt-6-astra",
     "stream": true,
     "messages": [{"role": "user", "content": "Write a haiku about routing"}]
   }'
