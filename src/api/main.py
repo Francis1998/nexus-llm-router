@@ -31,6 +31,7 @@ from router.schemas import RouterRequest, RouterResponse, RoutingStrategyName
 from safety.budget import BudgetExceededError
 from safety.gateway_guards import GatewayGuardService
 from safety.idempotency import IdempotencyStore
+from safety.key_fingerprint import fingerprint_api_key
 from safety.rate_limiter import RateLimitExceededError
 from safety.spend_ledger import SpendLedger
 from safety.tenant_rate_limiter import TenantRateLimiter, TenantRateLimitExceededError
@@ -188,7 +189,9 @@ async def chat_completions(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"unsupported routing strategy: {x_router_strategy}",
         ) from exception
-    api_key_id = request.headers.get("authorization", "anonymous")
+    # Never use the raw Authorization header as an identifier: it would leak the
+    # secret into error details, the spend ledger, and idempotency/cache tenants.
+    api_key_id = fingerprint_api_key(request.headers.get("authorization"))
     guards = get_gateway_guards()
     # Hard tenant limit only when X-Tenant-Id is present (backward compatible).
     if x_tenant_id:

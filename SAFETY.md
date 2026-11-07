@@ -40,7 +40,11 @@ Nexus uses a token bucket per API key identifier:
 - Capacity: `NEXUS_RATE_LIMIT_CAPACITY`
 - Refill rate: `NEXUS_RATE_LIMIT_REFILL_PER_SECOND`
 
-The API key identifier is derived from the `Authorization` header.
+The API key identifier is a non-reversible fingerprint of the `Authorization`
+header (`key_` + 16 hex chars of SHA-256 over the credential, with any `Bearer`
+prefix stripped; `anonymous` when absent). The raw header is never used as an
+identifier, so it cannot leak through 429 details, `GET /v1/spend`, or the
+durable spend/idempotency stores. See [SECURITY.md](SECURITY.md#credential-handling).
 
 ## Failure Semantics
 
