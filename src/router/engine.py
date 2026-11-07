@@ -491,25 +491,35 @@ class NexusRouter:
                 self._inflight_stats.begin(candidate.provider)
                 self._inflight_stats.begin_for_tenant(tenant_key, candidate.provider)
                 assembled = ""
+                reported: ProviderResponse | None = None
                 try:
                     stream = adapter.stream(model_name, sanitized_messages, request.max_tokens)
                     async for chunk in stream:
+                        if isinstance(chunk, ProviderResponse):
+                            reported = chunk
+                            continue
                         assembled += chunk
                         output_started = output_started or bool(chunk)
                         yield model_name, chunk
                 finally:
                     self._inflight_stats.finish_for_tenant(tenant_key, candidate.provider)
                     self._inflight_stats.finish(candidate.provider)
-                output_tokens = max(1, len(assembled) // 4)
-                provider_response = ProviderResponse(
-                    content=assembled,
-                    model=model_name,
-                    input_tokens=signals.prompt_tokens_estimate,
-                    output_tokens=output_tokens,
-                    cost_usd=adapter.estimate_cost(
-                        model_name, signals.prompt_tokens_estimate, output_tokens
-                    ),
-                )
+                if reported is not None:
+                    # Provider-reported usage, cost, and stop reason for the text sent.
+                    provider_response = reported.model_copy(
+                        update={"content": assembled, "model": model_name}
+                    )
+                else:
+                    output_tokens = max(1, len(assembled) // 4)
+                    provider_response = ProviderResponse(
+                        content=assembled,
+                        model=model_name,
+                        input_tokens=signals.prompt_tokens_estimate,
+                        output_tokens=output_tokens,
+                        cost_usd=adapter.estimate_cost(
+                            model_name, signals.prompt_tokens_estimate, output_tokens
+                        ),
+                    )
                 router_response = self._respond(
                     request=request,
                     provider_response=provider_response,
@@ -650,6 +660,7 @@ class NexusRouter:
             cost_usd=provider_response.cost_usd,
             rationale=rationale,
             request_id=request.request_id,
+            finish_reason=provider_response.finish_reason,
         )
         self._audit_log.append(
             AuditRecord(

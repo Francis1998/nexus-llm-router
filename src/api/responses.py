@@ -276,7 +276,12 @@ def complete_response(
     *,
     text: str | None = None,
 ) -> ResponseObject:
-    """Return the ``completed`` response for a routed result.
+    """Return the final response for a routed result.
+
+    A provider stop at the output-token cap (``finish_reason == "length"``)
+    yields ``status: "incomplete"`` with ``incomplete_details.reason:
+    "max_output_tokens"``, an ``incomplete`` output item, and no
+    ``completed_at``, matching the OpenAI Responses API.
 
     Args:
         draft: In-progress response from :func:`draft_response`.
@@ -286,15 +291,19 @@ def complete_response(
             as deltas so the final snapshot matches what the client received.
 
     Returns:
-        Completed response with output, usage, and nexus routing metadata.
+        Completed or incomplete response with output, usage, and nexus routing
+        metadata.
     """
     output_text = router_response.content if text is None else text
+    truncated = router_response.finish_reason == "length"
+    status: Literal["completed", "incomplete"] = "incomplete" if truncated else "completed"
     return draft.model_copy(
         update={
-            "status": "completed",
-            "completed_at": int(time()),
+            "status": status,
+            "completed_at": None if truncated else int(time()),
+            "incomplete_details": {"reason": "max_output_tokens"} if truncated else None,
             "model": router_response.model_used,
-            "output": [_output_message(message_id, output_text, "completed")],
+            "output": [_output_message(message_id, output_text, status)],
             "usage": ResponseUsage(
                 input_tokens=router_response.input_tokens,
                 output_tokens=router_response.output_tokens,
@@ -413,15 +422,17 @@ async def stream_response_events(
             )
             yield writer.frame("response.failed", response=failed.model_dump(mode="json"))
             return
+        final = complete_response(draft, completed[-1], message_id, text=text)
         part = ResponseOutputText(text=text)
         yield writer.frame("response.output_text.done", **item, text=text, logprobs=[])
         yield writer.frame("response.content_part.done", **item, part=part.model_dump(mode="json"))
         yield writer.frame(
             "response.output_item.done",
             output_index=0,
-            item=_output_message(message_id, text, "completed").model_dump(mode="json"),
+            item=final.output[0].model_dump(mode="json"),
         )
-        final = complete_response(draft, completed[-1], message_id, text=text)
-        yield writer.frame("response.completed", response=final.model_dump(mode="json"))
+        # ``response.incomplete`` replaces ``response.completed`` when the output was truncated.
+        terminal_event = f"response.{final.status}"
+        yield writer.frame(terminal_event, response=final.model_dump(mode="json"))
     finally:
         await chunks.aclose()

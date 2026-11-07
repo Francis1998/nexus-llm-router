@@ -282,6 +282,10 @@ class RoutingDecision(BaseModel):
     fallback_chain: list[str] = Field(default_factory=list)
 
 
+FinishReason = Literal["stop", "length"]
+"""Normalized stop reason: ``length`` when output hit the token cap, otherwise ``stop``."""
+
+
 class ProviderResponse(BaseModel):
     """Provider-normalized completion response."""
 
@@ -290,6 +294,7 @@ class ProviderResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     cost_usd: float = Field(ge=0.0)
+    finish_reason: FinishReason = "stop"
 
 
 class RouterResponse(BaseModel):
@@ -304,6 +309,7 @@ class RouterResponse(BaseModel):
     cost_usd: float = Field(ge=0.0)
     rationale: str
     request_id: str
+    finish_reason: FinishReason = "stop"
 
 
 class AuditRecord(BaseModel):

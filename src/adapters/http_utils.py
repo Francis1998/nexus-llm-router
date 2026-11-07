@@ -1,8 +1,11 @@
 """Helpers for parsing provider HTTP responses."""
 
+from collections.abc import Collection
 from typing import cast
 
 import httpx
+
+from router.schemas import FinishReason
 
 JsonObject = dict[str, object]
 
@@ -113,3 +116,19 @@ def nested_int(payload: JsonObject, path: list[str], default: int = 0) -> int:
     if isinstance(value, str) and value.strip().isdigit():
         return int(value.strip())
     return default
+
+
+def finish_reason(stop_reason: object, length_values: Collection[str]) -> FinishReason:
+    """Normalize a provider stop reason to ``length`` or ``stop``.
+
+    Args:
+        stop_reason: Raw provider value (OpenAI/Kimi ``finish_reason``, Anthropic
+            ``stop_reason``, Gemini ``finishReason``).
+        length_values: Provider values meaning the output-token cap was hit.
+
+    Returns:
+        ``length`` when generation stopped at the token cap, otherwise ``stop``.
+    """
+    if isinstance(stop_reason, str) and stop_reason in length_values:
+        return "length"
+    return "stop"

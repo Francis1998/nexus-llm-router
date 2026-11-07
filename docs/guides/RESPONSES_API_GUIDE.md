@@ -162,8 +162,8 @@ sentinel; the stream ends after the terminal event.
 | 5+ | `response.output_text.delta` | `item_id`, `output_index`, `content_index`, `delta`, `logprobs: []` |
 | … | `response.output_text.done` | full `text` |
 | … | `response.content_part.done` | final `output_text` part |
-| … | `response.output_item.done` | completed `message` item |
-| last | `response.completed` | full `response` incl. `usage` and `nexus` metadata |
+| … | `response.output_item.done` | final `message` item (`status: "incomplete"` when truncated) |
+| last | `response.completed`, or `response.incomplete` when `max_output_tokens` cut the answer | full `response` incl. provider-reported `usage` and `nexus` metadata |
 
 ```python
 with client.responses.stream(model="auto", input="Stream a status update.") as stream:
@@ -176,6 +176,9 @@ print(final.usage.total_tokens)
 
 The SDK's `responses.stream()` helper insists on a `model` client-side; any ID
 that is not in the nexus catalog (such as `"auto"`) lets the strategy choose.
+`get_final_response()` only returns streams that end with `response.completed`
+(the same against OpenAI's API); read the terminal event for truncated streams
+(see [Truncation](#truncation-max_output_tokens)).
 
 Failure semantics:
 
@@ -192,6 +195,51 @@ Failure semantics:
   `rate_limit_exceeded` or `server_error` and `type` is the nexus category
   (`rate_limit_error`, `budget_exceeded`, `routing_failed`).
 
+## Truncation (`max_output_tokens`)
+
+When the provider stops at the output-token cap, nexus reports it the way the
+OpenAI Responses API does:
+
+- `status: "incomplete"`, `incomplete_details: {"reason": "max_output_tokens"}`,
+  `completed_at: null`, and an output `message` item with `status:
+  "incomplete"` holding the text produced before the cap;
+- streams end with `response.incomplete` instead of `response.completed`;
+- `/v1/chat/completions` reports `finish_reason: "length"`, including on the
+  final stream chunk.
+
+Adapters map the provider stop reasons: OpenAI and Kimi `finish_reason:
+"length"`, Anthropic `stop_reason: "max_tokens"`, and Gemini `finishReason:
+"MAX_TOKENS"`. Every other stop reason (end of turn, stop sequences, tool
+calls, content filters) is reported as a normal completion.
+
+Real run with the official OpenAI Python SDK against
+`PYTHONPATH=src python scripts/serve_mock.py --mock-output-tokens 64`, where
+every mock answer is 64 tokens long:
+
+```text
+# Responses API, max_output_tokens=16 (answer is cut)
+incomplete IncompleteDetails(reason='max_output_tokens') incomplete 16
+# Responses API, max_output_tokens=256 (answer fits)
+completed None completed 64
+# Responses API streaming, max_output_tokens=16
+['response.content_part.done', 'response.output_item.done', 'response.incomplete']
+incomplete IncompleteDetails(reason='max_output_tokens') 16
+# Chat Completions, max_tokens=8
+length 8
+# Chat Completions streaming, max_tokens=8
+[None, None, None, 'length']
+openai 3.46.0
+```
+
+For streams, read the terminal event:
+
+```python
+with client.responses.stream(model="gpt-6-luna", input=prompt, max_output_tokens=16) as stream:
+    events = list(stream)
+final = events[-1].response  # from response.completed or response.incomplete
+print(final.status, final.incomplete_details)
+```
+
 ## Supported request fields
 
 Nexus implements a documented, text-only subset of
@@ -206,7 +254,7 @@ of being silently dropped.
 | `input` (string) | Supported | One `user` message. Required. |
 | `input` (array of message items) | Supported | Roles `user`, `assistant`, `system`, `developer` (`developer` → system). `content` is a string or `input_text` parts; replayed assistant `output_text` / `refusal` parts are accepted. Multiple parts are joined with newlines. |
 | `instructions` | Supported | Prepended as a system message; echoed back. |
-| `max_output_tokens` | Supported | Router `max_tokens`; must be ≥ 16 like OpenAI. Defaults to 512 (the Chat Completions default) when omitted; echoed as sent. |
+| `max_output_tokens` | Supported | Router `max_tokens`; must be ≥ 16 like OpenAI. Defaults to 512 (the Chat Completions default) when omitted; echoed as sent. A provider stop at this cap returns `status: "incomplete"` ([Truncation](#truncation-max_output_tokens)). |
 | `temperature` | Accepted | Validated (0–2), echoed, and part of the response-cache key. Like `/v1/chat/completions`, nexus adapters do not forward sampling parameters to providers today, which also keeps fixed-temperature models (Kimi K3.x requires `1.0`) safe. |
 | `stream` | Supported | Official SSE event sequence (above). |
 | `user`, `safety_identifier` | Supported | End-user id for budgets, spend, cache scope (`safety_identifier` wins); echoed. Never forwarded to providers. |
@@ -272,24 +320,20 @@ adapters do not surface provider cache/reasoning counters yet.
 
 ## Known limitations
 
-- **Truncation is not reported.** `status` is always `completed` with
-  `incomplete_details: null`, even when `max_output_tokens` cut the answer
-  short, because nexus adapters do not surface provider stop reasons yet
-  (`/v1/chat/completions` likewise always reports `finish_reason: "stop"`).
-  Propagating them (OpenAI/Kimi `length`, Anthropic `max_tokens`, Gemini
-  `MAX_TOKENS`) is planned as a separate change for both endpoints.
+- **Only output-cap truncation is distinguished.** Other provider stop
+  reasons (content filters, refusals, stop sequences) are reported as a normal
+  completion, so `incomplete_details.reason` is only ever `max_output_tokens`.
 - **Text only, stateless.** No tools, structured outputs, multimodal parts,
   stored responses, or `GET`/`DELETE /v1/responses/{id}` (see the field table).
 - **Sampling parameters are not forwarded** to providers (`temperature` is
   validated, echoed, and cached on; `top_p` is ignored).
 - **Token details are zero.** `cached_tokens` and `reasoning_tokens` are not
   reported by adapters yet.
-- **Streaming usage is estimated.** Adapter `stream()` methods yield text only,
-  so `response.completed.usage` (and the spend ledger entry) for streams uses
-  the router's estimate (prompt estimate in, about 4 characters per output
-  token) rather than provider-reported counts; non-streaming usage is
-  provider-reported. The stop-reason follow-up above will carry provider usage
-  through streams as well.
+- **Custom stream-only adapters fall back to estimates.** The built-in
+  adapters end `stream()` with their final `ProviderResponse`, so streamed
+  usage, cost, and stop reasons are provider-reported. A custom adapter whose
+  `stream()` yields text only is accounted from the router's estimate (prompt
+  estimate in, about 4 characters per output token) and reports `stop`.
 - **Idempotency replays completed responses only.** A retry that arrives while
   the original request is still in flight is routed again (same as
   `/v1/chat/completions` today); keys are not reserved before routing yet.
@@ -394,7 +438,7 @@ unsupported: HTTP 400 code=unsupported_parameter param=previous_response_id
 ## Tests
 
 ```bash
-pytest tests/test_responses_api.py -v
+pytest tests/test_responses_api.py tests/test_stop_reasons.py -v
 ```
 
 Covers string and message-list input (parts, `developer` role, replayed
@@ -405,4 +449,7 @@ chunks), no fallback splicing after text streamed (real `NexusRouter` with a
 provider that fails mid-stream) while pre-output failures still fall back,
 empty-but-successful streams, 429/402/503 mapping, `X-Router-Strategy`,
 `X-Tenant-Id`, the API key fingerprint, idempotent replay with collision-free
-per-endpoint scopes, and response-cache reuse.
+per-endpoint scopes, and response-cache reuse. `tests/test_stop_reasons.py`
+covers provider stop-reason mapping for all four adapters, `finish_reason:
+"length"` on Chat Completions (plain and streaming), `status: "incomplete"` and
+`response.incomplete`, and provider-reported streaming usage.
