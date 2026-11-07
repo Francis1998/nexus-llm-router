@@ -428,7 +428,9 @@ class NexusRouter:
             send the SSE terminal frame themselves after the iterator ends.
 
         Raises:
-            RoutingFailedError: If all provider attempts fail.
+            RoutingFailedError: If all provider attempts fail, or if a provider
+                fails after it already streamed text (falling back then would
+                splice a second answer onto the partial one).
         """
         state_machine = RoutingStateMachine()
         started_at = time.perf_counter()
@@ -475,6 +477,7 @@ class NexusRouter:
                 continue
 
             attempt_started_at = time.perf_counter()
+            output_started = False
             try:
                 adapter = self._adapter_registry.get(candidate.provider)
                 dispatchable_state = state_machine.current_state in {
@@ -492,6 +495,7 @@ class NexusRouter:
                     stream = adapter.stream(model_name, sanitized_messages, request.max_tokens)
                     async for chunk in stream:
                         assembled += chunk
+                        output_started = output_started or bool(chunk)
                         yield model_name, chunk
                 finally:
                     self._inflight_stats.finish_for_tenant(tenant_key, candidate.provider)
@@ -552,6 +556,16 @@ class NexusRouter:
                     model=model_name,
                     error=str(exception),
                 )
+                if output_started:
+                    # The caller already received this attempt's text; retrying a
+                    # fallback would splice a second answer onto the first.
+                    if state_machine.current_state is RequestState.DISPATCHED:
+                        state_machine.transition(RequestState.FAILED)
+                    message = (
+                        f"provider {candidate.provider} failed after streaming output began: "
+                        f"{exception}"
+                    )
+                    raise RoutingFailedError(message) from exception
                 if not is_last_attempt:
                     if state_machine.current_state is RequestState.DISPATCHED:
                         state_machine.transition(RequestState.FALLBACK)

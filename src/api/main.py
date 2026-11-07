@@ -233,6 +233,16 @@ def _admit_caller(request: Request, tenant_id: str | None, end_user: str | None)
     return caller
 
 
+def _responses_idempotency_scope(idempotency_key: str) -> str:
+    """Scope a ``/v1/responses`` Idempotency-Key away from chat-completion keys.
+
+    Chat keys stay raw so records stored before this endpoint existed still
+    replay. HTTP header values cannot contain line breaks, so a key ending in
+    ``"\\n/v1/responses"`` can never equal any client-supplied chat key.
+    """
+    return f"{idempotency_key}\n{RESPONSES_PATH}"
+
+
 async def _complete_cached(
     router_request: RouterRequest, *, temperature: float, tenant: str
 ) -> RouterResponse:
@@ -393,8 +403,7 @@ async def _create_response(
     end_user = payload.safety_identifier or payload.user
     caller = _admit_caller(request, x_tenant_id, end_user)
     guards = get_gateway_guards()
-    # Responses keys live in their own namespace so they never replay a chat body.
-    replay_key = f"{RESPONSES_PATH}:{idempotency_key}" if idempotency_key else None
+    replay_key = _responses_idempotency_scope(idempotency_key) if idempotency_key else None
     if replay_key and not payload.stream:
         existing = guards.check_idempotency(replay_key, caller.idempotency_tenant)
         if existing is not None:
@@ -440,13 +449,20 @@ async def _stream_response(
 ) -> StreamingResponse:
     """Start a routed stream and render it as Responses API SSE events.
 
-    The first chunk is pulled before the HTTP response starts so routing
-    failures that happen before any output return a normal HTTP error.
+    The stream is pulled until its first non-empty chunk before the HTTP
+    response starts, so routing failures before any output return a normal
+    HTTP error.
     """
     completed: list[RouterResponse] = []
     chunks = get_router().complete_stream(router_request, on_complete=completed.append)
+    first_chunk: tuple[str, str] | None = None
     try:
-        first_chunk = await anext(chunks, None)
+        # Empty chunks are not output: keep pulling until text arrives or the
+        # stream ends, remembering the model for an empty but successful answer.
+        while (chunk := await anext(chunks, None)) is not None:
+            first_chunk = chunk
+            if chunk[1]:
+                break
     except ROUTING_ERRORS as exception:
         raise routing_error(exception) from exception
     return StreamingResponse(

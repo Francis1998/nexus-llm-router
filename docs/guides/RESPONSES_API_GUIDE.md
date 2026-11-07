@@ -172,15 +172,18 @@ that is not in the nexus catalog (such as `"auto"`) lets the strategy choose.
 
 Failure semantics:
 
-- Routing failures **before the first output token** (rate limit, every provider
+- Routing failures **before the first output text** (rate limit, every provider
   failed) are returned as normal HTTP errors (see [Errors](#errors)), exactly
-  like non-streaming requests, because nexus pulls the first chunk before it
-  starts the event stream.
-- Failures **after output started** end the stream with a single
-  `response.failed` event: `response.status: "failed"`, the partial text in an
-  `incomplete` output item, and `response.error = {code, message, type}` where
-  `code` is `rate_limit_exceeded` or `server_error` and `type` is the nexus
-  category (`rate_limit_error`, `budget_exceeded`, `routing_failed`).
+  like non-streaming requests: nexus pulls the stream until its first non-empty
+  chunk before it starts the event stream. Provider failures before any text
+  still fall back to the next candidate.
+- Once text has streamed, nexus **never falls back**: a second provider's
+  answer would be spliced onto the partial one. A provider failure then ends
+  the stream with a single `response.failed` event: `response.status:
+  "failed"`, the partial text in an `incomplete` output item, and
+  `response.error = {code, message, type}` where `code` is
+  `rate_limit_exceeded` or `server_error` and `type` is the nexus category
+  (`rate_limit_error`, `budget_exceeded`, `routing_failed`).
 
 ## Supported request fields
 
@@ -218,7 +221,7 @@ of being silently dropped.
 | `Authorization` | Never used verbatim: nexus derives a non-reversible `key_<16 hex>` fingerprint for per-key rate limits, budgets, cache and idempotency scopes (see [SECURITY.md](../../SECURITY.md#credential-handling)). |
 | `X-Router-Strategy` | Any [routing strategy](../../CONFIGURATION.md) name; unknown names → 400 `invalid_value` with `param: "X-Router-Strategy"`. |
 | `X-Tenant-Id` | Optional hard per-tenant token bucket (`NEXUS_TENANT_RATE_LIMIT_*`), checked before routing. |
-| `Idempotency-Key` | Non-streaming requests only: a retry with the same key and tenant replays the stored `response` verbatim. Keys are namespaced per endpoint, so a Responses key never replays a Chat Completions body. Ignored when `stream: true`. |
+| `Idempotency-Key` | Non-streaming requests only: a retry with the same key and tenant replays the stored `response` verbatim. Keys are scoped per endpoint, so a Responses key never replays a Chat Completions body or vice versa (whatever the key spells). Ignored when `stream: true`. |
 
 Non-streaming requests also use the exact-match response cache (shared with
 Chat Completions, keyed on messages, model, temperature, `max_output_tokens`,
@@ -259,6 +262,21 @@ keep as an extra field (`response.model_extra["nexus"]` in Python):
 `usage.input_tokens_details.cached_tokens` and
 `usage.output_tokens_details.reasoning_tokens` are reported as `0` because
 adapters do not surface provider cache/reasoning counters yet.
+
+## Known limitations
+
+- **Truncation is not reported.** `status` is always `completed` with
+  `incomplete_details: null`, even when `max_output_tokens` cut the answer
+  short, because nexus adapters do not surface provider stop reasons yet
+  (`/v1/chat/completions` likewise always reports `finish_reason: "stop"`).
+  Propagating them (OpenAI/Kimi `length`, Anthropic `max_tokens`, Gemini
+  `MAX_TOKENS`) is planned as a separate change for both endpoints.
+- **Text only, stateless.** No tools, structured outputs, multimodal parts,
+  stored responses, or `GET`/`DELETE /v1/responses/{id}` (see the field table).
+- **Sampling parameters are not forwarded** to providers (`temperature` is
+  validated, echoed, and cached on; `top_p` is ignored).
+- **Token details are zero.** `cached_tokens` and `reasoning_tokens` are not
+  reported by adapters yet.
 
 ## Choosing a model
 
@@ -374,6 +392,9 @@ pytest tests/test_responses_api.py -v
 Covers string and message-list input (parts, `developer` role, replayed
 assistant output, `instructions`), every rejected feature, non-text parts,
 validation envelopes, streaming order / sequence numbers / final usage,
-`response.failed`, HTTP errors before the first token, 429/402/503 mapping,
-`X-Router-Strategy`, `X-Tenant-Id`, the API key fingerprint, idempotent replay,
-and response-cache reuse.
+`response.failed`, HTTP errors before the first token (including empty first
+chunks), no fallback splicing after text streamed (real `NexusRouter` with a
+provider that fails mid-stream) while pre-output failures still fall back,
+empty-but-successful streams, 429/402/503 mapping, `X-Router-Strategy`,
+`X-Tenant-Id`, the API key fingerprint, idempotent replay with collision-free
+per-endpoint scopes, and response-cache reuse.

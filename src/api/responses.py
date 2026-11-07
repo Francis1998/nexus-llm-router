@@ -310,13 +310,15 @@ async def stream_response_events(
 ) -> AsyncIterator[str]:
     """Yield the Responses API streaming event sequence for a routed stream.
 
-    The caller pulls ``first_chunk`` before the HTTP response starts so routing
-    failures that happen before any output surface as normal HTTP errors.
-    Failures after output started end the stream with ``response.failed``.
+    The caller pulls chunks until the first non-empty one before the HTTP
+    response starts, so routing failures that happen before any output surface
+    as normal HTTP errors. Failures after output started end the stream with
+    ``response.failed``.
 
     Args:
         draft: In-progress response from :func:`draft_response`.
-        first_chunk: First ``(model, text)`` pair, or ``None`` for empty output.
+        first_chunk: First non-empty ``(model, text)`` pair; an empty-text pair
+            when the stream finished without text; ``None`` without any chunk.
         chunks: Remaining router stream.
         completed: Filled by ``NexusRouter.complete_stream(on_complete=...)``.
 

@@ -13,12 +13,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 import api.main as main
+from adapters.base import BaseProviderAdapter, ProviderError
 from adapters.mock import MockProviderAdapter
 from adapters.registry import AdapterRegistry
 from cache.response_cache import ResponseCache
 from router.config import RouterSettings
 from router.engine import NexusRouter, RoutingFailedError
-from router.schemas import RouterRequest, RouterResponse
+from router.schemas import ChatMessage, RouterRequest, RouterResponse
 from safety.budget import BudgetExceededError
 from safety.gateway_guards import GatewayGuardService
 from safety.idempotency import IdempotencyStore
@@ -40,6 +41,35 @@ STREAM_ORDER_TAIL = [
 ]
 
 
+class PartialStreamAdapter(MockProviderAdapter):
+    """Mock provider whose stream emits one chunk and then drops the connection."""
+
+    async def stream(
+        self, model: str, messages: list[ChatMessage], max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        yield f"[{model}] partial "
+        raise ProviderError("connection reset mid-stream")
+
+
+class EmptyThenFailAdapter(MockProviderAdapter):
+    """Mock provider that emits an empty chunk and then fails before any text."""
+
+    async def stream(
+        self, model: str, messages: list[ChatMessage], max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        yield ""
+        raise ProviderError("connection reset before first token")
+
+
+class EmptyAnswerAdapter(MockProviderAdapter):
+    """Mock provider that successfully streams an empty answer."""
+
+    async def stream(
+        self, model: str, messages: list[ChatMessage], max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        yield ""
+
+
 @dataclass
 class Gateway:
     """Test client plus the router and the requests it dispatched."""
@@ -59,7 +89,13 @@ GatewayFactory = Callable[..., Gateway]
 def gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> GatewayFactory:
     """Build an isolated API client backed by mock providers and tmp state files."""
 
-    def _build(*, fail: bool = False, tenant_capacity: int = 60, **overrides: float) -> Gateway:
+    def _build(
+        *,
+        fail: bool = False,
+        tenant_capacity: int = 60,
+        adapters: dict[str, BaseProviderAdapter] | None = None,
+        **overrides: float,
+    ) -> Gateway:
         settings = RouterSettings(
             audit_log_path=str(tmp_path / "audit-log.jsonl"),
             spend_ledger_path=str(tmp_path / "spend-ledger.sqlite3"),
@@ -67,7 +103,7 @@ def gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> GatewayFactory:
             **overrides,
         )
         registry = AdapterRegistry(
-            {name: MockProviderAdapter(name, fail=fail) for name in PROVIDERS}
+            {name: MockProviderAdapter(name, fail=fail) for name in PROVIDERS} | (adapters or {})
         )
         router = NexusRouter(settings, registry)
         gateway = Gateway(client=TestClient(main.app), router=router)
@@ -480,11 +516,19 @@ def test_idempotency_key_replays_non_streaming_response(gateway: GatewayFactory)
         headers=key,
     )
 
+    prefixed_chat = gw.client.post(
+        "/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "Prefixed key, other endpoint."}]},
+        headers={"Idempotency-Key": "/v1/responses:order-42"},
+    )
+
     assert first.status_code == retry.status_code == 200
     assert retry.json() == first.json()
-    # Responses keys are namespaced: the chat call is routed, not served the stored body.
+    # Keys are scoped per endpoint, so neither chat call is served the stored body,
+    # not even one whose raw key spells out the Responses scope.
     assert chat.json()["object"] == "chat.completion"
-    assert len(gw.dispatched) == 2
+    assert prefixed_chat.json()["object"] == "chat.completion"
+    assert len(gw.dispatched) == 3
 
 
 def test_identical_requests_share_the_response_cache(gateway: GatewayFactory) -> None:
@@ -500,3 +544,72 @@ def test_identical_requests_share_the_response_cache(gateway: GatewayFactory) ->
     assert first.json()["nexus"] == second.json()["nexus"]
     assert [request.max_tokens for request in gw.dispatched] == [32, 64]
     assert other_limit.status_code == 200
+
+
+def test_stream_does_not_splice_fallback_output_after_text_was_sent(
+    gateway: GatewayFactory,
+) -> None:
+    """Once text streamed, a provider failure must not splice a fallback answer on."""
+    gw = gateway(adapters={"google": PartialStreamAdapter("google")})
+
+    response = gw.create({"input": "hi", "stream": True})
+
+    events = _sse_events(response.text)
+    names = [name for name, _ in events]
+    assert names[-1] == "response.failed"
+    assert "response.completed" not in names
+    deltas = [data["delta"] for name, data in events if name == "response.output_text.delta"]
+    failed = events[-1][1]["response"]
+    assert deltas == ["[gemini-3.5-flash] partial "]
+    assert failed["output"][0]["content"][0]["text"] == "[gemini-3.5-flash] partial "
+    assert failed["error"]["type"] == "routing_failed"
+    assert "after streaming output began" in failed["error"]["message"]
+
+
+def test_stream_preflight_skips_empty_chunks_before_failing(
+    gateway: GatewayFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Empty chunks are not output: a later routing failure is still an HTTP error."""
+    gw = gateway()
+
+    async def _empty_then_fail(
+        request: RouterRequest, **_: object
+    ) -> AsyncGenerator[tuple[str, str], None]:
+        yield "gpt-mock", ""
+        raise RoutingFailedError("all provider attempts failed: boom")
+
+    monkeypatch.setattr(gw.router, "complete_stream", _empty_then_fail)
+
+    response = gw.create({"input": "hi", "stream": True})
+
+    assert _assert_openai_error(response, 503, "routing_failed")["type"] == "routing_failed"
+
+
+def test_stream_failure_before_any_text_still_falls_back(gateway: GatewayFactory) -> None:
+    """Failures before non-empty output keep the engine's provider fallback."""
+    gw = gateway(adapters={"google": EmptyThenFailAdapter("google")})
+
+    response = gw.create({"input": "hi", "stream": True})
+
+    events = _sse_events(response.text)
+    completed = events[-1][1]["response"]
+    assert events[-1][0] == "response.completed"
+    assert completed["model"] != "gemini-3.5-flash"
+    assert completed["output"][0]["content"][0]["text"] == f"[{completed['model']}] routed response"
+    assert "fallback attempt 1 succeeded" in completed["nexus"]["rationale"]
+
+
+def test_stream_with_empty_answer_completes_with_selected_model(gateway: GatewayFactory) -> None:
+    """A successful stream without text still completes and reports its model."""
+    gw = gateway(adapters={"google": EmptyAnswerAdapter("google")})
+
+    response = gw.create({"input": "hi", "stream": True})
+
+    events = _sse_events(response.text)
+    names = [name for name, _ in events]
+    assert "response.output_text.delta" not in names
+    assert names[-1] == "response.completed"
+    assert events[0][1]["response"]["model"] == "gemini-3.5-flash"
+    completed = events[-1][1]["response"]
+    assert completed["model"] == "gemini-3.5-flash"
+    assert completed["output"][0]["content"][0]["text"] == ""

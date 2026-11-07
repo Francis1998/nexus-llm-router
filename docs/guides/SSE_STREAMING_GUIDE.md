@@ -20,6 +20,16 @@ receive `text/event-stream` chunks instead of a hard 400.
 4. The API frames each chunk as an OpenAI `chat.completion.chunk` SSE event.
 5. A final chunk with `finish_reason=stop` is followed by `data: [DONE]`.
 
+## Failure semantics
+
+Provider failures **before any text** was streamed fall back to the next
+candidate as usual. Once a chunk with text has been sent, nexus no longer falls
+back (that would splice a second model's answer onto the partial one): the
+stream ends with `data: {"error": {"message": "provider <name> failed after
+streaming output began: ...", "type": "routing_failed"}}` followed by
+`data: [DONE]`, and the provider failure still counts toward its circuit
+breaker.
+
 ## Example
 
 ```bash

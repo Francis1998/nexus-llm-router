@@ -82,9 +82,12 @@ Both endpoints share one ingress path: the `Authorization` header is reduced to
 a non-reversible key fingerprint, `X-Tenant-Id` hard limits and
 `Idempotency-Key` replay run before routing, and non-streaming requests use the
 exact-match response cache. Router failures map to 429 / 402 / 503. Responses
-streams pull the first chunk before emitting the SSE lifecycle so failures
-before any output stay real HTTP errors; `NexusRouter.complete_stream`'s
+streams pull the first non-empty chunk before emitting the SSE lifecycle so
+failures before any output stay real HTTP errors; `NexusRouter.complete_stream`'s
 `on_complete` callback supplies the final usage for `response.completed`.
+`complete_stream` falls back to the next candidate only while no text has been
+streamed; after that a provider failure ends the stream instead of splicing a
+second answer onto the partial one.
 
 ## Audit Log
 
