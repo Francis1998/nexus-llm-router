@@ -318,7 +318,8 @@ async def stream_response_events(
     Args:
         draft: In-progress response from :func:`draft_response`.
         first_chunk: First non-empty ``(model, text)`` pair; an empty-text pair
-            when the stream finished without text; ``None`` without any chunk.
+            when the stream finished without text; ``None`` without any chunk
+            (the model then comes from ``completed`` when routing succeeded).
         chunks: Remaining router stream.
         completed: Filled by ``NexusRouter.complete_stream(on_complete=...)``.
 
@@ -328,7 +329,12 @@ async def stream_response_events(
     writer = _EventWriter()
     message_id = f"msg_{uuid4().hex}"
     item = {"item_id": message_id, "output_index": 0, "content_index": 0}
-    model = first_chunk[0] if first_chunk is not None else draft.model
+    if first_chunk is not None:
+        model = first_chunk[0]
+    elif completed:  # the stream already finished without yielding any chunk
+        model = completed[-1].model_used
+    else:
+        model = draft.model
     draft = draft.model_copy(update={"model": model})
     text = ""
     try:

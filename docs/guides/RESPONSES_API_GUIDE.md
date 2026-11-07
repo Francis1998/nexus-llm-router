@@ -277,6 +277,15 @@ adapters do not surface provider cache/reasoning counters yet.
   validated, echoed, and cached on; `top_p` is ignored).
 - **Token details are zero.** `cached_tokens` and `reasoning_tokens` are not
   reported by adapters yet.
+- **Streaming usage is estimated.** Adapter `stream()` methods yield text only,
+  so `response.completed.usage` (and the spend ledger entry) for streams uses
+  the router's estimate (prompt estimate in, about 4 characters per output
+  token) rather than provider-reported counts; non-streaming usage is
+  provider-reported. The stop-reason follow-up above will carry provider usage
+  through streams as well.
+- **Idempotency replays completed responses only.** A retry that arrives while
+  the original request is still in flight is routed again (same as
+  `/v1/chat/completions` today); keys are not reserved before routing yet.
 
 ## Choosing a model
 

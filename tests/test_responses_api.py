@@ -70,6 +70,16 @@ class EmptyAnswerAdapter(MockProviderAdapter):
         yield ""
 
 
+class SilentStreamAdapter(MockProviderAdapter):
+    """Mock provider whose successful stream yields no chunks at all."""
+
+    async def stream(
+        self, model: str, messages: list[ChatMessage], max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        for _ in ():
+            yield ""
+
+
 @dataclass
 class Gateway:
     """Test client plus the router and the requests it dispatched."""
@@ -599,9 +609,12 @@ def test_stream_failure_before_any_text_still_falls_back(gateway: GatewayFactory
     assert "fallback attempt 1 succeeded" in completed["nexus"]["rationale"]
 
 
-def test_stream_with_empty_answer_completes_with_selected_model(gateway: GatewayFactory) -> None:
-    """A successful stream without text still completes and reports its model."""
-    gw = gateway(adapters={"google": EmptyAnswerAdapter("google")})
+@pytest.mark.parametrize("adapter_type", [EmptyAnswerAdapter, SilentStreamAdapter])
+def test_stream_with_empty_answer_completes_with_selected_model(
+    gateway: GatewayFactory, adapter_type: type[MockProviderAdapter]
+) -> None:
+    """A successful stream without text (one empty chunk or none) reports its model."""
+    gw = gateway(adapters={"google": adapter_type("google")})
 
     response = gw.create({"input": "hi", "stream": True})
 
