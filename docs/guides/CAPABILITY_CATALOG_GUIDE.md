@@ -35,7 +35,9 @@ from router.capability_catalog import ModelCapabilityCatalog
 
 catalog = ModelCapabilityCatalog()
 print(catalog.get("gpt-6-astra"))  # frozenset with tools, vision, ...
-catalog.upsert("gpt-6.1-sol", catalog.get("gpt-6-astra") | {"logprobs"})
+# GPT-6.1 Terra supports reasoning effort `none`, so logprobs are available;
+# GPT-6 Astra and GPT-6.1 Sol never run with `none` and must not list them.
+catalog.upsert("gpt-6.1-terra", {"json", "logprobs", "streaming", "tools", "vision"})
 capability_map = catalog.snapshot()
 # hand capability_map to ModelCapabilityGateStrategy / prefer strategies
 catalog.refresh_from_static()
