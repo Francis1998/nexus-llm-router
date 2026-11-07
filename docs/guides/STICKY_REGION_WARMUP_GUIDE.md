@@ -1,8 +1,8 @@
 # Sticky-Region-Warmup Routing Guide
 
 Use `sticky-region-warmup` when new sessions should build cache and capacity
-warmth in one region before receiving a durable regional pin for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+warmth in one region before receiving a durable regional pin for GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ![Sticky region warmup demo](../../assets/sticky-region-warmup.gif)
 

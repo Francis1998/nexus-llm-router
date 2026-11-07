@@ -1,7 +1,7 @@
 # Provider-Hourly-Cost-Ceiling Routing Guide
 
-Use `provider-hourly-cost-ceiling` when GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 spend must stay under a rolling hourly estimated budget
+Use `provider-hourly-cost-ceiling` when GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro spend must stay under a rolling hourly estimated budget
 per provider — distinct from per-request `provider-family-cost-ceiling`.
 
 ![Demo](../../assets/provider-hourly-cost-ceiling.gif)

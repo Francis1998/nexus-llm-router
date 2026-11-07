@@ -25,8 +25,8 @@ class ProviderQuotaRemainingAdvisor:
     """Classify provider quota remaining into ok/low/exhausted bands.
 
     Closes the OpenRouter / LiteLLM / Helicone *remaining quota* dashboard gap
-    for offline Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x
-    / Kimi K2. Distinct from ``ProviderErrorBudgetShed`` (error rate) and
+    for offline Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon
+    / Kimi K3.1 Pro. Distinct from ``ProviderErrorBudgetShed`` (error rate) and
     ``TenantSpendQuotaGuard`` (tenant spend). Advisory only — never rejects.
     """
 

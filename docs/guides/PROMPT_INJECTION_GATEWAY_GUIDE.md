@@ -1,7 +1,7 @@
 # Prompt Injection Gateway Guide
 
-Pre-dispatch prompt-injection detection for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic. Classic pattern matching with
+Pre-dispatch prompt-injection detection for GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro traffic. Classic pattern matching with
 `allow` / `redact` / `block` actions — distinct from the
 `prompt-injection-risk-shed` *routing* strategy.
 

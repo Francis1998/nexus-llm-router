@@ -8,7 +8,7 @@ healthy tier without the complexity-tier coupling of `canary-tier-blend`.
 
 - Production should default to the cheapest healthy provider, but finance wants
   occasional samples of the next cost rung for quality/latency comparison.
-- GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalogs need deterministic
+- GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro catalogs need deterministic
   cost exploration without progressive SKU rollout (`canary`).
 - You want health-gated spend minimization plus replayable explore bucketing.
 

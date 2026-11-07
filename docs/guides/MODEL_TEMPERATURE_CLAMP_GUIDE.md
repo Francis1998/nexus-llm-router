@@ -1,8 +1,8 @@
 # Model Temperature Clamp Advisor Guide
 
 Advisory temperature clamp bands (`ok` / `high` / `extreme`) from
-`temperature` vs a policy `max_allowed` — for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic **before** dispatch.
+`temperature` vs a policy `max_allowed` — for GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic **before** dispatch.
 
 ![Model temperature clamp advisor demo](../../assets/demo/model-temperature-clamp.gif)
 
@@ -51,4 +51,4 @@ print(advice.advisory, advice.suggested_clamp)
 | Clamp bands | Varies | Explicit `ok` / `high` / `extreme` |
 | Suggested clamp value | Varies | `suggested_clamp = min(temp, max)` |
 | Kills requests | Sometimes | Never (advisory only) |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

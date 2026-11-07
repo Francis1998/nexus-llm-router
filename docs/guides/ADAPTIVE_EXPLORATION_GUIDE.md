@@ -4,7 +4,7 @@ Use the `adaptive-exploration` strategy when you want epsilon-greedy explore/exp
 
 ## When to use it
 
-- You want early traffic to sample GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 more broadly than fixed `epsilon-greedy`.
+- You want early traffic to sample GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro more broadly than fixed `epsilon-greedy`.
 - After providers prove reliable, you want most traffic on the highest-quality domain-eligible model with only a small residual explore budget.
 - You need deterministic, replayable decisions (same `request_id` + same success window → same arm).
 

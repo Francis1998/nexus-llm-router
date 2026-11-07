@@ -5,7 +5,7 @@
 Offline HITL `ping_pong_ratio` bands.
 Gap vs vLLM/SGLang/TGI decode preemption ping-pong monitors. Distinct from `ContinuousBatchPreemptionChurnAdvisor` / `ContinuousBatchStarveBandAdvisor`.
 
-Stack: **GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2**.
+Stack: **GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro**.
 
 ## Usage
 

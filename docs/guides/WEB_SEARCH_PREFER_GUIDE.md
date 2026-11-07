@@ -1,8 +1,8 @@
 # Web-Search-Prefer Routing Guide
 
 Use `web-search-prefer` to bias selection toward `web_search`-capable
-models when a request declares `metadata.requires_web_search` / `metadata.web_search` / `metadata.online`, for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2.
+models when a request declares `metadata.requires_web_search` / `metadata.web_search` / `metadata.online`, for GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro.
 
 ![web-search-prefer demo](../../assets/web-search-prefer.gif)
 

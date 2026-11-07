@@ -6,7 +6,7 @@ secondary region during hot-spot events.
 
 ## When to use it
 
-- GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic should stay in a
+- GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic should stay in a
   preferred residency region (`request.region`) for compliance and cache warmth.
 - Occasional primary-region latency spikes should fail over to a faster secondary
   region without abandoning quality-first routing during normal conditions.

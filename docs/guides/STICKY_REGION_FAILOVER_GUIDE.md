@@ -23,7 +23,7 @@ region's providers are unhealthy.
 5. When no region has healthy providers, fall back to sticky selection across
    all eligible models.
 
-Catalog priors cover GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 across
+Catalog priors cover GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro across
 `us`, `eu`, `cn`, and `global` regions.
 
 ## Quick start

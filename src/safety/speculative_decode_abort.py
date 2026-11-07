@@ -3,8 +3,8 @@
 Advises speculative-decode abort-rate bands vs a budget. Closes the vLLM /
 TensorRT-LLM / OpenRouter speculative-decode abort gap. Distinct from
 ``SpeculativeDecodeBudgetAdvisor`` (token budget) and
-``OutputTokenForecastAdvisor`` (output forecast). Works with GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Never performs network I/O.
+``OutputTokenForecastAdvisor`` (output forecast). Works with GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro. Never performs network I/O.
 """
 
 from __future__ import annotations

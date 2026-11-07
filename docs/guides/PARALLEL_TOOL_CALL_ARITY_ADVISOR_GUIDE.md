@@ -5,7 +5,7 @@
 Offline advisory bands for parallel tool-call count. Never network I/O.
 Closes OpenRouter / LiteLLM / Portkey parallel-tools fanout gaps.
 
-Optional later polish via **GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2**.
+Optional later polish via **GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro**.
 
 Distinct from request-hedging and tenant concurrency guards.
 

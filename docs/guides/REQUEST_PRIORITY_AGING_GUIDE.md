@@ -1,7 +1,7 @@
 # Request Priority Aging Advisor Guide
 
 Advisory wait-age → priority-boost bands (`fresh` / `aging` / `stale`) from
-`age_seconds` — for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 queue
+`age_seconds` — for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro queue
 fairness **before** dequeue.
 
 ![Request priority aging advisor demo](../../assets/demo/request-priority-aging.gif)
@@ -59,4 +59,4 @@ print(advice.advisory, advice.boost)
 | Boost bands | Varies | Explicit `fresh` / `aging` / `stale` |
 | Distinct from lane classes | Often blended | Separate from `RequestPriorityLane` |
 | Mutates queue | Sometimes | Never (advisory boost only) |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

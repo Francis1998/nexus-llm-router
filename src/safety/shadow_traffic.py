@@ -3,8 +3,8 @@
 Controls what fraction of production traffic may be mirrored as shadow
 requests to a candidate provider. Closes the Portkey / Helicone / OpenRouter
 *shadow traffic* gap. Distinct from ``ProviderCanaryRolloutGuard`` (canary %)
-and ``StickyProviderAffinity`` (session stickiness). Works with GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2. Never performs network I/O.
+and ``StickyProviderAffinity`` (session stickiness). Works with GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro. Never performs network I/O.
 """
 
 from __future__ import annotations

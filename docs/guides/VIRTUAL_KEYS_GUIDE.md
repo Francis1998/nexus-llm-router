@@ -1,7 +1,7 @@
 # Virtual Keys Guide
 
-LiteLLM-style virtual API keys for multi-tenant GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 gateways. Issues hashed keys with a per-tenant USD budget
+LiteLLM-style virtual API keys for multi-tenant GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro gateways. Issues hashed keys with a per-tenant USD budget
 and optional model allowlist — without storing the raw secret.
 
 ## Why

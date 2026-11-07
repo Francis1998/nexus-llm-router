@@ -30,8 +30,8 @@ class ProviderRegionAffinityAdvisor:
     """Rank providers by affinity to a preferred-region list.
 
     Closes the OpenRouter / LiteLLM / Portkey *region / data-residency
-    preference* gap for offline Nexus gateways serving GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2: given ``preferred_regions``
+    preference* gap for offline Nexus gateways serving GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro: given ``preferred_regions``
     and a ``provider → regions`` map, return ranked affinity advice so
     callers can prefer nearer / residency-aligned providers.
 

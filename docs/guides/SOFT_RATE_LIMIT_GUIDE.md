@@ -8,7 +8,7 @@ breaker.
 
 - LiteLLM, Portkey, OpenRouter, or native provider traffic is close to quota and
   should move away from providers with fresh 429 pressure.
-- You want GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 traffic to remain
+- You want GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro traffic to remain
   quality-first while backing off providers that recently said "too many
   requests".
 - You prefer a soft signal over a hard outage rule: providers with recent rate

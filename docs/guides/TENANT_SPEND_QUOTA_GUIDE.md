@@ -1,7 +1,7 @@
 # Tenant Spend Quota Guide
 
-Hard monthly USD spend caps per tenant for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic. Built on `SpendLedger` calendar-month windows —
+Hard monthly USD spend caps per tenant for GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro traffic. Built on `SpendLedger` calendar-month windows —
 rejects over-quota tenants **before** provider dispatch.
 
 ![Tenant spend quota demo](../../assets/demo/tenant-spend-quota.gif)
@@ -76,4 +76,4 @@ print(enforcer.snapshot("acme"))
 | Calendar-month window | Varies / key lifetime | UTC calendar month |
 | Durable spend source | Key spend counters | `SpendLedger` |
 | Fail closed before dispatch | Yes | `assert_within_quota` |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

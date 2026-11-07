@@ -8,7 +8,7 @@ configured live in-flight limit.
 
 - A provider has strict parallel-request quotas and should be skipped before it
   hits a hard provider-side throttle.
-- GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 traffic should keep
+- GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro traffic should keep
   preferring the highest-quality available model without piling onto an already
   saturated provider.
 - You want a deterministic saturation guard that reacts to current router state

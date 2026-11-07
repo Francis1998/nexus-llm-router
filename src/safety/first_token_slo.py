@@ -31,7 +31,7 @@ class FirstTokenLatencySloAdvisor:
     """Classify time-to-first-token against per-model TTFT SLO bands.
 
     Closes the Helicone / Langfuse *streaming TTFT* dashboard gap for offline
-    Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2:
+    Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro:
     operators need first-token (streaming start) SLO bands that are distinct
     from end-to-end completion latency.
 

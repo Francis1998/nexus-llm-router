@@ -1,8 +1,8 @@
 # Output JSON Schema Guard Guide
 
 Post-completion validation of model JSON against a simple required-keys
-schema — verdicts `ok` / `missing` / `invalid_json` for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+schema — verdicts `ok` / `missing` / `invalid_json` for GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ![Output JSON schema guard demo](../../assets/demo/output-schema-guard.gif)
 
@@ -56,4 +56,4 @@ assert bad.verdict == "invalid_json"
 | Post-check required keys | Yes (hosted / plugins) | `OutputJsonSchemaGuard` |
 | Explicit verdict enum | Varies | `ok` / `missing` / `invalid_json` |
 | Separate from injection / PII | Varies | Distinct safety modules |
-| Frontier traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

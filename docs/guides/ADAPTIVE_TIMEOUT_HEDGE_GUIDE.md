@@ -5,7 +5,7 @@ provider only after live latency shows a meaningful relative slowdown.
 
 ## When to use it
 
-- GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic should normally
+- GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic should normally
   select the highest-quality domain-eligible model.
 - Provider latency differs over time, so a fixed millisecond hedge threshold
   would be too aggressive during generally slow periods or too loose during

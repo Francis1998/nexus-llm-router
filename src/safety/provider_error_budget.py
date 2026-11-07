@@ -32,7 +32,7 @@ class ProviderErrorBudgetShed:
     and from the ``provider-error-budget-shed`` *routing strategy* (which reads
     shared engine ``SuccessStats``). This module owns its own sliding window
     and can act as an advisory flag or a hard pre-dispatch gate for
-    GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+    GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
     """
 
     def __init__(

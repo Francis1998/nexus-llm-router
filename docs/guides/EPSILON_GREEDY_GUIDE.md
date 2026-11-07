@@ -5,7 +5,7 @@ Use the `epsilon-greedy` strategy when you want most traffic on the highest-qual
 ## When to use it
 
 - You trust quality priors for day-to-day routing but want a small explore budget.
-- You are evaluating catalog changes across GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 without running a full A/B experiment.
+- You are evaluating catalog changes across GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro without running a full A/B experiment.
 - You need deterministic, replayable decisions (same `request_id` → same arm).
 
 ## How it works

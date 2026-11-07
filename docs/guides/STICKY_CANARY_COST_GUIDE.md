@@ -7,7 +7,7 @@ with a small canary slice that blends toward cheaper healthy models.
 
 ## When to use it
 
-- GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic needs
+- GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic needs
   per-tenant stickiness for billing, quotas, and prompt-cache warmth.
 - Operators also want a controlled cost canary
   (`NEXUS_STICKY_CANARY_COST_PERCENT`, default `10`) that samples cheaper SKUs
@@ -54,5 +54,5 @@ Optional tenant metadata:
 ## Suggested repo metadata
 
 - **Description:** Multi-provider LLM router with pluggable strategies, safety
-  guardrails, and GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog.
+  guardrails, and GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro catalog.
 - **Topics:** `llm-router`, `litellm`, `openai`, `anthropic`, `gemini`, `routing`, `python`

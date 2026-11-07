@@ -1,7 +1,7 @@
 # Retry-After-Respect Routing Guide
 
-Use `retry-after-respect` when GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 providers return HTTP 429 with `Retry-After` and you want the router to
+Use `retry-after-respect` when GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro providers return HTTP 429 with `Retry-After` and you want the router to
 honor that wait instead of immediately reselecting the same backend.
 
 ![Demo](../../assets/retry-after-respect.gif)

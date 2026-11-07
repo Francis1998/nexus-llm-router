@@ -20,7 +20,7 @@ class RequestCostForecastAdvisor:
     """Offline estimate of request USD cost before dispatch.
 
     Closes the LiteLLM / OpenRouter pre-request cost-estimate gap for Nexus
-    gateways serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2:
+    gateways serving GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro:
     given ``prompt_tokens``, ``max_completion_tokens``, and $/1M input/output
     rates, return a structured ``CostForecast`` callers can log, surface in
     UI, or feed into soft budget advisors.

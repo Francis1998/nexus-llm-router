@@ -1,7 +1,7 @@
 # Provider Fallback Chain Planner Guide
 
 Deterministic ordered provider fallback chains from explicit preference lists —
-for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ![Provider fallback chain planner demo](../../assets/demo/provider-fallback-chain.gif)
 
@@ -58,4 +58,4 @@ print(plan.rationale)
 | Health-ranked fallbacks | Yes | `ProviderFallbackScoreboard` |
 | Static preference chain planner | Limited / config YAML | `ProviderFallbackChainPlanner` |
 | Offline / air-gapped | Often needs live stats | Pure function, no network |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

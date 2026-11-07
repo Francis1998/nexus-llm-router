@@ -35,8 +35,8 @@ class _ProviderStats:
 class ProviderFallbackScoreboard:
     """Track per-provider success / latency / error rates for fallback ranking.
 
-    Closes the LiteLLM / OpenRouter provider-health scoring gap for GPT-5.5 /
-    Claude Sonnet 4.6 / Gemini 3.x / Kimi K2: callers record outcomes and ask
+    Closes the LiteLLM / OpenRouter provider-health scoring gap for GPT-6 Astra /
+    Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro: callers record outcomes and ask
     ``rank()`` for a recommended fallback order (healthiest first).
 
     An injectable ``clock`` keeps tests deterministic. Optional exponential

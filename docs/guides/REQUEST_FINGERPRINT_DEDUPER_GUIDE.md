@@ -1,7 +1,7 @@
 # Request Fingerprint Deduper Guide
 
 In-memory identical-request fingerprint dedup inside a TTL window — for
-GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic **before**
+GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic **before**
 dispatch.
 
 ![Request fingerprint deduper demo](../../assets/demo/request-fingerprint-deduper.gif)
@@ -41,7 +41,7 @@ when `is_duplicate` is true.
 from safety.request_fingerprint import RequestFingerprintDeduper
 
 deduper = RequestFingerprintDeduper(window_seconds=30.0)
-messages = [{"role": "user", "content": "compare GPT-5.5 and Kimi K2"}]
+messages = [{"role": "user", "content": "compare GPT-6 Astra and Kimi K3.1 Pro"}]
 fp = deduper.fingerprint(
     model="gpt-5.5",
     messages=messages,
@@ -61,4 +61,4 @@ assert second.is_duplicate is True
 | Durable Idempotency-Key replay | Yes | `IdempotencyStore` |
 | Content-hash duplicate window | Limited / SaaS | `RequestFingerprintDeduper` |
 | Offline / air-gapped | Requires backend | In-memory, no network |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

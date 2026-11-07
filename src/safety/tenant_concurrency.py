@@ -37,8 +37,8 @@ class TenantConcurrencySlotGuard:
     """Track per-tenant in-flight request slots with ok/near/full bands.
 
     Closes the Portkey / LiteLLM / OpenRouter *per-tenant concurrency* gap for
-    offline Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2. Distinct from ``TenantRateLimiter`` (request rate) and
+    offline Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro. Distinct from ``TenantRateLimiter`` (request rate) and
     ``TenantSpendQuotaGuard`` (spend). Optional ``hard_gate`` blocks acquire
     when full.
     """

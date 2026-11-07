@@ -1,8 +1,8 @@
 # Adaptive-Concurrency-Cap Routing Guide
 
 Use `adaptive-concurrency-cap` when per-provider in-flight limits should shrink
-for unhealthy or slow backends so GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic drains toward healthier providers under load.
+for unhealthy or slow backends so GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro traffic drains toward healthier providers under load.
 
 ![Adaptive concurrency cap demo](../../assets/adaptive-concurrency-cap.gif)
 

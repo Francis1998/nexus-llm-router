@@ -1,7 +1,7 @@
 # JSON Schema Retry Budget Guard Guide
 
 Per-request JSON schema repair retry budgets with `ok` / `advisory` /
-`exhausted` bands — for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+`exhausted` bands — for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro
 structured-output repair loops.
 
 ![JSON schema retry budget guard demo](../../assets/demo/json-schema-retry-budget.gif)
@@ -56,4 +56,4 @@ while guard.allow_retry("gpt-5.5-structured"):
 | Advisory vs hard bands | Varies | Explicit `ok` / `advisory` / `exhausted` |
 | Distinct from JSON validate | Often blended | Separate from `OutputJsonSchemaGuard` |
 | Optional hard gate | Sometimes | `hard_gate` + `assert_within_budget` |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

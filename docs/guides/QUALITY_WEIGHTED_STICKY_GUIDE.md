@@ -1,7 +1,7 @@
 # Quality-Weighted-Sticky Routing Guide
 
-Use `quality-weighted-sticky` when GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 sessions need sticky affinity like `sticky-session`, but higher-quality
+Use `quality-weighted-sticky` when GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro sessions need sticky affinity like `sticky-session`, but higher-quality
 models should own a larger share of the hash ring.
 
 ![Demo](../../assets/quality-weighted-sticky.gif)

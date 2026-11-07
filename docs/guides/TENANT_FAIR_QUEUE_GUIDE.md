@@ -3,8 +3,8 @@
 Use `tenant-fair-queue` when noisy tenants should not monopolize premium model
 capacity. The strategy derives a deficit from recent per-tenant request counts,
 giving quieter tenants quality priority while moving above-share tenants onto a
-healthy cost-efficient relief lane for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic.
+healthy cost-efficient relief lane for GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ## When to use it
 

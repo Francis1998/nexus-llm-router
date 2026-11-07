@@ -2,8 +2,8 @@
 
 Use `sticky-region-drain` during regional maintenance or capacity evacuation.
 Healthy sessions retain their regional pin, while sessions pinned to a marked
-draining region migrate to a healthy alternate and remain there for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+draining region migrate to a healthy alternate and remain there for GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ## When to use it
 

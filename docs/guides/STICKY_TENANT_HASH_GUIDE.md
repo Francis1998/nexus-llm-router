@@ -5,7 +5,7 @@ Use the `sticky-tenant-hash` strategy when LiteLLM/OpenRouter-style traffic need
 
 ## When to use it
 
-- B2B tenants (GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2) should stay
+- B2B tenants (GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro) should stay
   on a stable primary model for billing, quotas, and provider prompt-cache hits.
 - `sticky-session` is too narrow — it hashes only `session_id` for multi-turn
   chats, while tenants may open many sessions.

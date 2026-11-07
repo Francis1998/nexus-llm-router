@@ -1,7 +1,7 @@
 # Provider-Weight-Decay Routing Guide
 
-Use `provider-weight-decay` when GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic should gradually leave failing providers and recover slowly
+Use `provider-weight-decay` when GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro traffic should gradually leave failing providers and recover slowly
 once they stabilize.
 
 ![Demo](../../assets/provider-weight-decay.gif)

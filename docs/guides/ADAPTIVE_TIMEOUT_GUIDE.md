@@ -6,7 +6,7 @@ Use the `adaptive-timeout` strategy when you want timeout-aware routing that ada
 
 - Realtime traffic needs faster models when recent provider latency is high or the deadline is tight.
 - Batch traffic can accept slower, higher-quality models when the adaptive budget has enough headroom.
-- You want GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 routing to react to both p95 latency and recent failures without a hard fail at decide time.
+- You want GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro routing to react to both p95 latency and recent failures without a hard fail at decide time.
 - Cold-start traffic should still admit every provider until observations accrue.
 
 ## How it works

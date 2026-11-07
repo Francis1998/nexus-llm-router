@@ -1,7 +1,7 @@
 # Latency-Slope-Shed Routing Guide
 
-Use `latency-slope-shed` when GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 providers show a rising EWMA latency trend and you want traffic to
+Use `latency-slope-shed` when GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro providers show a rising EWMA latency trend and you want traffic to
 shed to lower-latency / cheaper healthy models before absolute p95 SLOs trip.
 
 ![Demo](../../assets/latency-slope-shed.gif)

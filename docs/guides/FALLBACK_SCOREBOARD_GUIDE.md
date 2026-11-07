@@ -1,8 +1,8 @@
 # Provider Fallback Scoreboard Guide
 
 Per-provider health scoring for fallback ordering — track success, latency,
-and error rates, then recommend a fallback preference list for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+and error rates, then recommend a fallback preference list for GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ![Fallback scoreboard demo](../../assets/demo/fallback-scoreboard.gif)
 
@@ -68,4 +68,4 @@ so existing routing behavior is unchanged until outcomes accumulate.
 | Error-rate visibility | Yes | `snapshot(...).error_rate` |
 | Fallback preference order | Yes | `rank()` / `rank(candidates)` |
 | Injectable clock + decay | Varies | `clock=` + optional half-life |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

@@ -1,7 +1,7 @@
 # Request Cost Forecast Guide
 
 Offline USD cost estimates from prompt tokens, max completion tokens, and
-$/1M rates — for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic
+$/1M rates — for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic
 **before** dispatch.
 
 ![Request cost forecast demo](../../assets/demo/request-cost-forecast.gif)

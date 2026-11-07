@@ -1,8 +1,8 @@
 # Sticky-Session-Migrate Routing Guide
 
 Use `sticky-session-migrate` when a multi-turn session should keep stable model
-affinity but must move away from a degraded provider for GPT-5.5 /
-Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic.
+affinity but must move away from a degraded provider for GPT-6 Astra /
+Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ## When to use it
 

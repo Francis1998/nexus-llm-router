@@ -3,8 +3,8 @@
 Use `tenant-priority-lanes` to map tenants into high, normal, or low service
 lanes. Under provider health pressure or recent lane-quota pressure, high tenants
 prefer the fastest observed healthy route, normal tenants preserve quality, and
-low tenants move to a cost-efficient relief route for GPT-5.5 / Claude Sonnet
-4.6 / Gemini 3.x / Kimi K2 traffic.
+low tenants move to a cost-efficient relief route for GPT-6 Astra / Claude
+Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
 
 ## When to use it
 

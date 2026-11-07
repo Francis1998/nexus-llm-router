@@ -1,7 +1,7 @@
 # Provider-Tail-Latency-Hedge Routing Guide
 
-Use `provider-tail-latency-hedge` when GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 traffic should preserve quality while typical latency is
+Use `provider-tail-latency-hedge` when GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro traffic should preserve quality while typical latency is
 healthy but escape a provider whose slow tail crosses an absolute limit.
 
 ## When to use it

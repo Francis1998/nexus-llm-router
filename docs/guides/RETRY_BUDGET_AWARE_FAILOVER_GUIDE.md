@@ -9,8 +9,8 @@ gateways track remaining retries and need **quality while budget remains**, then
 ## When to use it
 
 - Upstream clients pass `metadata.retry_remaining` on each attempt.
-- Early attempts should still prefer GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-  Kimi K2 quality.
+- Early attempts should still prefer GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+  Kimi K3.1 Pro quality.
 - The final retry should favor the fastest healthy provider.
 
 ## How it works
@@ -42,5 +42,5 @@ See the offline routing walkthrough in [`assets/demo.gif`](../../assets/demo.gif
 ## Suggested repo metadata
 
 - **Description:** Multi-provider LLM router with pluggable strategies, safety
-  guardrails, and GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog.
+  guardrails, and GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro catalog.
 - **Topics:** `llm-router`, `litellm`, `openai`, `anthropic`, `gemini`, `routing`, `python`

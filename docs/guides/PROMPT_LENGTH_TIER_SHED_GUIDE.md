@@ -8,8 +8,8 @@ stays on mid/economy SKUs unless no alternative exists.
 
 ## When to use it
 
-- Long context / RAG prompts should not default to frontier GPT-5.5 /
-  Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 when a mid-tier model is enough.
+- Long context / RAG prompts should not default to frontier GPT-6 Astra /
+  Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro when a mid-tier model is enough.
 - You want a soft length-based shed, complementary to `token-budget` and
   `complexity-tier`.
 - Short hard prompts should still reach frontier quality.
@@ -44,5 +44,5 @@ See the offline routing walkthrough in [`assets/demo.gif`](../../assets/demo.gif
 ## Suggested repo metadata
 
 - **Description:** Multi-provider LLM router with pluggable strategies, safety
-  guardrails, and GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog.
+  guardrails, and GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro catalog.
 - **Topics:** `llm-router`, `litellm`, `openai`, `anthropic`, `gemini`, `routing`, `python`

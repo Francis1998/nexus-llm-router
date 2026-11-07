@@ -8,8 +8,8 @@ should receive **limited probe traffic** instead of a full traffic stampede.
 ## When to use it
 
 - Provider circuits reopen after a recovery window and you want healthy
-  backends to keep the majority of GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-  Kimi K2 traffic.
+  backends to keep the majority of GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+  Kimi K3.1 Pro traffic.
 - Half-open / recovering providers should only accept a small concurrent probe
   budget (`NEXUS_CIRCUIT_HALF_OPEN_PROBE_BUDGET`).
 - You need LiteLLM/Portkey-style half-open probe control at decide time.
@@ -45,5 +45,5 @@ See the offline routing walkthrough in [`assets/demo.gif`](../../assets/demo.gif
 ## Suggested repo metadata
 
 - **Description:** Multi-provider LLM router with pluggable strategies, safety
-  guardrails, and GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog.
+  guardrails, and GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro catalog.
 - **Topics:** `llm-router`, `litellm`, `openai`, `anthropic`, `gemini`, `routing`, `python`

@@ -9,7 +9,7 @@ LiteLLM style.
 
 - EU or CN residency requirements must keep traffic on region-capable providers
   while still matching frontier / mid / economy to task difficulty.
-- You want GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 catalog priors
+- You want GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro catalog priors
   selected by **region + tier** together, not quality alone.
 - Missing regions or missing tier SKUs should fail soft (tier → region →
   quality) rather than reject the request.
@@ -32,7 +32,7 @@ LiteLLM style.
    4. highest-quality domain-eligible (quality fallback)
 
 Catalog priors (examples): OpenAI US/global, Anthropic/Google US+EU+global,
-Moonshot (Kimi K2) CN/global. No extra `NEXUS_*` knobs are required.
+Moonshot (Kimi K3.1 Pro) CN/global. No extra `NEXUS_*` knobs are required.
 
 ## Quick start
 

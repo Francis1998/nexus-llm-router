@@ -1,8 +1,8 @@
 # Provider-Circuit-Probe Routing Guide
 
 Use `provider-circuit-probe` when the preferred quality provider should receive
-a tightly bounded recovery probe while GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2 traffic continues on healthy alternates.
+a tightly bounded recovery probe while GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro traffic continues on healthy alternates.
 
 ![Provider circuit probe demo](../../assets/provider-circuit-probe.gif)
 

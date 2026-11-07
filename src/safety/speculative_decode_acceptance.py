@@ -4,7 +4,7 @@ Advises speculative-decode acceptance rate vs soft/hard floors.
 Closes the vLLM / TensorRT-LLM / OpenRouter speculative-decode acceptance-rate bands gap.
 Distinct from
 ``SpeculativeDecodeAbortAdvisor`` and ``SpeculativeDecodeBudgetAdvisor``.
-Works with GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Works with GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 Never performs network I/O.
 """
 

@@ -10,7 +10,7 @@ a backend.
 
 - Multi-tenant gateways need per-tenant in-flight leases
   (`NEXUS_TENANT_CONCURRENCY_LEASE`, default `8`).
-- GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 traffic should keep
+- GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic should keep
   quality-first selection while respecting tenant headroom.
 - You want LiteLLM/Portkey-style tenant fairness using live `InflightStats`.
 
@@ -43,5 +43,5 @@ See the offline routing walkthrough in [`assets/demo.gif`](../../assets/demo.gif
 ## Suggested repo metadata
 
 - **Description:** Multi-provider LLM router with pluggable strategies, safety
-  guardrails, and GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 catalog.
+  guardrails, and GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro catalog.
 - **Topics:** `llm-router`, `litellm`, `openai`, `anthropic`, `gemini`, `routing`, `python`

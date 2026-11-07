@@ -18,7 +18,7 @@ class StickyProviderAffinity:
     """Pin a provider to a conversation/session key for continuity.
 
     Closes the LiteLLM / Portkey / OpenRouter sticky-provider gap for offline
-    Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2:
+    Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro:
     after the first successful provider selection, ``bind(session_key,
     provider)`` so subsequent turns ``get(session_key)`` the same provider
     (prompt-cache warmth, tool-state continuity, billing consistency).

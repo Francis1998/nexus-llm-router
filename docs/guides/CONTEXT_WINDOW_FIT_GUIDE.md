@@ -1,7 +1,7 @@
 # Context Window Fit Advisor Guide
 
 Advisory fit bands (`fits` / `tight` / `overflow`) from estimated tokens vs a
-model context limit — for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2
+model context limit — for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro
 traffic **before** dispatch.
 
 ![Context window fit advisor demo](../../assets/demo/context-window-fit.gif)

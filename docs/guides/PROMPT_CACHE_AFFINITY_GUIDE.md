@@ -1,7 +1,7 @@
 # Prompt Cache Affinity Guide
 
 Sticky prompt-prefix fingerprint → preferred `model_id` table for provider
-prompt-cache hits on GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+prompt-cache hits on GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 
 ![Prompt cache affinity demo](../../assets/demo/prompt-cache-affinity.gif)
 
@@ -61,4 +61,4 @@ affinity.remember(fp, model_id)
 | Explicit post-hit remember | App glue | `remember` / `choose` |
 | Prefix fingerprint helper | Varies | `fingerprint(prompt, chars=N)` |
 | Offline / air-gapped | Often SaaS-tied | In-memory, no network |
-| Frontier model traffic | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier model traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

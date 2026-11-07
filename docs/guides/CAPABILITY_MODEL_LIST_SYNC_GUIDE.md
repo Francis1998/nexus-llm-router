@@ -1,8 +1,8 @@
 # Capability Model List Sync Guide
 
 Offline, deterministic sync of static / provider model lists into
-`ModelCapabilityCatalog` for GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-Kimi K2. Closes the LiteLLM `model_list` sync and Portkey model-catalog
+`ModelCapabilityCatalog` for GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+Kimi K3.1 Pro. Closes the LiteLLM `model_list` sync and Portkey model-catalog
 refresh gap without live network calls.
 
 ![Model list sync demo](../../assets/demo/model-list-sync.gif)
@@ -59,4 +59,4 @@ capability_map = catalog.snapshot()
 | Static seed refresh | Config reload | `sync_static` → `refresh_from_static` |
 | Upsert / overlay | Yes | `sync(descriptors)` → `upsert` |
 | Network required in tests | Often | Never |
-| Frontier SKUs | Yes | GPT-5.5 / Sonnet 4.6 / Gemini 3.x / Kimi K2 |
+| Frontier SKUs | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

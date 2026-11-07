@@ -3,8 +3,8 @@
 ![Spend ledger demo](../../assets/demo/spend-ledger.gif)
 
 Durable SQLite spend tracking with `GET /v1/spend` aggregation. Closes the gap
-versus LiteLLM virtual-key `/spend` APIs for GPT-5.5 / Claude Sonnet 4.6 /
-Gemini 3.x / Kimi K2 fleets.
+versus LiteLLM virtual-key `/spend` APIs for GPT-6 Astra / Claude Opus 5.5 /
+Gemini 4 Argon / Kimi K3.1 Pro fleets.
 
 ## Why
 

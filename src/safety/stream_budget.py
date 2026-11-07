@@ -36,7 +36,7 @@ class StreamingTokenBudgetGate:
     """Hard-stop mid-stream when token or cost budget is exhausted.
 
     Closes the LiteLLM / OpenRouter soft max-token / soft spend-limit gap for
-    GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2 streaming responses:
+    GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro streaming responses:
     callers observe each chunk and either continue, get an exhausted snapshot,
     or raise ``StreamingTokenBudgetExceededError`` for a hard cut-off.
     """

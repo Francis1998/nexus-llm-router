@@ -4,7 +4,7 @@ Advises router-vs-provider tokenizer mismatch ratio vs budgets.
 Closes the vLLM / OpenRouter / LiteLLM router-vs-provider tokenizer mismatch bands gap. Di
 stinct from
 ``ToolSchemaDriftGate`` and ``MultimodalTokenTaxAdvisor``.
-Works with GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2.
+Works with GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro.
 Never performs network I/O.
 """
 

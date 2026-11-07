@@ -8,7 +8,7 @@ OpenRouter-, LiteLLM-, and native prompt-caching deployments.
 ## When to use it
 
 - Agents or RAG services prepend a long, stable system prompt to each request.
-- You want GPT-5.5, Claude Sonnet 4.6, Gemini 3.x, and Kimi K2 traffic to keep
+- You want GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro traffic to keep
   shared prefixes sticky to one provider/model instead of spreading each prefix
   across the fleet.
 - The upstream gateway/provider supports prompt-prefix or KV-cache reuse and

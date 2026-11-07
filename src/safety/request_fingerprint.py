@@ -35,8 +35,8 @@ class RequestFingerprintDeduper:
     """Detect identical request fingerprints inside a short TTL window.
 
     Closes the LiteLLM / Portkey / OpenRouter *content-hash* duplicate-burst
-    gap for Nexus gateways serving GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x /
-    Kimi K2: when clients retry or fan-out the same payload without an
+    gap for Nexus gateways serving GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon /
+    Kimi K3.1 Pro: when clients retry or fan-out the same payload without an
     ``Idempotency-Key``, callers can ``fingerprint(...)`` the body and
     ``observe(...)`` to learn whether an identical hash already landed in the
     configured window.
