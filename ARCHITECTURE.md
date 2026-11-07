@@ -95,7 +95,10 @@ failures before any output stay real HTTP errors; `NexusRouter.complete_stream`'
 `on_complete` callback supplies the final usage for `response.completed`.
 `complete_stream` falls back to the next candidate only while no text has been
 streamed; after that a provider failure ends the stream instead of splicing a
-second answer onto the partial one.
+second answer onto the partial one. `GET /v1/models` and `GET /v1/models/{id}`
+(`src/api/models.py`) list the routable catalog in the OpenAI format, with a
+`nexus` block for pricing, token limits, capabilities, and live provider health
+(adapter credentials and circuit-breaker state).
 
 ## Audit Log
 

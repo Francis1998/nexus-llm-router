@@ -249,3 +249,58 @@ class ResponseObject(BaseModel):
     safety_identifier: str | None = None
     metadata: dict[str, str] = Field(default_factory=dict)
     nexus: NexusRoutingMetadata | None = None
+
+
+class ModelLongPromptPricing(BaseModel):
+    """Whole-request rates billed once a prompt exceeds ``threshold_tokens``."""
+
+    threshold_tokens: int
+    input_per_1m_tokens: float
+    output_per_1m_tokens: float
+
+
+class ModelPricing(BaseModel):
+    """List prices in USD per 1M tokens."""
+
+    input_per_1m_tokens: float
+    output_per_1m_tokens: float
+    long_prompt: ModelLongPromptPricing | None = None
+
+
+class ModelHealth(BaseModel):
+    """Live provider health for a catalog model."""
+
+    api_key_configured: bool
+    routable: bool
+
+
+class NexusModelInfo(BaseModel):
+    """Nexus routing metadata for one catalog model."""
+
+    provider: str
+    context_window: int
+    max_input_tokens: int | None
+    pricing: ModelPricing
+    capabilities: list[str]
+    domains: list[str]
+    regions: list[str]
+    supports_realtime: bool
+    quality_score: float
+    health: ModelHealth
+
+
+class ModelObject(BaseModel):
+    """OpenAI ``model`` object with a namespaced ``nexus`` metadata block."""
+
+    id: str
+    object: Literal["model"] = "model"
+    created: int
+    owned_by: str
+    nexus: NexusModelInfo
+
+
+class ModelList(BaseModel):
+    """OpenAI ``list`` response for ``GET /v1/models``."""
+
+    object: Literal["list"] = "list"
+    data: list[ModelObject]

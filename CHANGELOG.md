@@ -50,6 +50,16 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Exact-match response cache keys now include `max_tokens` and the effective routing strategy. `ResponseCache.make_key` previously fingerprinted only model, messages, temperature, and tenant, so a completion truncated for `max_tokens=1` was replayed for an otherwise identical `max_tokens=512` request, and a response routed under one `X-Router-Strategy` was replayed for another. `make_key` gains backward-compatible keyword-only `max_tokens` / `strategy` arguments; a missing header resolves to `NEXUS_DEFAULT_STRATEGY` so equivalent requests still share entries.
 
 ### Added
+- OpenAI-compatible model discovery: `GET /v1/models` and `GET /v1/models/{id}` (`src/api/models.py`). Open WebUI, LibreChat, Continue and other OpenAI clients can populate their model pickers from nexus.
+  - Each entry is a standard `model` object (`id`, `object`, `created`, `owned_by`) plus a namespaced `nexus` block:
+    - provider, context window and `max_input_tokens`;
+    - list prices per 1M tokens, with long-prompt tiers;
+    - capability flags, domains, regions, realtime prior and quality prior;
+    - live health: credentials configured, and whether the circuit breaker allows routing.
+  - Unknown IDs return an OpenAI-style 404 with `model_not_found`.
+  - `NexusRouter` gains a read-only `model_catalog` and `provider_routable()`, and `router.strategies.known_model_capabilities()` exposes the built-in capability map.
+  - Inspired by the LiteLLM proxy's `/v1/models` and `/model/info` and OpenRouter's `/api/v1/models`.
+  - `scripts/models_api_demo.py` shows the official OpenAI SDK view. See `docs/guides/MODELS_API_GUIDE.md`.
 - `docs/guides/USE_CASES.md`: three end-to-end scenarios with commands and real transcripts:
   - cutting spend for a support assistant;
   - moving an OpenAI SDK app behind nexus with tenant rate limits and idempotent retries;

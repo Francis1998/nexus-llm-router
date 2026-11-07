@@ -10513,6 +10513,19 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
     MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context", "json", "streaming", "vision"}),
 }
 
+
+def known_model_capabilities(model: str) -> frozenset[str]:
+    """Return the built-in capability set for a catalog model (empty when unknown).
+
+    Args:
+        model: Model identifier.
+
+    Returns:
+        Capability names such as ``vision``, ``tools``, or ``json``.
+    """
+    return _KNOWN_MODEL_CAPABILITIES.get(model, frozenset())
+
+
 _KNOWN_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     OPENAI_FRONTIER_MODEL: 1_050_000,
     OPENAI_BALANCED_MODEL: 1_050_000,

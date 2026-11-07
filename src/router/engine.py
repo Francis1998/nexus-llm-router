@@ -3,6 +3,7 @@
 import asyncio
 import time
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
+from types import MappingProxyType
 
 from adapters.registry import AdapterRegistry
 from observability.logging import get_logger
@@ -270,6 +271,22 @@ class NexusRouter:
         )
         self._fallback_scoreboard = ProviderFallbackScoreboard()
         self._logger = get_logger(__name__)
+
+    @property
+    def model_catalog(self) -> Mapping[str, ModelCandidate]:
+        """Return the routable model catalog (read-only view)."""
+        return MappingProxyType(self._model_catalog)
+
+    def provider_routable(self, provider: str) -> bool:
+        """Return whether the provider's circuit breaker currently allows routing.
+
+        Args:
+            provider: Provider name such as ``openai``.
+
+        Returns:
+            ``False`` while the provider's circuit is open.
+        """
+        return self._circuit_breakers.is_available(provider)
 
     async def complete(self, request: RouterRequest) -> RouterResponse:
         """Route and dispatch a completion request.
