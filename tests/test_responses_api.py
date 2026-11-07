@@ -626,3 +626,18 @@ def test_stream_with_empty_answer_completes_with_selected_model(
     completed = events[-1][1]["response"]
     assert completed["model"] == "gemini-3.5-flash"
     assert completed["output"][0]["content"][0]["text"] == ""
+
+
+def test_stream_reports_fallback_model_after_silent_fallback(gateway: GatewayFactory) -> None:
+    """Lifecycle events name the fallback that answered, not the attempt that failed."""
+    silent = {name: SilentStreamAdapter(name) for name in ("openai", "anthropic", "moonshot")}
+    gw = gateway(adapters={"google": EmptyThenFailAdapter("google"), **silent})
+
+    response = gw.create({"input": "hi", "stream": True})
+
+    events = _sse_events(response.text)
+    completed = events[-1][1]["response"]
+    assert events[-1][0] == "response.completed"
+    assert completed["model"] != "gemini-3.5-flash"
+    assert events[0][1]["response"]["model"] == completed["model"]
+    assert events[1][1]["response"]["model"] == completed["model"]
