@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-2004%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-2009%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
@@ -341,7 +341,7 @@ Nexus is designed for AI infrastructure engineers running multi-model production
   Nexus solves this by classifying prompt complexity and routing simple tasks to cheaper low-latency models while reserving premium models for hard prompts.
 
 - Issue: spend grows faster than product usage.
-  Nexus solves this with cost-aware routing, model cost estimates, per-user budget guardrails, and Prometheus cost metrics.
+  Nexus solves this with cost-aware routing, model cost estimates (including GPT-6 and Claude Haiku 5.5 long-prompt pricing tiers), per-user budget guardrails, and Prometheus cost metrics.
 
 - Issue: code, medical, legal, and general prompts need different quality defaults.
   Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude Opus 5.5 and complex code to GPT-6 Astra.
@@ -369,6 +369,9 @@ Nexus is designed for AI infrastructure engineers running multi-model production
 
 - Issue: teams need OpenAI compatibility without giving up provider choice.
   Nexus solves this by exposing `/v1/chat/completions` and the OpenAI Responses API (`/v1/responses`) while normalizing OpenAI, Anthropic, Gemini, and Moonshot adapters behind one interface.
+
+- Issue: current models reject sampling parameters (Claude 5.5 returns HTTP 400 for non-default `temperature` / `top_p` / `top_k`, GPT-6 allows them only with reasoning effort `none`, Kimi K3.x fixes `temperature` at 1.0, and Gemini 3.x/4 ignores them).
+  Nexus solves this by never forwarding `temperature`, `top_p`, `top_k`, or logprobs upstream; each adapter sends only the fields the current models accept (see [Provider parameter compatibility](CONFIGURATION.md#provider-parameter-compatibility)).
 
 - Issue: model routing becomes a hidden product decision.
   Nexus solves this by making routing policy explicit, testable, observable, and owned in infra.
@@ -677,7 +680,7 @@ Select a strategy with `X-Router-Strategy`:
 - `soft-family-budget`: deprioritizes provider families whose rolling observed spend exceeds a soft budget (`NEXUS_SOFT_FAMILY_BUDGET_USD`, window via `NEXUS_SOFT_FAMILY_BUDGET_WINDOW_SECONDS`); prefers highest-quality models from under-budget families and falls back to the cheapest other family when every family is hot — OpenRouter/LiteLLM-style family spend steering for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 - `sticky-region-failover`: pins `session_id` to a model inside the first healthy preferred region (request `region` first, then `NEXUS_STICKY_REGION_FAILOVER_PREFERENCES`), failovers to the next region when the preferred pool is unhealthy, and keeps sticky affinity when healthy — geo-residency plus session stickiness for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 - `region-failover-hysteresis`: like sticky-region-failover but waits for `NEXUS_REGION_FAILOVER_HYSTERESIS_SUCCESSES` (default `3`) consecutive preferred-region successes before flapping back after a failover for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
-- `token-budget`: selects the highest-quality domain-eligible model whose `context_window` fits `prompt_tokens_estimate + max_tokens` within the request `token_budget`; falls back to the largest-context model when nothing fits
+- `token-budget`: selects the highest-quality domain-eligible model whose `context_window` fits `prompt_tokens_estimate + max_tokens` within the request `token_budget` (and whose maximum input holds the prompt); falls back to the model accepting the largest prompt when nothing fits
 - `slo-aware`: selects the highest-quality domain-eligible model whose provider rolling success rate meets `NEXUS_AVAILABILITY_SLO`; falls back to the highest success-rate model when nothing meets the SLO
 - `semantic-cache`: on `metadata.cache_hit`, prefers the cheapest domain-eligible model; on miss, falls through to cost-optimal under the quality floor
 - `least-busy`: selects the highest-quality domain-eligible model on the provider with the lowest current in-flight load; load ties prefer higher quality, then lower estimated cost

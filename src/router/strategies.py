@@ -2463,10 +2463,12 @@ class TokenBudgetStrategy(RoutingStrategy):
 
     The effective capacity for a candidate is
     ``min(candidate.context_window, request.token_budget)``. A candidate fits when
-    ``prompt_tokens_estimate + max_tokens <=`` that capacity. When no candidate
-    fits (for example an oversized prompt against a tight budget), it falls back
-    to the largest-context eligible model so the request still routes
-    deterministically rather than failing at decide time.
+    ``prompt_tokens_estimate + max_tokens <=`` that capacity and the prompt alone
+    stays within the model's maximum input (``ModelCandidate.input_token_limit``;
+    GPT-6 accepts at most 922K input tokens of its 1.05M window). When no
+    candidate fits (for example an oversized prompt against a tight budget), it
+    falls back to the eligible model accepting the largest prompt so the request
+    still routes deterministically rather than failing at decide time.
     """
 
     strategy_name = RoutingStrategyName.TOKEN_BUDGET
@@ -2488,6 +2490,7 @@ class TokenBudgetStrategy(RoutingStrategy):
             candidate
             for candidate in eligible_candidates
             if tokens_needed <= effective_capacity(candidate)
+            and signals.prompt_tokens_estimate <= candidate.input_token_limit
         ]
         if fitting_candidates:
             selected_candidate = max(
@@ -2507,12 +2510,17 @@ class TokenBudgetStrategy(RoutingStrategy):
 
         selected_candidate = max(
             eligible_candidates,
-            key=lambda candidate: (candidate.context_window, candidate.quality_score),
+            key=lambda candidate: (
+                candidate.input_token_limit,
+                candidate.context_window,
+                candidate.quality_score,
+            ),
         )
         rationale = (
             f"token-budget found no model fitting {tokens_needed} tokens within "
-            f"budget {request.token_budget}; routed to largest-context model "
-            f"(context {selected_candidate.context_window})"
+            f"budget {request.token_budget}; routed to largest-input model "
+            f"(max input {selected_candidate.input_token_limit}, "
+            f"context {selected_candidate.context_window})"
         )
         return self._decision(selected_candidate.model, rationale)
 
@@ -10463,7 +10471,7 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
         }
     ),
     OPENAI_BALANCED_MODEL: frozenset(
-        {"logprobs", "long_context", "parallel_tool_calls", "streaming", "tools", "vision"}
+        {"json", "logprobs", "long_context", "parallel_tool_calls", "streaming", "tools", "vision"}
     ),
     ANTHROPIC_SAFETY_MODEL: frozenset(
         {
@@ -12099,17 +12107,25 @@ class LongContextPreferStrategy(RoutingStrategy):
         return None
 
     def _context_window(self, candidate: ModelCandidate, request: RouterRequest) -> int:
-        """Resolve a model's context window from overrides, known map, or heuristic."""
+        """Resolve a model's usable context window from overrides, known map, or heuristic.
+
+        Known and catalog windows are capped at ``candidate.max_input_tokens``
+        because long-context requests are dominated by input (GPT-6 accepts at
+        most 922K input tokens of its 1.05M window). Explicit per-request
+        ``model_context_windows`` overrides are used as given.
+        """
         overrides = request.metadata.get("model_context_windows")
         if isinstance(overrides, Mapping) and candidate.model in overrides:
             try:
                 return int(overrides[candidate.model])
             except (TypeError, ValueError):
                 pass
+        input_cap = candidate.max_input_tokens
         if candidate.model in self._context_map:
-            return int(self._context_map[candidate.model])
+            window = int(self._context_map[candidate.model])
+            return window if input_cap is None else min(window, input_cap)
         if candidate.context_window > 0:
-            return int(candidate.context_window)
+            return candidate.input_token_limit
         lower = candidate.model.lower()
         if any(token in lower for token in self._LONG_CONTEXT_NAME_TOKENS):
             return self._HEURISTIC_CONTEXT_WINDOW

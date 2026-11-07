@@ -25,7 +25,10 @@ Claude Opus 5.5 / Gemini 4 / Kimi K3.1.
 3. Resolve each candidate's context window from
    `metadata.model_context_windows`, the built-in known-model map, the
    catalog `context_window`, or a name heuristic matching `gpt-5`,
-   `gpt-6`, `claude`, `gemini`, or `kimi` (default `200000`).
+   `gpt-6`, `claude`, `gemini`, or `kimi` (default `200000`). Known-map and
+   catalog windows are capped at the model's `max_input_tokens`, so GPT-6
+   (1,050,000-token window, at most 922,000 input tokens) ranks below the
+   1,048,576-token Gemini 4 Argon. Per-request overrides are used as given.
 4. Rank by `(meets_threshold desc, context_window desc, quality desc,
    cost asc)`.
 5. When the long-context signal is absent, route quality-first among

@@ -11,11 +11,14 @@ from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_FLASH_MODEL,
     GEMINI_PRO_MODEL,
+    GPT6_LONG_PROMPT_THRESHOLD_TOKENS,
+    GPT6_MAX_INPUT_TOKENS,
+    HAIKU_5_5_LONG_PROMPT_THRESHOLD_TOKENS,
     MOONSHOT_BALANCED_MODEL,
     OPENAI_BALANCED_MODEL,
     OPENAI_FRONTIER_MODEL,
 )
-from router.schemas import DomainTag, ModelCandidate, RoutingStrategyName
+from router.schemas import DomainTag, LongPromptPricing, ModelCandidate, RoutingStrategyName
 
 
 class ProviderSettings(BaseSettings):
@@ -170,9 +173,12 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
 
     Costs are provider list prices per 1K tokens (input, output) as published
     on 2026-11-06; context windows come from the provider model pages. Quality
-    scores are per-role routing priors. Gemini 4 Argon list prices rise to
-    $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8 Flash to $1.50 / $7.50
-    on 2027-01-01; override the catalog when they change.
+    scores are per-role routing priors. GPT-6 models accept at most 922K input
+    tokens of their 1.05M window and bill the whole request at 2x input / 1.5x
+    output above 272K input tokens; Claude Haiku 5.5 bills $0.50 / $2.50 per 1M
+    above 100K prompt tokens. Gemini 4 Argon list prices rise to $4 / $20 per 1M
+    tokens on 2026-12-01 and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01;
+    override the catalog when they change.
 
     Returns:
         Mapping of model names to model candidates.
@@ -186,6 +192,12 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             output_cost_per_1k=0.050,
             supports_domains={DomainTag.CODE, DomainTag.LEGAL, DomainTag.GENERAL},
             context_window=1_050_000,
+            max_input_tokens=GPT6_MAX_INPUT_TOKENS,
+            long_prompt_pricing=LongPromptPricing(
+                threshold_tokens=GPT6_LONG_PROMPT_THRESHOLD_TOKENS,
+                input_cost_per_1k=0.020,
+                output_cost_per_1k=0.075,
+            ),
             supported_regions={"us", "global"},
         ),
         OPENAI_BALANCED_MODEL: ModelCandidate(
@@ -196,6 +208,12 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             output_cost_per_1k=0.0005,
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
             context_window=1_050_000,
+            max_input_tokens=GPT6_MAX_INPUT_TOKENS,
+            long_prompt_pricing=LongPromptPricing(
+                threshold_tokens=GPT6_LONG_PROMPT_THRESHOLD_TOKENS,
+                input_cost_per_1k=0.0002,
+                output_cost_per_1k=0.00075,
+            ),
             supported_regions={"us", "global"},
         ),
         ANTHROPIC_SAFETY_MODEL: ModelCandidate(
@@ -221,6 +239,11 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             output_cost_per_1k=0.0005,
             supports_domains={DomainTag.GENERAL, DomainTag.LEGAL},
             context_window=1_000_000,
+            long_prompt_pricing=LongPromptPricing(
+                threshold_tokens=HAIKU_5_5_LONG_PROMPT_THRESHOLD_TOKENS,
+                input_cost_per_1k=0.0005,
+                output_cost_per_1k=0.0025,
+            ),
             supported_regions={"us", "eu", "global"},
         ),
         GEMINI_PRO_MODEL: ModelCandidate(

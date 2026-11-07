@@ -3,6 +3,8 @@
 from router.config import default_model_catalog
 from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
+    GEMINI_FLASH_MODEL,
+    GEMINI_PRO_MODEL,
     OPENAI_BALANCED_MODEL,
     OPENAI_FRONTIER_MODEL,
 )
@@ -76,7 +78,7 @@ def test_token_budget_excludes_models_below_needed_capacity() -> None:
 
 
 def test_token_budget_falls_back_to_largest_context_when_none_fit() -> None:
-    """When nothing fits the budget, route to the largest-context eligible model."""
+    """When nothing fits the budget, route to the eligible model accepting the largest prompt."""
     strategy = TokenBudgetStrategy(default_model_catalog())
     # tokens_needed far exceeds every catalog window and the request budget.
     request = _request(token_budget=1024, max_tokens=900)
@@ -84,8 +86,9 @@ def test_token_budget_falls_back_to_largest_context_when_none_fit() -> None:
 
     decision = strategy.choose(request, signals)
 
-    # GPT-6 models have the largest default window (1,050,000 tokens).
-    assert decision.chosen_model in {OPENAI_FRONTIER_MODEL, OPENAI_BALANCED_MODEL}
+    # GPT-6 caps input at 922,000 tokens, so the 1,048,576-token Gemini models
+    # accept the largest prompts.
+    assert decision.chosen_model in {GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL}
     assert "no model fitting" in decision.rationale
 
 

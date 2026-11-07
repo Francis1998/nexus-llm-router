@@ -17,12 +17,21 @@ from adapters.google import GoogleGeminiAdapter
 from adapters.moonshot import MoonshotAdapter
 from adapters.openai import OpenAIAdapter
 from router.config import default_model_catalog
-from router.schemas import ChatMessage, RouterRequest
+from router.model_ids import GEMINI_PRO_MODEL, OPENAI_BALANCED_MODEL
+from router.schemas import (
+    ChatMessage,
+    DomainTag,
+    LatencyRequirement,
+    RouterRequest,
+    TaskSignals,
+)
 from router.strategies import (
+    LongContextPreferStrategy,
     ModelTier,
     MultimodalInputPreferStrategy,
     StreamingPreferStrategy,
     StructuredOutputPreferStrategy,
+    TokenBudgetStrategy,
     ToolCallingPreferStrategy,
     infer_model_tier,
 )
@@ -78,6 +87,8 @@ async def _captured_payload(
         response.status_code = 200
         response.json.return_value = {
             "choices": [{"message": {"content": "ok"}}],
+            "content": [{"type": "text", "text": "ok"}],
+            "candidates": [{"content": {"parts": [{"text": "ok"}]}}],
             "usage": {"prompt_tokens": 1, "completion_tokens": 1},
         }
         return response
@@ -143,9 +154,10 @@ def test_adapter_price_tables_match_provider_list_prices(provider: str, model: s
     """Spend and budgets need real prices for every current model (unknown models cost $0)."""
     input_price, output_price = LIST_PRICES[model]
 
-    cost = _adapters()[provider].estimate_cost(model, 1_000_000, 1_000_000)
+    # 10K tokens stays below every long-prompt pricing threshold.
+    cost = _adapters()[provider].estimate_cost(model, 10_000, 10_000)
 
-    assert cost == pytest.approx(input_price + output_price)
+    assert cost == pytest.approx((input_price + output_price) * 10_000 / 1_000_000)
 
 
 def test_default_catalog_routes_to_current_models_with_matching_prices() -> None:
@@ -214,3 +226,113 @@ def test_deprecation_guard_points_retired_models_at_current_replacements(
     assert verdict.is_deprecated is True
     assert verdict.replacement == replacement
     assert verdict.severity == "warn"
+
+
+# (provider, model, threshold, base $/1M (in, out), long-prompt $/1M (in, out))
+LONG_PROMPT_TIERS = [
+    ("openai", "gpt-6-astra", 272_000, (10.0, 50.0), (20.0, 75.0)),
+    ("openai", "gpt-6.1-sol", 272_000, (2.0, 10.0), (4.0, 15.0)),
+    ("openai", "gpt-6.1-terra", 272_000, (1.0, 5.0), (2.0, 7.5)),
+    ("openai", "gpt-6-luna", 272_000, (0.10, 0.50), (0.20, 0.75)),
+    ("anthropic", "claude-haiku-5-5", 100_000, (0.10, 0.50), (0.50, 2.50)),
+]
+
+
+@pytest.mark.parametrize(("provider", "model", "threshold", "base", "long"), LONG_PROMPT_TIERS)
+def test_long_prompt_pricing_applies_to_the_whole_request(
+    provider: str,
+    model: str,
+    threshold: int,
+    base: tuple[float, float],
+    long: tuple[float, float],
+) -> None:
+    """GPT-6 (>272K input) and Haiku 5.5 (>100K prompt) bill the whole request higher."""
+
+    def usd(rates: tuple[float, float], input_tokens: int) -> float:
+        return (input_tokens * rates[0] + 1_000 * rates[1]) / 1_000_000
+
+    estimators = [lambda i, o: _adapters()[provider].estimate_cost(model, i, o)]
+    catalog = default_model_catalog()
+    if model in catalog:
+        estimators.append(catalog[model].estimate_cost)
+
+    for estimate in estimators:
+        assert estimate(threshold, 1_000) == pytest.approx(usd(base, threshold))
+        assert estimate(threshold + 1, 1_000) == pytest.approx(usd(long, threshold + 1))
+
+
+def test_token_budget_respects_gpt6_max_input_tokens() -> None:
+    """GPT-6 accepts at most 922K input tokens even though its window is 1.05M."""
+    request = RouterRequest(
+        request_id="huge-prompt",
+        messages=[ChatMessage(content="hi")],
+        token_budget=1_050_000,
+        max_tokens=1_000,
+    )
+    signals = TaskSignals(
+        complexity_score=0.5,
+        domain_tag=DomainTag.GENERAL,
+        latency_requirement=LatencyRequirement.BATCH,
+        token_budget=1_050_000,
+        prompt_tokens_estimate=1_020_000,
+    )
+
+    decision = TokenBudgetStrategy(default_model_catalog()).choose(request, signals)
+
+    assert decision.chosen_model == GEMINI_PRO_MODEL
+
+
+def test_long_context_prefer_caps_gpt6_at_max_input_tokens() -> None:
+    """A 950K-token context request cannot be served by GPT-6's 922K input limit."""
+    strategy = LongContextPreferStrategy(default_model_catalog(), CircuitBreakerRegistry())
+    request = RouterRequest(
+        request_id="long-context",
+        messages=[ChatMessage(content="hi")],
+        metadata={"min_context_tokens": 950_000},
+    )
+    signals = TaskSignals(
+        complexity_score=0.5,
+        domain_tag=DomainTag.GENERAL,
+        latency_requirement=LatencyRequirement.BATCH,
+        token_budget=4096,
+        prompt_tokens_estimate=100,
+    )
+
+    decision = strategy.choose(request, signals)
+
+    assert decision.chosen_model == GEMINI_PRO_MODEL
+    assert "context 1048576" in decision.rationale
+
+
+def test_gpt6_luna_is_structured_output_capable() -> None:
+    """Luna supports structured outputs, so JSON-preferring routes must not skip it."""
+    strategy = StructuredOutputPreferStrategy(default_model_catalog(), CircuitBreakerRegistry())
+    request = RouterRequest(request_id="json", messages=[ChatMessage(content="hi")])
+
+    assert strategy._supports_structured(OPENAI_BALANCED_MODEL, request)
+
+
+# Keys each provider rejects (or ignores) for the current models: Claude 5.x returns
+# 400 for temperature/top_p/top_k, GPT-6 rejects them unless reasoning effort is
+# ``none``, Gemini 3.x/4 ignores them, and Kimi K3.x fixes them.
+FORBIDDEN_SAMPLING_KEYS = {
+    "openai": {"temperature", "top_p", "logprobs", "top_logprobs"},
+    "anthropic": {"temperature", "top_p", "top_k"},
+    "google": {"temperature", "topP", "topK", "top_p", "top_k"},
+    "moonshot": {"temperature", "top_p", "n", "presence_penalty", "frequency_penalty"},
+}
+
+
+@pytest.mark.parametrize(
+    ("provider", "model"),
+    [(provider, model) for provider, models in CURRENT_MODELS.items() for model in models],
+)
+async def test_adapters_never_send_sampling_parameters(provider: str, model: str) -> None:
+    """Provider payloads for current models carry no sampling parameters at all."""
+    payload = await _captured_payload(provider, _adapters()[provider], model)
+    generation_config = payload.get("generationConfig")
+    sent_keys = set(payload) | (
+        set(generation_config) if isinstance(generation_config, dict) else set()
+    )
+
+    assert FORBIDDEN_SAMPLING_KEYS[provider].isdisjoint(sent_keys)

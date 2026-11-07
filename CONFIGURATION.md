@@ -544,10 +544,11 @@ See
 The `token-budget` strategy maximizes quality subject to a hard token ceiling: it
 selects the highest-quality domain-eligible model whose
 `min(context_window, request.token_budget)` can hold
-`prompt_tokens_estimate + max_tokens`. Useful for long RAG contexts across
+`prompt_tokens_estimate + max_tokens` and whose maximum input (GPT-6: 922,000
+tokens) holds the prompt. Useful for long RAG contexts across
 GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1 without risking provider
-context overflows. When no model fits it falls back to the largest-context
-eligible candidate. Requires no additional env vars; set `token_budget` on the
+context overflows. When no model fits it falls back to the eligible candidate
+accepting the largest prompt. Requires no additional env vars; set `token_budget` on the
 request (default `4096`). See
 [docs/guides/TOKEN_BUDGET_GUIDE.md](docs/guides/TOKEN_BUDGET_GUIDE.md).
 
@@ -978,10 +979,34 @@ Costs are provider list prices as of 2026-11-06 (GPT-6, Claude 5.5, Gemini 4 Arg
 Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8 Flash
 to $1.50 / $7.50 on 2027-01-01. Adapter price tables (`src/adapters/*.py`) also
 cover `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `claude-sonnet-5-5`,
-`kimi-k3.1-pro-highspeed`, and `kimi-k3`. OpenAI GPT-6 models and Kimi K3.x
-receive `max_completion_tokens`, and nexus never forwards sampling parameters
-(`temperature`, `top_p`), which GPT-6 rejects unless reasoning effort is `none`
-and Kimi K3.x fixes at `1.0` / `0.95`.
+`kimi-k3.1-pro-highspeed`, and `kimi-k3`.
+
+Provider limits that affect routing and spend:
+
+- GPT-6 models have a 1,050,000-token window but accept at most 922,000 input
+  tokens (`ModelCandidate.max_input_tokens`). `token-budget` and
+  `long-context-prefer` only treat a GPT-6 model as fitting when the prompt is
+  within that input limit.
+- Long-prompt pricing (`ModelCandidate.long_prompt_pricing` and the adapter cost
+  tables) bills the whole request at higher rates: GPT-6 at 2x input / 1.5x
+  output above 272,000 input tokens, and Claude Haiku 5.5 at $0.50 / $2.50 per 1M
+  above 100,000 prompt tokens. Budget guardrails and recorded spend use these
+  rates.
+
+### Provider parameter compatibility
+
+The current models reject or ignore sampling parameters, so the adapters send
+only the fields below. A client's `temperature` is accepted by
+`/v1/chat/completions` and `/v1/responses` (and is part of the response-cache
+key), but it is never forwarded upstream. `tests/test_model_stack_refresh.py`
+pins these payloads for every current model.
+
+| Provider | Provider rule for current models | Nexus sends |
+|---|---|---|
+| OpenAI GPT-6 | remove `temperature`, `top_p`, `logprobs`, `top_logprobs` unless reasoning effort is `none`; Astra and 6.1 Sol never support `none` | `model`, `messages`, `max_completion_tokens` (`max_tokens` only for legacy GPT-4.x / 3.5) |
+| Anthropic Claude 5.5 / Fable 5.1 | non-default `temperature`, `top_p`, or `top_k` returns HTTP 400 on every request (any value from API version `2026-10-21`); use `output_config.effort` instead | `model`, `max_tokens`, `messages`, optional `system` |
+| Google Gemini 4 Argon / 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
+| Moonshot Kimi K3.x | `temperature` is fixed at 1.0 (other values error); `top_p`, `n`, and penalties are fixed | `model`, `messages`, `max_completion_tokens` |
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
 
@@ -1434,10 +1459,11 @@ See
 The `token-budget` strategy maximizes quality subject to a hard token ceiling: it
 selects the highest-quality domain-eligible model whose
 `min(context_window, request.token_budget)` can hold
-`prompt_tokens_estimate + max_tokens`. Useful for long RAG contexts across
+`prompt_tokens_estimate + max_tokens` and whose maximum input (GPT-6: 922,000
+tokens) holds the prompt. Useful for long RAG contexts across
 GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1 without risking provider
-context overflows. When no model fits it falls back to the largest-context
-eligible candidate. Requires no additional env vars; set `token_budget` on the
+context overflows. When no model fits it falls back to the eligible candidate
+accepting the largest prompt. Requires no additional env vars; set `token_budget` on the
 request (default `4096`). See
 [docs/guides/TOKEN_BUDGET_GUIDE.md](docs/guides/TOKEN_BUDGET_GUIDE.md).
 
@@ -1687,10 +1713,34 @@ Costs are provider list prices as of 2026-11-06 (GPT-6, Claude 5.5, Gemini 4 Arg
 Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8 Flash
 to $1.50 / $7.50 on 2027-01-01. Adapter price tables (`src/adapters/*.py`) also
 cover `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `claude-sonnet-5-5`,
-`kimi-k3.1-pro-highspeed`, and `kimi-k3`. OpenAI GPT-6 models and Kimi K3.x
-receive `max_completion_tokens`, and nexus never forwards sampling parameters
-(`temperature`, `top_p`), which GPT-6 rejects unless reasoning effort is `none`
-and Kimi K3.x fixes at `1.0` / `0.95`.
+`kimi-k3.1-pro-highspeed`, and `kimi-k3`.
+
+Provider limits that affect routing and spend:
+
+- GPT-6 models have a 1,050,000-token window but accept at most 922,000 input
+  tokens (`ModelCandidate.max_input_tokens`). `token-budget` and
+  `long-context-prefer` only treat a GPT-6 model as fitting when the prompt is
+  within that input limit.
+- Long-prompt pricing (`ModelCandidate.long_prompt_pricing` and the adapter cost
+  tables) bills the whole request at higher rates: GPT-6 at 2x input / 1.5x
+  output above 272,000 input tokens, and Claude Haiku 5.5 at $0.50 / $2.50 per 1M
+  above 100,000 prompt tokens. Budget guardrails and recorded spend use these
+  rates.
+
+### Provider parameter compatibility
+
+The current models reject or ignore sampling parameters, so the adapters send
+only the fields below. A client's `temperature` is accepted by
+`/v1/chat/completions` and `/v1/responses` (and is part of the response-cache
+key), but it is never forwarded upstream. `tests/test_model_stack_refresh.py`
+pins these payloads for every current model.
+
+| Provider | Provider rule for current models | Nexus sends |
+|---|---|---|
+| OpenAI GPT-6 | remove `temperature`, `top_p`, `logprobs`, `top_logprobs` unless reasoning effort is `none`; Astra and 6.1 Sol never support `none` | `model`, `messages`, `max_completion_tokens` (`max_tokens` only for legacy GPT-4.x / 3.5) |
+| Anthropic Claude 5.5 / Fable 5.1 | non-default `temperature`, `top_p`, or `top_k` returns HTTP 400 on every request (any value from API version `2026-10-21`); use `output_config.effort` instead | `model`, `max_tokens`, `messages`, optional `system` |
+| Google Gemini 4 Argon / 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
+| Moonshot Kimi K3.x | `temperature` is fixed at 1.0 (other values error); `top_p`, `n`, and penalties are fixed | `model`, `messages`, `max_completion_tokens` |
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
 
