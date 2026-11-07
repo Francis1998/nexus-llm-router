@@ -15,7 +15,7 @@ from time import time
 from typing import Any, Literal
 from uuid import uuid4
 
-from api.errors import ROUTING_ERRORS, GatewayError, routing_error
+from api.errors import ROUTING_ERRORS, GatewayError, conversation_error, routing_error
 from api.schemas import (
     NexusRoutingMetadata,
     ResponseCreateRequest,
@@ -122,7 +122,8 @@ def to_router_messages(payload: ResponseCreateRequest) -> list[ChatMessage]:
         Router chat messages in conversation order.
 
     Raises:
-        GatewayError: 400 when ``input`` is missing or contains non-text items.
+        GatewayError: 400 when ``input`` is missing, contains non-text items, or
+            holds only system/developer instructions.
     """
     messages: list[ChatMessage] = []
     if payload.instructions:
@@ -146,6 +147,8 @@ def to_router_messages(payload: ResponseCreateRequest) -> list[ChatMessage]:
         )
     for index, item in enumerate(payload.input):
         messages.append(_input_item_to_message(item, index))
+    if (error := conversation_error(messages, "input")) is not None:
+        raise error
     return messages
 
 

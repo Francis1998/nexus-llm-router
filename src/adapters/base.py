@@ -7,7 +7,21 @@ from router.schemas import ChatMessage, ProviderResponse
 
 
 class ProviderError(RuntimeError):
-    """Raised when a provider request fails."""
+    """Raised when a provider request fails.
+
+    ``status_code`` is the provider's HTTP status when it answered with an error,
+    or ``None`` when no response was received (missing credentials, network).
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        """Initialize the error.
+
+        Args:
+            message: Human-readable failure description.
+            status_code: Provider HTTP status, when the provider answered.
+        """
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class BaseProviderAdapter(ABC):

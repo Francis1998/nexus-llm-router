@@ -121,7 +121,10 @@ class AnthropicAdapter(BaseProviderAdapter):
                 headers=headers,
             )
         if response.status_code >= 400:
-            raise ProviderError(f"anthropic request failed with status {response.status_code}")
+            raise ProviderError(
+                f"anthropic request failed with status {response.status_code}",
+                status_code=response.status_code,
+            )
         body = json_object(response)
         content = _extract_anthropic_text(body.get("content", []))
         input_tokens = nested_int(body, ["usage", "input_tokens"])

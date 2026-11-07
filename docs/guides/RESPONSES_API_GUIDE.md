@@ -189,7 +189,8 @@ Failure semantics:
   failed) are returned as normal HTTP errors (see [Errors](#errors)), exactly
   like non-streaming requests: nexus pulls the stream until its first non-empty
   chunk before it starts the event stream. Provider failures before any text
-  still fall back to the next candidate.
+  still fall back to the next candidate, except a provider's 400 / 413 / 422
+  rejection of the request itself, which is returned as that HTTP error.
 - Once text has streamed, nexus **never falls back**: a second provider's
   answer would be spliced onto the partial one. A provider failure then ends
   the stream with a single `response.failed` event: `response.status:
@@ -295,15 +296,17 @@ typed exceptions (`BadRequestError`, `RateLimitError`, …).
 | --- | --- | --- | --- |
 | 400 | `invalid_request_error` | `unsupported_parameter` | A rejected feature from the table above (`param` names it). |
 | 400 | `invalid_request_error` | `unsupported_value` | Non-text content part or non-message input item (`param` like `input[0].content[1].type`). |
-| 400 | `invalid_request_error` | `missing_required_parameter` / `empty_array` / `invalid_value` / `invalid_type` | Missing or empty `input`, out-of-range values, bad roles or types, malformed `text.format`, unknown `X-Router-Strategy`. |
+| 400 | `invalid_request_error` | `missing_required_parameter` / `empty_array` / `invalid_value` / `invalid_type` | Missing or empty `input`, `input` with only system/developer messages, out-of-range values, bad roles or types, malformed `text.format`, unknown `X-Router-Strategy`. |
 | 400 | `invalid_request_error` | `null` | Body is not valid JSON. |
 | 409 | `invalid_request_error` | `idempotency_key_in_use` | Another request with the same `Idempotency-Key` is still running; retry after it completes to get the replay. |
 | 429 | `rate_limit_error` | `rate_limit_exceeded` | Per-key router rate limit or `X-Tenant-Id` bucket exhausted. |
 | 402 | `budget_exceeded` | `budget_exceeded` | Budget guardrail rejected the request. |
+| 400 / 413 / 422 | `invalid_request_error` | `provider_rejected_request` | The routed provider rejected the request itself (for example a prompt longer than its context window). Nexus returns the provider's status without trying fallbacks or counting it against the provider's circuit breaker. |
 | 503 | `routing_failed` | `routing_failed` | Every provider attempt in the fallback chain failed (including candidates skipped by the budget cap). |
 
 Other routes keep their existing error formats (`/v1/chat/completions` still
-returns FastAPI `{"detail": ...}` bodies and 422 validation errors).
+returns FastAPI `{"detail": ...}` bodies and 422 validation errors; only an empty
+or system-only `messages` array gets an OpenAI-style 400 there).
 
 ## Routing metadata
 

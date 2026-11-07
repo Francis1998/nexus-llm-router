@@ -14,7 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from adapters.registry import AdapterRegistry, build_adapter_registry
-from api.errors import ROUTING_ERRORS, GatewayError, routing_error
+from api.errors import ROUTING_ERRORS, GatewayError, conversation_error, routing_error
 from api.models import model_object
 from api.responses import (
     RESPONSES_PATH,
@@ -359,6 +359,8 @@ async def chat_completions(
     Raises:
         HTTPException: If routing fails or safety controls reject the request.
     """
+    if (invalid := conversation_error(payload.messages, "messages")) is not None:
+        return JSONResponse(status_code=invalid.status_code, content=invalid.to_openai_body())
     try:
         strategy = _parse_strategy(x_router_strategy)
         caller = _admit_caller(request, x_tenant_id, payload.user)
@@ -622,7 +624,8 @@ def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:
             yield f"data: {json.dumps(error)}\n\n"
             yield "data: [DONE]\n\n"
         except RoutingFailedError as exception:
-            error = {"error": {"message": str(exception), "type": "routing_failed"}}
+            error_type = routing_error(exception).error_type
+            error = {"error": {"message": str(exception), "type": error_type}}
             yield f"data: {json.dumps(error)}\n\n"
             yield "data: [DONE]\n\n"
 

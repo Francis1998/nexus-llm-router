@@ -85,7 +85,10 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
             response = await client.post(url, json=payload, headers=headers)
         if response.status_code >= 400:
-            raise ProviderError(f"google request failed with status {response.status_code}")
+            raise ProviderError(
+                f"google request failed with status {response.status_code}",
+                status_code=response.status_code,
+            )
         body = json_object(response)
         candidates = body.get("candidates", [])
         content = _extract_gemini_text(candidates)
