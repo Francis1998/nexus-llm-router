@@ -115,18 +115,31 @@ def test_reservation_is_atomic_across_processes(tmp_path: Path) -> None:
     """Independent workers sharing one SQLite file: exactly one wins the key."""
     context = multiprocessing.get_context("spawn")
     workers = 4
-    start, attempted, results = context.Barrier(workers), context.Barrier(workers), context.Queue()
+    # Barrier timeouts and daemon workers keep a failing worker from hanging CI.
+    start = context.Barrier(workers, timeout=30)
+    attempted = context.Barrier(workers, timeout=30)
+    results = context.Queue()
     db_path = str(tmp_path / "idempotency.sqlite3")
     IdempotencyStore(db_path)
     processes = [
-        context.Process(target=_race_for_key, args=(db_path, start, attempted, results))
+        context.Process(
+            target=_race_for_key, args=(db_path, start, attempted, results), daemon=True
+        )
         for _ in range(workers)
     ]
-    for process in processes:
-        process.start()
-    outcomes = sorted(results.get(timeout=30) for _ in range(workers))
-    for process in processes:
-        process.join(timeout=30)
+    try:
+        for process in processes:
+            process.start()
+        outcomes = sorted(results.get(timeout=30) for _ in range(workers))
+        for process in processes:
+            process.join(timeout=30)
+    finally:
+        for process in processes:
+            if process.pid is None:
+                continue
+            if process.is_alive():
+                process.terminate()
+            process.join(timeout=5)
 
     assert outcomes == ["in_use"] * (workers - 1) + ["reserved"]
     assert [process.exitcode for process in processes] == [0] * workers
