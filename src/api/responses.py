@@ -53,7 +53,9 @@ def reject_unsupported(payload: ResponseCreateRequest) -> None:
         GatewayError: 400 ``unsupported_parameter`` naming the offending field.
     """
     text_format = (payload.text or {}).get("format")
-    format_type = text_format.get("type") if isinstance(text_format, Mapping) else None
+    # Anything but an explicit {"type": "text"} (including malformed values) would
+    # otherwise be silently answered as plain text.
+    format_type = text_format.get("type") if isinstance(text_format, Mapping) else text_format
     stateless = "nexus is stateless; resend earlier turns in `input`"
     checks = (
         ("previous_response_id", payload.previous_response_id is not None, stateless),
@@ -67,7 +69,11 @@ def reject_unsupported(payload: ResponseCreateRequest) -> None:
             "tool calling is not routed by this endpoint",
         ),
         ("prompt", payload.prompt is not None, "send the rendered prompt text in `input`"),
-        ("text.format", format_type not in (None, "text"), "only plain-text output is supported"),
+        (
+            "text.format",
+            text_format is not None and format_type != "text",
+            "only plain-text output is supported",
+        ),
     )
     for param, rejected, reason in checks:
         if rejected:

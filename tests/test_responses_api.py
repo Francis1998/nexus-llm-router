@@ -265,6 +265,8 @@ def test_message_items_parts_and_instructions_map_to_router_messages(
         ("tool_choice", "required"),
         ("prompt", {"id": "pmpt_123"}),
         ("text", {"format": {"type": "json_schema", "name": "x", "schema": {}}}),
+        ("text", {"format": "json_object"}),
+        ("text", {"format": {}}),
     ],
 )
 def test_unsupported_features_are_rejected_with_openai_400(

@@ -209,7 +209,7 @@ of being silently dropped.
 | `previous_response_id`, `conversation` | Rejected | Stateless; resend history in `input`. |
 | `tools` (non-empty), `tool_choice` (other than `auto`/`none`) | Rejected | Tool calling is not routed by this endpoint yet. |
 | `prompt` | Rejected | Prompt templates are not stored; send rendered text. |
-| `text.format` other than `text` | Rejected | No structured outputs (`json_schema` / `json_object`). |
+| `text.format` other than `{"type": "text"}` | Rejected | No structured outputs (`json_schema` / `json_object`); malformed formats are rejected too rather than answered as plain text. |
 | `input_image`, `input_file`, `input_audio` parts | Rejected | Nexus routes text-only messages. |
 | Non-message input items (`function_call_output`, `item_reference`, `reasoning`, …) | Rejected | Text messages only. |
 | `top_p`, `reasoning`, `include`, `truncation`, `service_tier`, `parallel_tool_calls`, `prompt_cache_key`, `stream_options`, other unknown fields | Ignored | Accepted for SDK compatibility, not applied. |
