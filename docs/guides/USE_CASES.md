@@ -9,8 +9,8 @@ and the audit log run for real.
 | Scenario | Problem | Nexus features used |
 | --- | --- | --- |
 | [1. Cut spend for a support assistant](#1-cut-spend-for-a-support-assistant) | every message hits the most expensive model | `cost-optimal` and `rule-based` routing, spend ledger, key fingerprints |
-| [2. Move an OpenAI SDK app behind nexus](#2-move-an-openai-sdk-app-behind-nexus) | multi-tenant app needs fair limits and safe retries without rewriting SDK code | Responses API, `X-Tenant-Id` rate limits, `Idempotency-Key` replay |
-| [3. Route regulated requests with an audit trail](#3-route-regulated-requests-with-an-audit-trail) | clinical questions must stay on the safety model, with proof afterwards | domain-aware routing, audit log, PII scrubbing |
+| [2. Move an OpenAI SDK app behind nexus](#2-move-an-openai-sdk-app-behind-nexus) | multi-tenant app needs fair limits and replayable retries without rewriting SDK code | Responses API, `X-Tenant-Id` rate limits, `Idempotency-Key` replay |
+| [3. Route regulated requests with an audit trail](#3-route-regulated-requests-with-an-audit-trail) | clinical questions should go to the safety model first, with a record afterwards | domain-aware routing with fallback, audit log, PII scrubbing |
 
 ## Setup
 
@@ -106,17 +106,23 @@ What to notice:
 - Recorded `cost_usd` comes from the provider adapter. The mock adapter bills a
   flat $0.001 per 1K tokens; real adapters bill the list prices in the README's
   [Current Model Stack](../../README.md#current-model-stack) table, including
-  long-prompt tiers. `NEXUS_BUDGET_CAP_USD` (default `25`) rejects a request
-  before dispatch when its estimate would push a user or session over the cap.
+  long-prompt tiers.
+- `NEXUS_BUDGET_CAP_USD` (default `25`) is an in-memory spend cap per user: the
+  request's `user` field, otherwise the API key fingerprint. Before dispatch, a
+  candidate whose estimate would exceed the remaining budget is skipped, so a
+  cheaper fallback may still serve the request. If every candidate is skipped,
+  the request fails with HTTP 503 (`all provider attempts failed: budget cap
+  exceeded ...`).
 
 ## 2. Move an OpenAI SDK app behind nexus
 
 **Situation.** A product already uses the official OpenAI SDK and the Responses
 API. It serves several customers (tenants) and retries failed calls, and a retry
-must not run or bill a request twice.
+of a completed request should not run or bill it twice.
 
 **With nexus.** Change `base_url` and keep the SDK. Add `X-Tenant-Id` for
-per-tenant rate limits and `Idempotency-Key` for safe retries.
+per-tenant rate limits and `Idempotency-Key` so a retry of a completed request
+replays the stored response.
 
 `usecase_sdk.py`:
 
@@ -163,7 +169,10 @@ ping 3: HTTP 429 {'message': 'tenant rate limit exceeded for acme', 'type': 'rat
 What to notice:
 
 - The retry with the same `Idempotency-Key` replayed the stored response (same
-  `resp_...` id) instead of calling a provider again.
+  `resp_...` id) instead of calling a provider again. Replays cover completed
+  requests only: a retry that arrives while the original request is still
+  running is routed, and billed, again (see
+  [Known limitations](RESPONSES_API_GUIDE.md#known-limitations)).
 - `model="gpt-6-luna"` is a hint. For this short prompt the default `rule-based`
   strategy preferred `gemini-3.8-flash`, and `response.model` reports the model
   that actually served it. [Choosing a model](RESPONSES_API_GUIDE.md#choosing-a-model)
@@ -181,8 +190,9 @@ What to notice:
 **Situation.** A health-tech team must keep clinical questions on the most
 safety-focused model and prove afterwards which model answered and why.
 
-**With nexus.** Domain-aware rules send medical and legal prompts to Claude
-Opus 5.5, and every request is appended to a JSONL audit log.
+**With nexus.** The `rule-based` policy routes medical and legal prompts to
+Claude Opus 5.5 first, and each successful completion is appended to a JSONL
+audit log.
 
 ```bash
 curl -s localhost:8000/v1/chat/completions -H 'content-type: application/json' \
@@ -223,9 +233,17 @@ What to notice:
 - The prompt was classified as medical, and the rule-based policy routed it to
   `claude-opus-5-5`; legal prompts take the same path ("legal domain favors
   Claude policy reasoning").
+- Opus is the primary choice, not a hard restriction. If Anthropic fails, its
+  circuit is open, or the request would exceed the budget cap, the fallback
+  chain can serve the request from another provider's model, and other
+  strategies may choose differently. `response.model` and the audit record
+  always name the model that answered.
 - The audit record ties the `request_id` returned to the client to the model,
   provider, strategy, rationale, latency, tokens, cost, and final state. It
   does not store the prompt text.
+- The log records successful provider completions only. Cache hits,
+  idempotency replays, and rejected or failed requests do not append records,
+  so pair it with gateway logs when every request must be accounted for.
 - Set `NEXUS_ENABLE_PII_SCRUBBING=true` to redact email addresses and US phone
   numbers before dispatch ([SAFETY.md](../../SAFETY.md#pii-scrubbing)).
 
