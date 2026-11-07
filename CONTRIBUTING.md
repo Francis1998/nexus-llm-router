@@ -51,6 +51,26 @@ Offline advisor and guard modules live in `src/safety/`, each with a guide in
   [Current Model Stack](README.md#current-model-stack) table instead of
   hard-coding older model names.
 
+## Re-rendering a Strategy Demo
+
+Strategy guides embed GIFs that `scripts/render_strategy_demos.py` renders from
+real routing decisions: the in-process app with mock providers (no network, no
+API keys) answers one request without and one with the guide's documented signal.
+
+```bash
+PYTHONPATH=src python scripts/render_strategy_demos.py --only token-rpm-ceiling  # one demo
+PYTHONPATH=src python scripts/render_strategy_demos.py --check  # print decisions, write nothing
+PYTHONPATH=src python scripts/render_strategy_demos.py          # every demo
+```
+
+- Re-render after changing a strategy's signal keys, rationale, or the guide's
+  example, and commit the GIF at the path the guide embeds (the script writes there).
+- For a new strategy guide, add a `Scenario` to `SCENARIOS` with the guide's
+  documented metadata, or with the warm-up traffic that produces the runtime state
+  the strategy reads. The script fails when the signal changes nothing.
+- Never hand-draw demo output. `tests/test_demo_gifs_real.py` rejects embedded GIFs
+  that are missing, are not GIFs, are smaller than 200×100 px, or are under 2 KB.
+
 ## Commit Message Format
 
 ```text
