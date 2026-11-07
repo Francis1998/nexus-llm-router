@@ -41,21 +41,20 @@ _ROLES: dict[str, _RouterRole] = {
 # and ``refusal`` appear when clients replay earlier assistant output items.
 _TEXT_PART_FIELDS = {"input_text": "text", "output_text": "text", "refusal": "refusal"}
 _PASSIVE_TOOL_CHOICES = (None, "auto", "none")
+_TEXT_FORMAT_TYPES = ("text", "json_schema", "json_object")
 
 
 def reject_unsupported(payload: ResponseCreateRequest) -> None:
-    """Reject Responses API features that nexus cannot honor.
+    """Reject malformed or unsupported Responses API features.
 
     Args:
         payload: Parsed request body.
 
     Raises:
-        GatewayError: 400 ``unsupported_parameter`` naming the offending field.
+        GatewayError: 400 ``invalid_value`` for a malformed ``text.format`` or
+            ``unsupported_parameter`` naming a feature nexus cannot honor.
     """
-    text_format = (payload.text or {}).get("format")
-    # Anything but an explicit {"type": "text"} (including malformed values) would
-    # otherwise be silently answered as plain text.
-    format_type = text_format.get("type") if isinstance(text_format, Mapping) else text_format
+    format_type = _text_format_type(payload.text)
     stateless = "nexus is stateless; resend earlier turns in `input`"
     checks = (
         ("previous_response_id", payload.previous_response_id is not None, stateless),
@@ -69,11 +68,7 @@ def reject_unsupported(payload: ResponseCreateRequest) -> None:
             "tool calling is not routed by this endpoint",
         ),
         ("prompt", payload.prompt is not None, "send the rendered prompt text in `input`"),
-        (
-            "text.format",
-            text_format is not None and format_type != "text",
-            "only plain-text output is supported",
-        ),
+        ("text.format", format_type not in (None, "text"), "only plain-text output is supported"),
     )
     for param, rejected, reason in checks:
         if rejected:
@@ -84,6 +79,34 @@ def reject_unsupported(payload: ResponseCreateRequest) -> None:
                 code="unsupported_parameter",
                 param=param,
             )
+
+
+def _text_format_type(text: Mapping[str, Any] | None) -> str | None:
+    """Return the requested ``text.format.type``; malformed formats are a 400.
+
+    Silently answering a malformed format as plain text would hide client bugs
+    such as a structured-output request with a typo.
+    """
+    text_format = (text or {}).get("format")
+    if text_format is None:
+        return None
+    if not isinstance(text_format, Mapping):
+        raise GatewayError(
+            400,
+            "Invalid type for 'text.format': expected an object.",
+            code="invalid_value",
+            param="text.format",
+        )
+    format_type = text_format.get("type")
+    if not isinstance(format_type, str) or format_type not in _TEXT_FORMAT_TYPES:
+        raise GatewayError(
+            400,
+            "Invalid value for 'text.format.type': expected one of 'text', 'json_schema', "
+            "or 'json_object'.",
+            code="invalid_value",
+            param="text.format.type",
+        )
+    return format_type
 
 
 def to_router_messages(payload: ResponseCreateRequest) -> list[ChatMessage]:

@@ -265,8 +265,7 @@ def test_message_items_parts_and_instructions_map_to_router_messages(
         ("tool_choice", "required"),
         ("prompt", {"id": "pmpt_123"}),
         ("text", {"format": {"type": "json_schema", "name": "x", "schema": {}}}),
-        ("text", {"format": "json_object"}),
-        ("text", {"format": {}}),
+        ("text", {"format": {"type": "json_object"}}),
     ],
 )
 def test_unsupported_features_are_rejected_with_openai_400(
@@ -280,6 +279,28 @@ def test_unsupported_features_are_rejected_with_openai_400(
     error = _assert_openai_error(response, 400, "unsupported_parameter")
     assert error["type"] == "invalid_request_error"
     assert error["param"] == ("text.format" if field == "text" else field)
+    assert gw.dispatched == []
+
+
+@pytest.mark.parametrize(
+    ("text", "param"),
+    [
+        ("plain", "text"),
+        ({"format": "json_object"}, "text.format"),
+        ({"format": {}}, "text.format.type"),
+        ({"format": {"type": "yaml"}}, "text.format.type"),
+        ({"format": {"type": {"nested": "text"}}}, "text.format.type"),
+    ],
+)
+def test_malformed_text_format_is_rejected_as_invalid_value(
+    gateway: GatewayFactory, text: object, param: str
+) -> None:
+    """Malformed ``text``/``text.format`` is a 400 instead of a silent plain-text answer."""
+    gw = gateway()
+
+    error = _assert_openai_error(gw.create({"input": "hi", "text": text}), 400, "invalid_value")
+
+    assert error["param"] == param
     assert gw.dispatched == []
 
 
