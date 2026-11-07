@@ -30,7 +30,9 @@ def main() -> None:
 
     model = client.models.retrieve(args.model)
     nexus = (model.model_extra or {})["nexus"]
-    print(f"\n{model.id}: max input {nexus['max_input_tokens']:,} tokens")
+    # ``max_input_tokens`` is null when the input limit is the full context window.
+    max_input = nexus["max_input_tokens"] or nexus["context_window"]
+    print(f"\n{model.id}: max input {max_input:,} tokens")
     print(f"  long-prompt pricing: {nexus['pricing']['long_prompt']}")
     print(f"  capabilities: {', '.join(nexus['capabilities'])}")
 
