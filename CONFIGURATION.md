@@ -547,8 +547,9 @@ selects the highest-quality domain-eligible model whose
 `prompt_tokens_estimate + max_tokens` and whose maximum input (GPT-6: 922,000
 tokens) holds the prompt. Useful for long RAG contexts across
 GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1 without risking provider
-context overflows. When no model fits it falls back to the eligible candidate
-accepting the largest prompt. Requires no additional env vars; set `token_budget` on the
+context overflows. Fallback chains only contain other fitting models. When no
+model fits it falls back to the eligible candidate with the most prompt room
+after reserving `max_tokens`. Requires no additional env vars; set `token_budget` on the
 request (default `4096`). See
 [docs/guides/TOKEN_BUDGET_GUIDE.md](docs/guides/TOKEN_BUDGET_GUIDE.md).
 
@@ -1462,8 +1463,9 @@ selects the highest-quality domain-eligible model whose
 `prompt_tokens_estimate + max_tokens` and whose maximum input (GPT-6: 922,000
 tokens) holds the prompt. Useful for long RAG contexts across
 GPT-6, Claude Opus 5.5, Gemini 4, and Kimi K3.1 without risking provider
-context overflows. When no model fits it falls back to the eligible candidate
-accepting the largest prompt. Requires no additional env vars; set `token_budget` on the
+context overflows. Fallback chains only contain other fitting models. When no
+model fits it falls back to the eligible candidate with the most prompt room
+after reserving `max_tokens`. Requires no additional env vars; set `token_budget` on the
 request (default `4096`). See
 [docs/guides/TOKEN_BUDGET_GUIDE.md](docs/guides/TOKEN_BUDGET_GUIDE.md).
 

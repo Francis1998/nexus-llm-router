@@ -2465,10 +2465,12 @@ class TokenBudgetStrategy(RoutingStrategy):
     ``min(candidate.context_window, request.token_budget)``. A candidate fits when
     ``prompt_tokens_estimate + max_tokens <=`` that capacity and the prompt alone
     stays within the model's maximum input (``ModelCandidate.input_token_limit``;
-    GPT-6 accepts at most 922K input tokens of its 1.05M window). When no
-    candidate fits (for example an oversized prompt against a tight budget), it
-    falls back to the eligible model accepting the largest prompt so the request
-    still routes deterministically rather than failing at decide time.
+    GPT-6 accepts at most 922K input tokens of its 1.05M window). The fallback
+    chain only contains other fitting candidates. When no candidate fits (for
+    example an oversized prompt against a tight budget), it falls back to the
+    eligible model with the largest prompt capacity after reserving
+    ``max_tokens`` for the completion, so the request still routes
+    deterministically rather than failing at decide time.
     """
 
     strategy_name = RoutingStrategyName.TOKEN_BUDGET
@@ -2486,6 +2488,10 @@ class TokenBudgetStrategy(RoutingStrategy):
         def effective_capacity(candidate: ModelCandidate) -> int:
             return min(candidate.context_window, request.token_budget)
 
+        def prompt_capacity(candidate: ModelCandidate) -> int:
+            # Largest prompt the model accepts while reserving ``max_tokens`` of output.
+            return min(candidate.input_token_limit, candidate.context_window - request.max_tokens)
+
         fitting_candidates = [
             candidate
             for candidate in eligible_candidates
@@ -2493,36 +2499,48 @@ class TokenBudgetStrategy(RoutingStrategy):
             and signals.prompt_tokens_estimate <= candidate.input_token_limit
         ]
         if fitting_candidates:
-            selected_candidate = max(
+            ranked = sorted(
                 fitting_candidates,
-                key=lambda candidate: (
-                    candidate.quality_score,
-                    candidate.context_window,
-                ),
+                key=lambda candidate: (candidate.quality_score, candidate.context_window),
+                reverse=True,
             )
+            selected_candidate = ranked[0]
             rationale = (
                 f"token-budget selected highest quality {selected_candidate.quality_score:.2f} "
                 f"fitting {tokens_needed} tokens within "
                 f"min(context={selected_candidate.context_window}, "
                 f"budget={request.token_budget})"
             )
-            return self._decision(selected_candidate.model, rationale)
+            return self._ranked_decision(ranked, rationale)
 
-        selected_candidate = max(
+        ranked = sorted(
             eligible_candidates,
             key=lambda candidate: (
-                candidate.input_token_limit,
+                prompt_capacity(candidate),
                 candidate.context_window,
                 candidate.quality_score,
             ),
+            reverse=True,
         )
+        selected_candidate = ranked[0]
         rationale = (
             f"token-budget found no model fitting {tokens_needed} tokens within "
-            f"budget {request.token_budget}; routed to largest-input model "
-            f"(max input {selected_candidate.input_token_limit}, "
-            f"context {selected_candidate.context_window})"
+            f"budget {request.token_budget}; routed to largest prompt capacity "
+            f"{prompt_capacity(selected_candidate)} after reserving {request.max_tokens} "
+            f"completion tokens (context {selected_candidate.context_window})"
         )
-        return self._decision(selected_candidate.model, rationale)
+        return self._ranked_decision(ranked, rationale)
+
+    def _ranked_decision(self, ranked: list[ModelCandidate], rationale: str) -> RoutingDecision:
+        """Route to the first ranked candidate and fall back through the next three."""
+        selected = ranked[0]
+        return RoutingDecision(
+            chosen_model=selected.model,
+            provider=selected.provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=[candidate.model for candidate in ranked[1:4]],
+        )
 
 
 class ABRoutingStrategy(RoutingStrategy):
