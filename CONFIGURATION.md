@@ -2480,7 +2480,7 @@ key and scope gets HTTP 409 instead of a second provider call. After the
 original completes, retries replay its response; if it fails, the key is
 released. A reservation left by a crashed process expires after the lease.
 Keep the lease longer than your slowest request (fallback attempts times
-`NEXUS_REQUEST_TIMEOUT_SECONDS`), or a long-running original can lose its key.
+`REQUEST_TIMEOUT_SECONDS`), or a long-running original can lose its key.
 `NEXUS_TENANT_RATE_LIMIT_CAPACITY` is the per-tenant token-bucket size.
 `NEXUS_TENANT_RATE_LIMIT_REFILL_PER_SECOND` is the per-tenant refill rate.
 See [docs/guides/GATEWAY_GUARDS_GUIDE.md](docs/guides/GATEWAY_GUARDS_GUIDE.md).
