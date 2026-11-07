@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from adapters.registry import AdapterRegistry, build_adapter_registry
 from api.errors import ROUTING_ERRORS, GatewayError, routing_error
+from api.models import model_object
 from api.responses import (
     RESPONSES_PATH,
     complete_response,
@@ -29,6 +30,9 @@ from api.schemas import (
     DEFAULT_MAX_TOKENS,
     ChatCompletionRequest,
     ChatCompletionResponse,
+    ModelHealth,
+    ModelList,
+    ModelObject,
     ResponseCreateRequest,
     ResponseObject,
     SpendRecordRequest,
@@ -279,6 +283,57 @@ async def _complete_cached(
         raise routing_error(exception) from exception
     cache.set(cache_key, router_response)
     return router_response
+
+
+async def _provider_model_health(router: NexusRouter) -> dict[str, ModelHealth]:
+    """Return live health for every provider in the router catalog."""
+    adapters = dict(get_adapter_registry().items())
+    health: dict[str, ModelHealth] = {}
+    for provider in {candidate.provider for candidate in router.model_catalog.values()}:
+        adapter = adapters.get(provider)
+        health[provider] = ModelHealth(
+            api_key_configured=adapter is not None and await adapter.health_check(),
+            routable=router.provider_routable(provider),
+        )
+    return health
+
+
+@app.get("/v1/models")
+async def list_models() -> ModelList:
+    """List routable catalog models in the OpenAI format, with nexus metadata.
+
+    Returns:
+        OpenAI ``list`` of ``model`` objects in catalog order.
+    """
+    router = get_router()
+    health = await _provider_model_health(router)
+    return ModelList(
+        data=[
+            model_object(candidate, health[candidate.provider])
+            for candidate in router.model_catalog.values()
+        ]
+    )
+
+
+@app.get("/v1/models/{model_id}", response_model=None)
+async def retrieve_model(model_id: str) -> ModelObject | JSONResponse:
+    """Return one catalog model, or an OpenAI-style 404 for unknown ids.
+
+    Args:
+        model_id: Model identifier such as ``gpt-6-astra``.
+
+    Returns:
+        The ``model`` object, or a ``model_not_found`` error envelope.
+    """
+    router = get_router()
+    candidate = router.model_catalog.get(model_id)
+    if candidate is None:
+        error = GatewayError(
+            404, f"The model '{model_id}' does not exist", param="model", code="model_not_found"
+        )
+        return JSONResponse(status_code=404, content=error.to_openai_body())
+    health = await _provider_model_health(router)
+    return model_object(candidate, health[candidate.provider])
 
 
 @app.post("/v1/chat/completions", response_model=None)

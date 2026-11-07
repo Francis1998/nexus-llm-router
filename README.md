@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-2029%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-2034%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -112,7 +112,7 @@ Mock providers answer `[<model>] routed response`; routing, budgets, rate limits
 
 | Area | What ships | Learn more |
 | --- | --- | --- |
-| OpenAI-compatible API | `POST /v1/chat/completions` (with SSE streaming), `POST /v1/responses` (OpenAI Responses API and its SSE event stream), `GET`/`POST /v1/spend`, `GET /health`, `GET /metrics` | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md), [SSE streaming guide](docs/guides/SSE_STREAMING_GUIDE.md) |
+| OpenAI-compatible API | `POST /v1/chat/completions` (with SSE streaming), `POST /v1/responses` (OpenAI Responses API and its SSE event stream), `GET /v1/models` (model discovery with pricing, limits, and health), `GET`/`POST /v1/spend`, `GET /health`, `GET /metrics` | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md), [Models API guide](docs/guides/MODELS_API_GUIDE.md), [SSE streaming guide](docs/guides/SSE_STREAMING_GUIDE.md) |
 | Routing | 124 strategies chosen per request with `X-Router-Strategy` (default `rule-based`), from cost-optimal and latency-aware to token-budget, long-context, A/B, and canary routing | [Routing Strategies](#routing-strategies), [CONFIGURATION.md](CONFIGURATION.md) |
 | Reliability | per-provider circuit breakers, health-ranked fallback chains, and no fallback splicing once a stream has started | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md), [Fallback scoreboard guide](docs/guides/FALLBACK_SCOREBOARD_GUIDE.md) |
 | Cost control | provider list prices (including long-prompt tiers), pre-dispatch budget caps, a durable spend ledger, and Prometheus cost metrics | [Built-in model catalog](CONFIGURATION.md#built-in-model-catalog) |
@@ -150,6 +150,7 @@ Each request moves `RECEIVED → CLASSIFIED → ROUTED → DISPATCHED → RESPON
 | run nexus locally, step by step | [QUICKSTART.md](QUICKSTART.md) |
 | follow three end-to-end scenarios with real output | [Use cases](docs/guides/USE_CASES.md) |
 | call nexus through the OpenAI Responses API | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) |
+| fill a client's model picker with nexus models | [Models API guide](docs/guides/MODELS_API_GUIDE.md) |
 | configure strategies, budgets, limits, and models | [CONFIGURATION.md](CONFIGURATION.md) |
 | understand the request lifecycle | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | review guardrails and the security policy | [SAFETY.md](SAFETY.md), [SECURITY.md](SECURITY.md) |
@@ -177,6 +178,10 @@ The adapters also price `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `cla
 ## Demo Gallery
 
 The OpenAI Responses API demo is the hero GIF at the top of this page.
+
+Model discovery (`GET /v1/models`) with the official OpenAI SDK:
+
+![Nexus models API demo](assets/demo/models-api.gif)
 
 Request cost forecast demo:
 
@@ -312,6 +317,7 @@ Soft rate-limit avoidance demo:
 - **Semantic fuzzy cache** (trigram Jaccard) for near-duplicate prompts
 - **SSE streaming** for `stream=true` chat completions
 - **OpenAI Responses API** (`POST /v1/responses`): text-only subset with the official SSE event stream, OpenAI error envelopes, and a `nexus` routing block — see `docs/guides/RESPONSES_API_GUIDE.md`
+- **Model discovery** (`GET /v1/models`, `GET /v1/models/{id}`): OpenAI-compatible model list for client model pickers, with nexus pricing, token limits, capabilities, and live provider health — see `docs/guides/MODELS_API_GUIDE.md`
 - **Router engine** with configurable strategies
 - **Adapter pipeline** with full observability
 - **Async-first** design using `asyncio` + `httpx`
@@ -568,6 +574,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Architecture](ARCHITECTURE.md) | System design and component overview |
 | [Configuration](CONFIGURATION.md) | All configuration options |
 | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) | OpenAI Responses API compatibility (`POST /v1/responses`), streaming events, supported fields |
+| [Models API guide](docs/guides/MODELS_API_GUIDE.md) | OpenAI-compatible model discovery (`GET /v1/models`) with pricing, limits, capabilities, and live health |
 | [Use cases](docs/guides/USE_CASES.md) | Three end-to-end scenarios (cost control, OpenAI SDK migration with tenant guards, regulated domains) with real output |
 | [Advisor catalog](docs/ADVISOR_CATALOG.md) | Every advisor entry with its guide and module |
 | [Epsilon-greedy guide](docs/guides/EPSILON_GREEDY_GUIDE.md) | Explore/exploit routing walkthrough |
