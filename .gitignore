@@ -52,3 +52,5 @@ logs/
 
 # Updated: 2026-06-08
 *.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

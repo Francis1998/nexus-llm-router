@@ -1,5 +1,7 @@
 """Pluggable routing strategies for the decide phase."""
 
+import random
+import sqlite3
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
@@ -8,6 +10,7 @@ from enum import StrEnum
 from hashlib import sha256
 from typing import Protocol
 
+from router.feedback import FeedbackScope, ModelFeedback
 from router.model_ids import (
     ANTHROPIC_FAST_MODEL,
     ANTHROPIC_SAFETY_MODEL,
@@ -17356,6 +17359,200 @@ class MemoryToolPreferStrategy(RoutingStrategy):
         )
 
 
+class FeedbackStats(Protocol):
+    """Read-only per-model feedback evidence used by feedback-aware routing."""
+
+    def model_feedback(
+        self,
+        scope: FeedbackScope,
+        *,
+        metric: str,
+        domain: str,
+        now: float | None = None,
+    ) -> Mapping[str, ModelFeedback]:
+        """Return evidence keyed by model for one caller, metric, and domain."""
+
+
+class DispatchGuard(Protocol):
+    """Read-only view of the engine's pre-dispatch checks (model price and budget)."""
+
+    def allows_dispatch(self, model: str, subject: str, estimated_cost_usd: float) -> bool:
+        """Return whether ``model`` would pass the price and budget checks for ``subject``."""
+
+
+_NO_FEEDBACK = ModelFeedback(n=0, positives=0.0, negatives=0.0)
+
+
+class FeedbackAwareStrategy(RoutingStrategy):
+    """Reorder the default policy's candidates by Thompson sampling over feedback.
+
+    The candidates are exactly the models the ``rule-based`` policy would try
+    for the request (its pick plus its fallback chain), minus fallbacks that do
+    not serve the request's domain or latency class, providers whose circuit is
+    open, and models the engine would refuse before dispatch (no known price, or
+    over the caller's budget). Feedback never widens that set, so circuit
+    breakers, budgets, price checks, and any restriction applied to the default
+    policy's candidates still hold.
+
+    Each candidate gets a draw from ``Beta(1 + positives, 1 + negatives)`` of the
+    caller's feedback for the request's domain; the highest draw wins. The
+    random generator is seeded from the request id, so a decision can be
+    replayed from the audit log. Below ``min_samples`` feedback values across
+    the candidates, the strategy returns the ``rule-based`` decision (cold
+    start). Feedback is scoped to the caller (API key fingerprint plus
+    ``X-Tenant-Id``), so one tenant's feedback never routes another's traffic.
+    """
+
+    strategy_name = RoutingStrategyName.FEEDBACK_AWARE
+
+    def __init__(
+        self,
+        model_catalog: Mapping[str, ModelCandidate],
+        provider_health: ProviderHealth,
+        feedback_stats: FeedbackStats | None = None,
+        dispatch_guard: DispatchGuard | None = None,
+        *,
+        metric: str = "quality",
+        min_samples: int = 20,
+    ) -> None:
+        """Initialize the feedback-aware strategy.
+
+        Args:
+            model_catalog: Available model candidates by model name.
+            provider_health: Live provider health view (circuit breaker).
+            feedback_stats: Feedback evidence source; ``None`` means every
+                request is a cold start.
+            dispatch_guard: Optional view of the engine's price and budget
+                checks; candidates it refuses are skipped.
+            metric: Feedback metric to optimize.
+            min_samples: Feedback values needed across the candidates before
+                feedback changes routing.
+
+        Raises:
+            ValueError: If ``min_samples`` is below 1.
+        """
+        super().__init__(model_catalog)
+        if min_samples < 1:
+            raise ValueError(f"min_samples must be >= 1, got {min_samples}")
+        self._default_policy = RuleBasedStrategy(model_catalog)
+        self._provider_health = provider_health
+        self._feedback_stats = feedback_stats
+        self._dispatch_guard = dispatch_guard
+        self._metric = metric
+        self._min_samples = min_samples
+
+    def choose(self, request: RouterRequest, signals: TaskSignals) -> RoutingDecision:
+        """Thompson-sample the default policy's eligible candidates, or defer to it."""
+        default = self._default_policy.choose(request, signals)
+        attempts = [default.chosen_model, *default.fallback_chain]
+        candidates = self._eligible(attempts, request, signals)
+        if not candidates:
+            return self._defer(default, "no candidate passes the circuit, price, and budget checks")
+        domain = signals.domain_tag.value
+        try:
+            evidence = self._evidence(request, domain)
+        except (sqlite3.Error, OSError) as error:
+            return self._defer(default, f"feedback unavailable ({error})")
+        samples = sum(evidence.get(model, _NO_FEEDBACK).n for model in candidates)
+        if samples < self._min_samples:
+            return self._defer(
+                default,
+                f"cold start: {samples}/{self._min_samples} {self._metric} feedback samples "
+                f"for {domain} prompts",
+            )
+        rng = random.Random(self._seed(request.request_id))  # noqa: S311  # replayable, not secret
+        draws = {
+            model: rng.betavariate(
+                1.0 + evidence.get(model, _NO_FEEDBACK).positives,
+                1.0 + evidence.get(model, _NO_FEEDBACK).negatives,
+            )
+            for model in candidates
+        }
+        chosen = max(candidates, key=lambda model: draws[model])
+        ranked = sorted(
+            (model for model in candidates if model != chosen),
+            key=lambda model: -evidence.get(model, _NO_FEEDBACK).posterior_mean,
+        )
+        chosen_note = self._arm_note(chosen, draws, evidence)
+        alternative_note = (
+            f"over {ranked[0]} ({self._arm_note(ranked[0], draws, evidence)})"
+            if ranked
+            else "with no alternative candidate"
+        )
+        rationale = (
+            f"feedback-aware: Thompson sample chose {chosen} ({chosen_note}) "
+            f"{alternative_note}; {samples} {self._metric} samples for {domain} prompts, "
+            "seeded by request id"
+        )
+        fallback = [*ranked, *(model for model in attempts if model not in candidates)]
+        return RoutingDecision(
+            chosen_model=chosen,
+            provider=self._model_catalog[chosen].provider,
+            routing_strategy=self.strategy_name,
+            rationale=rationale,
+            fallback_chain=fallback[:3],
+        )
+
+    def _eligible(
+        self, attempts: list[str], request: RouterRequest, signals: TaskSignals
+    ) -> list[str]:
+        """Return the default attempts feedback may promote, in default order."""
+        eligible: list[str] = []
+        for index, model in enumerate(attempts):
+            candidate = self._model_catalog.get(model)
+            if candidate is None:
+                continue
+            serves_request = signals.domain_tag in candidate.supports_domains and (
+                candidate.supports_realtime
+                or signals.latency_requirement is LatencyRequirement.BATCH
+            )
+            # The default pick is always a candidate; its fallbacks only when
+            # they serve the request's domain and latency class.
+            if index > 0 and not serves_request:
+                continue
+            if not self._provider_health.is_available(candidate.provider):
+                continue
+            estimated_cost = candidate.estimate_cost(
+                signals.prompt_tokens_estimate, request.max_tokens
+            )
+            if self._dispatch_guard is not None and not self._dispatch_guard.allows_dispatch(
+                model, request.user_id, estimated_cost
+            ):
+                continue
+            eligible.append(model)
+        return eligible
+
+    def _evidence(self, request: RouterRequest, domain: str) -> Mapping[str, ModelFeedback]:
+        """Return the caller's feedback evidence for the request's domain."""
+        if self._feedback_stats is None:
+            return {}
+        scope = FeedbackScope(api_key_id=request.api_key_id, tenant_id=request.tenant_id)
+        return self._feedback_stats.model_feedback(scope, metric=self._metric, domain=domain)
+
+    def _defer(self, default: RoutingDecision, reason: str) -> RoutingDecision:
+        """Return the default policy's decision, labelled with why feedback was not used."""
+        return default.model_copy(
+            update={
+                "routing_strategy": self.strategy_name,
+                "rationale": f"{reason}; rule-based: {default.rationale}",
+            }
+        )
+
+    @staticmethod
+    def _arm_note(
+        model: str, draws: Mapping[str, float], evidence: Mapping[str, ModelFeedback]
+    ) -> str:
+        """Describe one candidate's draw and posterior for the rationale."""
+        arm = evidence.get(model, _NO_FEEDBACK)
+        return f"draw {draws[model]:.2f}, posterior mean {arm.posterior_mean:.2f}, n={arm.n}"
+
+    @staticmethod
+    def _seed(request_id: str) -> int:
+        """Return the deterministic random seed for a request id."""
+        digest = sha256(f"feedback-aware:{request_id}".encode()).digest()
+        return int.from_bytes(digest[:8], "big")
+
+
 def build_strategies(
     model_catalog: Mapping[str, ModelCandidate],
     latency_stats: LatencyStats,
@@ -17483,6 +17680,10 @@ def build_strategies(
     tenant_soft_isolation_rpm: int = 60,
     prompt_injection_risk_threshold: float = 0.7,
     thinking_complexity_threshold: float = 0.7,
+    feedback_stats: FeedbackStats | None = None,
+    dispatch_guard: DispatchGuard | None = None,
+    feedback_metric: str = "quality",
+    feedback_min_samples: int = 20,
 ) -> dict[RoutingStrategyName, RoutingStrategy]:
     """Build all built-in routing strategies.
 
@@ -17645,6 +17846,13 @@ def build_strategies(
             request omits a ``metadata.model_capabilities`` override.
         thinking_complexity_threshold: Complexity floor for
             thinking-model-prefer routing within ``[0.0, 1.0]``.
+        feedback_stats: Request-feedback evidence for feedback-aware routing;
+            when omitted every feedback-aware request is a cold start.
+        dispatch_guard: Optional view of the engine's pre-dispatch price and
+            budget checks; feedback-aware routing skips candidates it refuses.
+        feedback_metric: Feedback metric that feedback-aware routing optimizes.
+        feedback_min_samples: Feedback values needed across the candidates
+            before feedback-aware routing departs from rule-based.
 
     Returns:
         Routing strategies keyed by strategy name.
@@ -18310,6 +18518,14 @@ def build_strategies(
         RoutingStrategyName.MEMORY_TOOL_PREFER: MemoryToolPreferStrategy(
             model_catalog,
             provider_health,
+        ),
+        RoutingStrategyName.FEEDBACK_AWARE: FeedbackAwareStrategy(
+            model_catalog,
+            provider_health,
+            feedback_stats,
+            dispatch_guard,
+            metric=feedback_metric,
+            min_samples=feedback_min_samples,
         ),
         RoutingStrategyName.AB_TEST: ABRoutingStrategy(
             model_catalog,

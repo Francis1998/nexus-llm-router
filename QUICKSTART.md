@@ -68,6 +68,20 @@ See [docs/guides/RESPONSES_API_GUIDE.md](docs/guides/RESPONSES_API_GUIDE.md) and
 [docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md)
 for streaming and supported fields.
 
+Rate an answer, then let feedback steer routing (`router.request_id` comes from
+the chat completion; send the same API key and `X-Tenant-Id` as that request):
+
+```bash
+curl -s http://localhost:8000/v1/feedback \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer local-key" \
+  -d '{"request_id":"<router.request_id>","value":true,"comment":"Clear and correct."}'
+curl -s "http://localhost:8000/v1/feedback/summary?group_by=model" -H "Authorization: Bearer local-key"
+```
+
+Send `X-Router-Strategy: feedback-aware` to route by that feedback once enough
+has been collected; see [docs/guides/FEEDBACK_LOOP_GUIDE.md](docs/guides/FEEDBACK_LOOP_GUIDE.md).
+
 ## 4. Run the Offline Demo
 
 The demo uses mock providers and prints model choice plus rationale traces.

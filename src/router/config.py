@@ -6,6 +6,7 @@ from typing import Annotated
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from router.feedback import DEFAULT_FEEDBACK_WINDOW_SECONDS, METRIC_PATTERN
 from router.model_ids import (
     ANTHROPIC_FAST_MODEL,
     ANTHROPIC_SAFETY_MODEL,
@@ -167,6 +168,10 @@ class RouterSettings(BaseSettings):
     idempotency_lease_seconds: Annotated[float, Field(gt=0.0)] = 300.0
     tenant_rate_limit_capacity: Annotated[int, Field(gt=0)] = 60
     tenant_rate_limit_refill_per_second: Annotated[float, Field(gt=0.0)] = 1.0
+    feedback_path: str = "migrations/feedback.sqlite3"
+    feedback_metric: Annotated[str, Field(pattern=METRIC_PATTERN)] = "quality"
+    feedback_min_samples: Annotated[int, Field(ge=1)] = 20
+    feedback_window_seconds: Annotated[float, Field(gt=0.0)] = DEFAULT_FEEDBACK_WINDOW_SECONDS
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

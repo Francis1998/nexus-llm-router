@@ -42,6 +42,7 @@ RECEIVED | CLASSIFIED | ROUTED | DISPATCHED | FALLBACK -> FAILED
 - `CostOptimalStrategy`
 - `LatencyAwareStrategy`
 - `ABRoutingStrategy`
+- `FeedbackAwareStrategy` (reorders `RuleBasedStrategy`'s candidates by request feedback; see [Feedback Loop](#feedback-loop))
 
 Strategies return `RoutingDecision`, which includes selected model, provider, strategy, rationale, and fallback chain.
 
@@ -115,18 +116,48 @@ streamed; after that a provider failure ends the stream instead of splicing a
 second answer onto the partial one. `GET /v1/models` and `GET /v1/models/{id}`
 (`src/api/models.py`) list the routable catalog in the OpenAI format, with a
 `nexus` block for pricing, token limits, capabilities, and live provider health
-(adapter credentials and circuit-breaker state).
+(adapter credentials and circuit-breaker state). `POST /v1/feedback` and
+`GET /v1/feedback/summary` (`src/api/feedback.py`) rate completed requests and
+aggregate the ratings; see [Feedback Loop](#feedback-loop). The response cache
+is namespaced by API key fingerprint, `X-Tenant-Id`, and end user, so a cached
+answer and its `request_id` are only replayed to the caller allowed to rate it.
 
 ## Audit Log
 
-`AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, and final state.
+`AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, final state, the caller's API key fingerprint (`api_key_id`) and `X-Tenant-Id` (`tenant_id`), and the analyzer's `domain`.
+
+## Feedback Loop
+
+Feedback sits after `RESPONDED` and feeds the next requests' `Decide` phase:
+
+```text
+RESPONDED -> audit log append -> FeedbackStore.register_request (request index)
+POST /v1/feedback -> ownership check (key fingerprint + tenant) -> upsert + hourly totals
+next request with X-Router-Strategy: feedback-aware -> Decide reads the totals
+```
+
+1. After a provider answers, `NexusRouter._respond` appends the audit record and
+   registers the request in `FeedbackStore` (`src/router/feedback.py`,
+   `NEXUS_FEEDBACK_PATH`, SQLite in WAL mode). Registration errors are logged as
+   `feedback_index_failed` and never fail or retry the request.
+2. `POST /v1/feedback` checks that the request id belongs to the caller's scope
+   and is inside `NEXUS_FEEDBACK_WINDOW_SECONDS`, then upserts one value per
+   `(request_id, metric, source)` with the model, provider, strategy, and domain
+   copied from the request index, and updates hourly per-model totals in the same
+   transaction.
+3. `FeedbackAwareStrategy` reads those totals for the caller, metric, and domain,
+   and Thompson-samples among `RuleBasedStrategy`'s attempts (filtered by domain,
+   latency class, open circuits, and `NexusRouter.allows_dispatch`, the
+   read-only twin of the price and budget checks) with a generator seeded by
+   the request id. Below `NEXUS_FEEDBACK_MIN_SAMPLES` it returns the
+   `rule-based` decision (cold start).
 
 ## Observability
 
 Nexus emits:
 
 - Structured JSON logs through `structlog`
-- Prometheus metrics from `/metrics`
+- Prometheus metrics from `/metrics`, including `router_feedback_total{metric, model}` for feedback writes
 - OpenTelemetry traces via FastAPI instrumentation
 - Grafana dashboard from `dashboards/grafana.json`
 
