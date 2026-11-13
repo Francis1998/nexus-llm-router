@@ -463,12 +463,16 @@ def infer_model_tier(model_name: str) -> ModelTier:
 
     Economy markers (mini, nano, flash, luna, etc.) are checked first so names
     such as ``gemini-3.8-flash`` or ``gpt-6-luna`` classify as economy rather
-    than frontier.
+    than frontier. Mid markers come next so a generation's workhorse model, such
+    as ``gemini-4-hydrogen``, is not caught by that generation's frontier marker.
     """
     normalized = model_name.lower()
     economy_markers = ("-mini", "nano", "flash", "haiku-light", "-lite", "lite-", "-luna")
     if any(marker in normalized for marker in economy_markers):
         return ModelTier.ECONOMY
+    mid_markers = ("gemini-4-hydrogen", "gpt-4.1", "claude-haiku", "gemini-2")
+    if any(marker in normalized for marker in mid_markers):
+        return ModelTier.MID
     frontier_markers = (
         "gpt-6-astra",
         "gpt-6-sol",
@@ -486,9 +490,6 @@ def infer_model_tier(model_name: str) -> ModelTier:
     )
     if any(marker in normalized for marker in frontier_markers):
         return ModelTier.FRONTIER
-    mid_markers = ("gpt-4.1", "claude-haiku", "gemini-2")
-    if any(marker in normalized for marker in mid_markers):
-        return ModelTier.MID
     return ModelTier.MID
 
 
