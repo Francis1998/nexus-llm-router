@@ -17,6 +17,16 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - API gateway no longer uses the raw `Authorization` header as an identifier. `Bearer sk-...` previously became `RouterRequest.api_key_id`, the `user_id` fallback, the spend-ledger tenant, and the idempotency / response-cache tenant, so the secret was echoed in HTTP 429 (`rate limit exceeded for Bearer sk-...`) and 503 budget-exhaustion details, exposed as a `GET /v1/spend` `by_tenant` key, and persisted to the SQLite spend ledger and idempotency store. A new `safety.key_fingerprint.fingerprint_api_key` derives a deterministic, non-reversible id (`key_` + 16 hex chars of SHA-256 over the credential, `Bearer` prefix stripped; `anonymous` when absent) used everywhere instead, preserving per-key isolation. Operators who ran earlier builds with real keys should rotate them and purge the old ledger/idempotency files (see `SECURITY.md`).
 
 ### Changed
+- Model lineup refreshed against the provider docs on 2026-11-12. The adapters now price:
+  - Claude Fable 5.2 ($8 / $40 per 1M tokens).
+  - Gemini 4 Carbon ($2 / $10, rising to $4 / $20 on 2026-12-01, the same schedule as Argon).
+  - Gemini 4 Hydrogen ($1.50 / $7.50, released 2026-11-12).
+  - Gemini 3.5 Flash-Lite ($0.30 / $2.50).
+
+  Operators who add these models to the catalog are billed at list price. Claude Fable 5.1 stays priced and is documented as superseded by 5.2, not deprecated.
+  - The default catalog roles are unchanged. Argon stays the Google pro model: Carbon has the same list price but spends more thinking tokens per turn. Gemini 3.8 Flash stays the flash model, because Hydrogen costs twice as much until their prices converge on 2027-01-01. Claude Opus 5.5 stays the safety model as Anthropic's recommended starting point.
+  - `ModelDeprecationGuard` now warns on `gemini-2.5-pro` and points it at `gemini-4-argon`. Google deprecated that model and, from 2026-12-01, serves its requests with Gemini 3.8 Flash at 3.8 Flash rates.
+  - Updated README "Current Model Stack" (with official links), the CONFIGURATION.md catalog and provider parameter compatibility sections, and the Responses API, Anthropic Messages API, model-tier-rate-limit, and deprecation-guard guides.
 - Guides, the advisor catalog, and module docstrings no longer advertise the retired "GPT-5.5 / Claude Sonnet 4.6 / Gemini 3.x / Kimi K2" stack (607 changed lines across 345 files). They now name the provider flagships verified on 2026-11-07 — GPT-6 Astra, Claude Opus 5.5, Gemini 4 Argon, and Kimi K3.1 Pro — matching the default catalog in `src/router/model_ids.py`. Wrapped docstring lines keep their original break points and stay within ruff's 100-column limit. `tests/test_docs_model_stack_current.py` now fails if retired model names (GPT-5.5, GPT-4o, Claude Sonnet/Opus 4.x, Kimi K2) reappear in README/docs prose or `src`/`scripts` sources. Lowercase ids used as deliberate unknown-model examples, the deprecation table, and historical logs are exempt.
 - README restructured as a project showcase. It now opens with:
   - a one-line pitch and the hero GIF (a real OpenAI SDK transcript);

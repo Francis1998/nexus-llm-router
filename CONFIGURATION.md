@@ -975,12 +975,24 @@ The default catalog lives in `src/router/config.py` and includes:
 - Google: `gemini-4-argon` (pro), `gemini-3.8-flash` (flash)
 - Moonshot: `kimi-k3.1-pro`
 
-Costs are provider list prices as of 2026-11-06 (GPT-6, Claude 5.5, Gemini 4 Argon /
-3.8 Flash, Kimi K3.1) and context windows come from the provider model pages.
-Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8 Flash
-to $1.50 / $7.50 on 2027-01-01. Adapter price tables (`src/adapters/*.py`) also
-cover `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `claude-sonnet-5-5`,
-`kimi-k3.1-pro-highspeed`, and `kimi-k3`.
+Costs are provider list prices verified on 2026-11-12 (GPT-6, Claude 5.5, Gemini 4
+Argon / 3.8 Flash, Kimi K3.1) and context windows come from the provider model
+pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8
+Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the adapter price
+tables together when list prices change.
+
+Adapter price tables (`src/adapters/*.py`) also cover current models outside the
+default roles, so they are billed correctly once you add them to the catalog:
+`gpt-6.1-sol` ($2 / $10 per 1M), `gpt-6.1-terra` ($1 / $5), `claude-fable-5-2`
+($8 / $40), `claude-sonnet-5-5` ($2 / $10), `gemini-4-carbon` ($2 / $10, rising to
+$4 / $20 on 2026-12-01), `gemini-4-hydrogen` ($1.50 / $7.50),
+`gemini-3.5-flash-lite` ($0.30 / $2.50), `kimi-k3.1-pro-highspeed` ($4 / $20), and
+`kimi-k3` ($3 / $15). `claude-fable-5-1` ($10 / $50) is superseded by Fable 5.2 but
+still served and priced; `ModelDeprecationGuard` does not flag it. Gemini 4
+Hydrogen is Google's recommended upgrade from Gemini 3.8 Flash. The flash role
+stays on 3.8 Flash while Hydrogen costs twice as much; their prices converge on
+2027-01-01. Gemini 2.5 Pro is deprecated: from 2026-12-01 Google serves it with
+Gemini 3.8 Flash at 3.8 Flash rates.
 
 Provider limits that affect routing and spend:
 
@@ -1005,8 +1017,8 @@ pins these payloads for every current model.
 | Provider | Provider rule for current models | Nexus sends |
 |---|---|---|
 | OpenAI GPT-6 | remove `temperature`, `top_p`, `logprobs`, `top_logprobs` unless reasoning effort is `none`; Astra and 6.1 Sol never support `none` | `model`, `messages`, `max_completion_tokens` (`max_tokens` only for legacy GPT-4.x / 3.5) |
-| Anthropic Claude 5.5 / Fable 5.1 | non-default `temperature`, `top_p`, or `top_k` returns HTTP 400 on every request (any value from API version `2026-10-21`); use `output_config.effort` instead | `model`, `max_tokens`, `messages`, optional `system` |
-| Google Gemini 4 Argon / 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
+| Anthropic Claude 5.5 / Fable 5.2 / Fable 5.1 | non-default `temperature`, `top_p`, or `top_k` returns HTTP 400 on every request (any value from API version `2026-10-21`); use `output_config.effort` instead | `model`, `max_tokens`, `messages`, optional `system` |
+| Google Gemini 4 Carbon / Argon / Hydrogen, 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
 | Moonshot Kimi K3.x | `temperature` is fixed at 1.0 (other values error); `top_p`, `n`, and penalties are fixed | `model`, `messages`, `max_completion_tokens` |
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
@@ -1740,12 +1752,24 @@ The default catalog lives in `src/router/config.py` and includes:
 - Google: `gemini-4-argon` (pro), `gemini-3.8-flash` (flash)
 - Moonshot: `kimi-k3.1-pro`
 
-Costs are provider list prices as of 2026-11-06 (GPT-6, Claude 5.5, Gemini 4 Argon /
-3.8 Flash, Kimi K3.1) and context windows come from the provider model pages.
-Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8 Flash
-to $1.50 / $7.50 on 2027-01-01. Adapter price tables (`src/adapters/*.py`) also
-cover `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `claude-sonnet-5-5`,
-`kimi-k3.1-pro-highspeed`, and `kimi-k3`.
+Costs are provider list prices verified on 2026-11-12 (GPT-6, Claude 5.5, Gemini 4
+Argon / 3.8 Flash, Kimi K3.1) and context windows come from the provider model
+pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8
+Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the adapter price
+tables together when list prices change.
+
+Adapter price tables (`src/adapters/*.py`) also cover current models outside the
+default roles, so they are billed correctly once you add them to the catalog:
+`gpt-6.1-sol` ($2 / $10 per 1M), `gpt-6.1-terra` ($1 / $5), `claude-fable-5-2`
+($8 / $40), `claude-sonnet-5-5` ($2 / $10), `gemini-4-carbon` ($2 / $10, rising to
+$4 / $20 on 2026-12-01), `gemini-4-hydrogen` ($1.50 / $7.50),
+`gemini-3.5-flash-lite` ($0.30 / $2.50), `kimi-k3.1-pro-highspeed` ($4 / $20), and
+`kimi-k3` ($3 / $15). `claude-fable-5-1` ($10 / $50) is superseded by Fable 5.2 but
+still served and priced; `ModelDeprecationGuard` does not flag it. Gemini 4
+Hydrogen is Google's recommended upgrade from Gemini 3.8 Flash. The flash role
+stays on 3.8 Flash while Hydrogen costs twice as much; their prices converge on
+2027-01-01. Gemini 2.5 Pro is deprecated: from 2026-12-01 Google serves it with
+Gemini 3.8 Flash at 3.8 Flash rates.
 
 Provider limits that affect routing and spend:
 
@@ -1770,8 +1794,8 @@ pins these payloads for every current model.
 | Provider | Provider rule for current models | Nexus sends |
 |---|---|---|
 | OpenAI GPT-6 | remove `temperature`, `top_p`, `logprobs`, `top_logprobs` unless reasoning effort is `none`; Astra and 6.1 Sol never support `none` | `model`, `messages`, `max_completion_tokens` (`max_tokens` only for legacy GPT-4.x / 3.5) |
-| Anthropic Claude 5.5 / Fable 5.1 | non-default `temperature`, `top_p`, or `top_k` returns HTTP 400 on every request (any value from API version `2026-10-21`); use `output_config.effort` instead | `model`, `max_tokens`, `messages`, optional `system` |
-| Google Gemini 4 Argon / 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
+| Anthropic Claude 5.5 / Fable 5.2 / Fable 5.1 | non-default `temperature`, `top_p`, or `top_k` returns HTTP 400 on every request (any value from API version `2026-10-21`); use `output_config.effort` instead | `model`, `max_tokens`, `messages`, optional `system` |
+| Google Gemini 4 Carbon / Argon / Hydrogen, 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
 | Moonshot Kimi K3.x | `temperature` is fixed at 1.0 (other values error); `top_p`, `n`, and penalties are fixed | `model`, `messages`, `max_completion_tokens` |
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.

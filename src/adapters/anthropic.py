@@ -85,8 +85,10 @@ class AnthropicAdapter(BaseProviderAdapter):
         """
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
-        # USD per 1K tokens (input, output); Claude 5.x list prices as of 2026-11-06.
+        # USD per 1K tokens (input, output); Claude list prices as of 2026-11-12.
+        # Fable 5.2 supersedes Fable 5.1, which stays priced for existing callers.
         self._costs: dict[str, tuple[float, float]] = {
+            "claude-fable-5-2": (0.008, 0.040),
             "claude-fable-5-1": (0.010, 0.050),
             "claude-opus-5-5": (0.004, 0.020),
             "claude-sonnet-5-5": (0.002, 0.010),

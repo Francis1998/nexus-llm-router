@@ -352,13 +352,13 @@ Otherwise the strategy decides, and `response.model` always reports the model
 that actually served the request.
 
 The default catalog ships the current provider line-ups (verified against the
-provider docs on 2026-11-06):
+provider docs on 2026-11-12):
 
 | Role in the catalog | Default model | Other current IDs with prices in the adapters |
 | --- | --- | --- |
 | OpenAI frontier / balanced | `gpt-6-astra` / `gpt-6-luna` | `gpt-6.1-sol`, `gpt-6.1-terra` ([models](https://developers.openai.com/api/docs/models)) |
-| Anthropic safety / fast | `claude-opus-5-5` / `claude-haiku-5-5` | `claude-fable-5-1`, `claude-sonnet-5-5` ([models](https://platform.claude.com/docs/en/models/overview)) |
-| Google pro / flash | `gemini-4-argon` / `gemini-3.8-flash` | — ([models](https://aistudio.google.com/docs/models)) |
+| Anthropic safety / fast | `claude-opus-5-5` / `claude-haiku-5-5` | `claude-fable-5-2`, `claude-sonnet-5-5` ([models](https://platform.claude.com/docs/en/models/overview)) |
+| Google pro / flash | `gemini-4-argon` / `gemini-3.8-flash` | `gemini-4-carbon`, `gemini-4-hydrogen`, `gemini-3.5-flash-lite` ([models](https://aistudio.google.com/docs/models)) |
 | Kimi (Moonshot) | `kimi-k3.1-pro` | `kimi-k3.1-pro-highspeed`, `kimi-k3` ([pricing](https://platform.kimi.ai/docs/pricing/chat)) |
 
 Real behavior against the mock-provider server with the default `rule-based`

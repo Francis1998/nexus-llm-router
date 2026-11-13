@@ -172,14 +172,17 @@ class RouterSettings(BaseSettings):
 def default_model_catalog() -> dict[str, ModelCandidate]:
     """Return the built-in model catalog with cost and quality priors.
 
-    Costs are provider list prices per 1K tokens (input, output) as published
-    on 2026-11-06; context windows come from the provider model pages. Quality
+    Costs are provider list prices per 1K tokens (input, output), re-verified
+    on 2026-11-12; context windows come from the provider model pages. Quality
     scores are per-role routing priors. GPT-6 models accept at most 922K input
     tokens of their 1.05M window and bill the whole request at 2x input / 1.5x
     output above 272K input tokens; Claude Haiku 5.5 bills $0.50 / $2.50 per 1M
     above 100K prompt tokens. Gemini 4 Argon list prices rise to $4 / $20 per 1M
     tokens on 2026-12-01 and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01;
-    override the catalog when they change.
+    update this catalog and the adapter price tables, which bill completions,
+    when they change. The adapters also price current models outside these
+    roles (for example Claude Fable 5.2 and Gemini 4 Carbon / Hydrogen) for
+    operators who add them to the catalog.
 
     Returns:
         Mapping of model names to model candidates.

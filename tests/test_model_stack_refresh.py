@@ -1,7 +1,7 @@
 """Regression tests for the November 2026 provider model refresh.
 
-Pins the behaviour nexus needs for the current OpenAI GPT-6, Anthropic Claude 5.5,
-Google Gemini 4 / 3.8 and Kimi K3.x line-ups: tier classification, provider
+Pins the behaviour nexus needs for the current OpenAI GPT-6, Anthropic Claude 5.5 /
+Fable 5.2, Google Gemini 4 / 3.x and Kimi K3.x line-ups: tier classification, provider
 parameter compatibility, list prices, and catalog/adapter consistency.
 """
 
@@ -40,22 +40,41 @@ from safety.model_deprecation import ModelDeprecationGuard
 
 CURRENT_MODELS = {
     "openai": ("gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna"),
-    "anthropic": ("claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"),
-    "google": ("gemini-4-argon", "gemini-3.8-flash"),
+    "anthropic": ("claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"),
+    "google": (
+        "gemini-4-carbon",
+        "gemini-4-argon",
+        "gemini-4-hydrogen",
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
+    ),
     "moonshot": ("kimi-k3.1-pro", "kimi-k3.1-pro-highspeed", "kimi-k3"),
 }
-# USD per 1M tokens (input, output) from the provider pricing pages on 2026-11-06.
+# Superseded, not deprecated: still served by the provider, so still priced.
+SUPERSEDED_MODELS = {"anthropic": ("claude-fable-5-1",)}
+PRICED_MODELS = [
+    (provider, model)
+    for models_by_provider in (CURRENT_MODELS, SUPERSEDED_MODELS)
+    for provider, models in models_by_provider.items()
+    for model in models
+]
+# USD per 1M tokens (input, output) from the provider pricing pages on 2026-11-12.
+# Gemini 4 Carbon and Argon rise to $4 / $20 on 2026-12-01.
 LIST_PRICES: dict[str, tuple[float, float]] = {
     "gpt-6-astra": (10.0, 50.0),
     "gpt-6.1-sol": (2.0, 10.0),
     "gpt-6.1-terra": (1.0, 5.0),
     "gpt-6-luna": (0.10, 0.50),
+    "claude-fable-5-2": (8.0, 40.0),
     "claude-fable-5-1": (10.0, 50.0),
     "claude-opus-5-5": (4.0, 20.0),
     "claude-sonnet-5-5": (2.0, 10.0),
     "claude-haiku-5-5": (0.10, 0.50),
+    "gemini-4-carbon": (2.0, 10.0),
     "gemini-4-argon": (2.0, 10.0),
+    "gemini-4-hydrogen": (1.50, 7.50),
     "gemini-3.8-flash": (0.75, 3.75),
+    "gemini-3.5-flash-lite": (0.30, 2.50),
     "kimi-k3.1-pro": (2.0, 10.0),
     "kimi-k3.1-pro-highspeed": (4.0, 20.0),
     "kimi-k3": (3.0, 15.0),
@@ -153,10 +172,7 @@ async def test_moonshot_k3_payload_uses_max_completion_tokens_without_fixed_samp
     assert fixed.isdisjoint(payload)
 
 
-@pytest.mark.parametrize(
-    ("provider", "model"),
-    [(provider, model) for provider, models in CURRENT_MODELS.items() for model in models],
-)
+@pytest.mark.parametrize(("provider", "model"), PRICED_MODELS)
 def test_adapter_price_tables_match_provider_list_prices(provider: str, model: str) -> None:
     """Spend and budgets need real prices for every current model (unknown models cost $0)."""
     input_price, output_price = LIST_PRICES[model]
@@ -222,6 +238,7 @@ def test_name_fallback_recognizes_gpt6_and_kimi_k3_models(
         ("gpt-4o-mini", "gpt-6-luna"),
         ("claude-3-5-sonnet", "claude-sonnet-5-5"),
         ("gemini-1.5-pro", "gemini-4-argon"),
+        ("gemini-2.5-pro", "gemini-4-argon"),
     ],
 )
 def test_deprecation_guard_points_retired_models_at_current_replacements(
@@ -233,6 +250,15 @@ def test_deprecation_guard_points_retired_models_at_current_replacements(
     assert verdict.is_deprecated is True
     assert verdict.replacement == replacement
     assert verdict.severity == "warn"
+
+
+@pytest.mark.parametrize("model", ["claude-fable-5-1", "gemini-3.8-flash"])
+def test_deprecation_guard_does_not_flag_superseded_models(model: str) -> None:
+    """Fable 5.1 (superseded by 5.2) and 3.8 Flash (upgradable to Hydrogen) stay supported."""
+    verdict = ModelDeprecationGuard().check(model)
+
+    assert verdict.is_deprecated is False
+    assert verdict.replacement is None
 
 
 # (provider, model, threshold, base $/1M (in, out), long-prompt $/1M (in, out))
@@ -330,10 +356,7 @@ FORBIDDEN_SAMPLING_KEYS = {
 }
 
 
-@pytest.mark.parametrize(
-    ("provider", "model"),
-    [(provider, model) for provider, models in CURRENT_MODELS.items() for model in models],
-)
+@pytest.mark.parametrize(("provider", "model"), PRICED_MODELS)
 async def test_adapters_never_send_sampling_parameters(provider: str, model: str) -> None:
     """Provider payloads for current models carry no sampling parameters at all."""
     payload = await _captured_payload(provider, _adapters()[provider], model)

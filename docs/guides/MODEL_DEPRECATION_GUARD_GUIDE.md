@@ -51,6 +51,7 @@ assert blocked.severity == "block"
 | `gpt-4o` / `gpt-4o-mini` | `gpt-6.1-sol` / `gpt-6-luna` | warn |
 | `claude-3-5-sonnet` (+ dated) | `claude-sonnet-5-5` | warn |
 | `gemini-1.5-pro` | `gemini-4-argon` | warn |
+| `gemini-2.5-pro` | `gemini-4-argon` | warn |
 | `moonshot-v1-128k` | `kimi-k3.1-pro` | warn |
 | `kimi-k2`, `kimi-k2.6`, `kimi-k2.7-code` | `kimi-k3.1-pro` | warn |
 | `kimi-k2.7-code-highspeed` | `kimi-k3.1-pro-highspeed` | warn |
@@ -59,6 +60,14 @@ Kimi closed the K2 series to new users on 2026-10-31 and plans to retire all K2
 models by the end of December 2026
 ([Kimi pricing](https://platform.kimi.ai/docs/pricing/chat)), so K2 IDs now warn
 with their K3.1 replacements.
+
+Google deprecated Gemini 2.5 Pro. From 2026-12-01, requests for `gemini-2.5-pro`
+are served by Gemini 3.8 Flash at 3.8 Flash rates
+([Gemini pricing](https://aistudio.google.com/docs/pricing#gemini-2.5-pro)), so
+the guard points it at the default catalog's pro model. Superseded models that
+providers still serve are not flagged: `claude-fable-5-1` (superseded by
+`claude-fable-5-2`) and `gemini-3.8-flash` (Google recommends upgrading to
+`gemini-4-hydrogen`) pass the guard unchanged.
 
 ## Gap vs LiteLLM / OpenRouter
 

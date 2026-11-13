@@ -476,13 +476,13 @@ Otherwise the strategy decides, and `message.model` always reports the model
 that served the request.
 
 The default catalog ships the current provider line-ups (verified against the
-provider docs on 2026-11-07):
+provider docs on 2026-11-12):
 
 | Role in the catalog | Default model | Other current IDs with prices in the adapters |
 | --- | --- | --- |
-| Anthropic safety / fast | `claude-opus-5-5` / `claude-haiku-5-5` | `claude-fable-5-1`, `claude-sonnet-5-5` ([models](https://platform.claude.com/docs/en/about-claude/models/overview)) |
+| Anthropic safety / fast | `claude-opus-5-5` / `claude-haiku-5-5` | `claude-fable-5-2`, `claude-sonnet-5-5` ([models](https://platform.claude.com/docs/en/about-claude/models/overview)) |
 | OpenAI frontier / balanced | `gpt-6-astra` / `gpt-6-luna` | `gpt-6.1-sol`, `gpt-6.1-terra` ([models](https://developers.openai.com/api/docs/models)) |
-| Google pro / flash | `gemini-4-argon` / `gemini-3.8-flash` | — ([models](https://aistudio.google.com/docs/models)) |
+| Google pro / flash | `gemini-4-argon` / `gemini-3.8-flash` | `gemini-4-carbon`, `gemini-4-hydrogen`, `gemini-3.5-flash-lite` ([models](https://aistudio.google.com/docs/models)) |
 | Kimi (Moonshot) | `kimi-k3.1-pro` | `kimi-k3.1-pro-highspeed`, `kimi-k3` ([pricing](https://platform.kimi.ai/docs/pricing/chat)) |
 
 Real behavior against the mock-provider server with the default `rule-based`
@@ -496,12 +496,12 @@ strategy and the failover prompt from the Quickstart:
 | `gemini-4-argon` | `gemini-4-argon` | explicit compatible model request honored |
 | `kimi-k3.1-pro` | `kimi-k3.1-pro` | explicit compatible model request honored |
 | `claude-sonnet-5-5` (not in the default catalog) | `gpt-6-luna` | general prompt routed to balanced low-cost model |
-| `claude-fable-5-1` (not in the default catalog) | `gpt-6-luna` | general prompt routed to balanced low-cost model |
+| `claude-fable-5-2` (not in the default catalog) | `gpt-6-luna` | general prompt routed to balanced low-cost model |
 
 A short prompt such as "Is this a refund request?" with
 `model: "claude-opus-5-5"` is claimed by the `rule-based` "simple realtime
 prompt" rule first and goes to `gemini-3.8-flash`. Add `claude-sonnet-5-5` or
-`claude-fable-5-1` to the catalog to make them pinnable, and read
+`claude-fable-5-2` to the catalog to make them pinnable, and read
 `message.model` and `nexus.rationale` to see what ran and why.
 
 ## Nexus vs LiteLLM vs OpenRouter vs Bifrost
