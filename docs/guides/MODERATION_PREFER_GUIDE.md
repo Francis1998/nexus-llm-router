@@ -18,6 +18,12 @@ Truthiness on any of:
 
 Optional allowlist: `metadata.moderation_models`.
 
+> **HTTP note:** strategies read `RouterRequest.metadata`. `POST /v1/chat/completions`,
+> `/v1/responses`, and `/v1/messages` do not forward request-body `metadata` to routing
+> yet, so over HTTP this strategy takes its no-signal path. Set `metadata` on
+> `RouterRequest` when embedding `NexusRouter`, as the demo does
+> (`scripts/render_strategy_demos.py`).
+
 ## Capability resolution
 
 1. Allowlist (if provided)

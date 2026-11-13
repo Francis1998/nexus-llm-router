@@ -46,9 +46,9 @@ X-Router-Strategy: computer-use-prefer
 {
   "metadata": {
     "requires_computer_use": true,
-    "computer_use_models": ["gemini-3.5-flash"],
+    "computer_use_models": ["gemini-3.8-flash"],
     "model_capabilities": {
-      "gemini-3.5-flash": "computer_use"
+      "gemini-3.8-flash": "computer_use"
     }
   }
 }
@@ -56,3 +56,9 @@ X-Router-Strategy: computer-use-prefer
 
 No additional `NEXUS_*` environment variables are required — selection is
 driven entirely by request metadata.
+
+> **HTTP note:** strategies read `RouterRequest.metadata`. `POST /v1/chat/completions`,
+> `/v1/responses`, and `/v1/messages` do not forward request-body `metadata` to routing
+> yet, so over HTTP this strategy takes its no-signal path. Set `metadata` on
+> `RouterRequest` when embedding `NexusRouter`, as the demo does
+> (`scripts/render_strategy_demos.py`).

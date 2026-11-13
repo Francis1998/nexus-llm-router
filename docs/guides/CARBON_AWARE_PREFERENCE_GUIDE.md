@@ -7,7 +7,13 @@ Prefer lower carbon intensity providers for **GPT-6 Astra**, **Claude Opus 5.5**
 ## Usage
 
 ```http
-X-Routing-Strategy: carbon-aware-preference
+X-Router-Strategy: carbon-aware-preference
 ```
 
 Metadata: `carbon_intensity:<provider>` (gCO2eq/kWh) or `region` heuristic (`eu`/`us`/`cn`/`global`). Cap via `NEXUS_CARBON_AWARE_MAX_INTENSITY` (default `400`).
+
+> **HTTP note:** strategies read `RouterRequest.metadata`. `POST /v1/chat/completions`,
+> `/v1/responses`, and `/v1/messages` do not forward request-body `metadata` to routing
+> yet, so over HTTP this strategy takes its no-signal path. Set `metadata` on
+> `RouterRequest` when embedding `NexusRouter`, as the demo does
+> (`scripts/render_strategy_demos.py`).

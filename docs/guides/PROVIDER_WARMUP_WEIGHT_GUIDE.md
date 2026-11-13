@@ -57,3 +57,9 @@ X-Router-Strategy: provider-warmup-weight
 
 Providers omitted from `provider_warmup` (here, any provider besides
 `openai` and `anthropic`) are treated as a neutral `0.5`.
+
+> **HTTP note:** strategies read `RouterRequest.metadata`. `POST /v1/chat/completions`,
+> `/v1/responses`, and `/v1/messages` do not forward request-body `metadata` to routing
+> yet, so over HTTP this strategy takes its no-signal path. Set `metadata` on
+> `RouterRequest` when embedding `NexusRouter`, as the demo does
+> (`scripts/render_strategy_demos.py`).

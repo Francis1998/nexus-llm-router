@@ -31,7 +31,7 @@ the preferred region briefly becomes healthy again.
 ```bash
 export NEXUS_DEFAULT_STRATEGY=region-failover-hysteresis
 export NEXUS_REGION_FAILOVER_HYSTERESIS_SUCCESSES=3
-export NEXUS_STICKY_REGION_FAILOVER_PREFERENCES=eu,us,cn,global
+export NEXUS_STICKY_REGION_FAILOVER_PREFERENCES='["eu","us","cn","global"]'
 ```
 
 Or per request:
