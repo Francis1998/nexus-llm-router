@@ -18,8 +18,8 @@ provider hop.
 
 1. Build a SHA-256 key from `model`, normalized messages, `temperature`,
    `max_tokens`, the effective routing strategy (`X-Router-Strategy`, or
-   `NEXUS_DEFAULT_STRATEGY` when the header is absent), and an optional tenant
-   namespace (`user` or the API key fingerprint).
+   `NEXUS_DEFAULT_STRATEGY` when the header is absent), and a caller namespace
+   (the API key fingerprint, `X-Tenant-Id`, and `user`).
 2. On a hit, return the cached `RouterResponse` and increment
    `response_cache_hits_total` — the router engine is not called.
 3. On a miss, route and dispatch normally, store the successful response, and
@@ -27,7 +27,9 @@ provider hop.
 4. Entries expire after `NEXUS_RESPONSE_CACHE_TTL_SECONDS` (default `300`).
 
 Tenant namespaces keep customer A from reading customer B's completions even
-when prompts are identical.
+when prompts are identical. A hit replays the original `request_id`, so the
+namespace also keeps cached answers with the caller allowed to rate them with
+`POST /v1/feedback` (see the [feedback loop guide](FEEDBACK_LOOP_GUIDE.md)).
 
 Every input that changes the generated answer is part of the key: a completion
 truncated at `max_tokens=1` is never replayed for a `max_tokens=512` request, and

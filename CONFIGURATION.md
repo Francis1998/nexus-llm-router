@@ -962,6 +962,7 @@ Set `X-Router-Strategy` to one of:
 - `tenant-fair-queue`
 - `sticky-region-drain`
 - `provider-canary-shadow-split`
+- `feedback-aware`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
@@ -1745,6 +1746,7 @@ Set `X-Router-Strategy` to one of:
 - `health-cost-latency`
 - `embedding-cache-key-namespace`
 - `circuit-breaker-half-open-probe`
+- `feedback-aware`
 - `ab`
 
 If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
@@ -2516,7 +2518,9 @@ NEXUS_RESPONSE_CACHE_TTL_SECONDS=300.0
 `NEXUS_RESPONSE_CACHE_TTL_SECONDS` is the entry lifetime in seconds (default
 `300`). Cache keys include model, messages, temperature, `max_tokens`, the
 effective routing strategy (`X-Router-Strategy` or `NEXUS_DEFAULT_STRATEGY`), and
-an optional tenant namespace derived from `user` / the API key fingerprint. See
+a caller namespace made of the API key fingerprint, `X-Tenant-Id`, and `user`, so
+a cached answer (and its `request_id`) is only replayed to the caller allowed to
+rate it with `POST /v1/feedback`. See
 [docs/guides/RESPONSE_CACHE_GUIDE.md](docs/guides/RESPONSE_CACHE_GUIDE.md).
 
 ## Semantic Fuzzy Cache
@@ -2580,3 +2584,59 @@ Keep the lease longer than your slowest request (fallback attempts times
 `NEXUS_TENANT_RATE_LIMIT_CAPACITY` is the per-tenant token-bucket size.
 `NEXUS_TENANT_RATE_LIMIT_REFILL_PER_SECOND` is the per-tenant refill rate.
 See [docs/guides/GATEWAY_GUARDS_GUIDE.md](docs/guides/GATEWAY_GUARDS_GUIDE.md).
+
+## Request Feedback
+
+`POST /v1/feedback` attaches a boolean or `[0, 1]` value to a completed request by
+its `request_id`, and `GET /v1/feedback/summary` aggregates the caller's feedback
+per model, strategy, domain, or provider with 95% Wilson (boolean) or
+normal-approximation (numeric) intervals. Requests and feedback are scoped to the
+API key fingerprint plus `X-Tenant-Id` that made the request.
+
+```dotenv
+NEXUS_FEEDBACK_PATH=migrations/feedback.sqlite3
+NEXUS_FEEDBACK_METRIC=quality
+NEXUS_FEEDBACK_MIN_SAMPLES=20
+NEXUS_FEEDBACK_WINDOW_SECONDS=2592000
+```
+
+`NEXUS_FEEDBACK_PATH` is the SQLite file holding the request index (one row per
+completed request: id, key fingerprint, tenant, model, provider, strategy,
+domain) and the feedback rows; it runs in WAL mode, so keep it on a local disk.
+`NEXUS_FEEDBACK_METRIC` is the metric `feedback-aware` optimizes (default
+`quality`, pattern `^[a-z0-9_.-]{1,64}$`). `NEXUS_FEEDBACK_MIN_SAMPLES` is how
+many values a request's candidates need before feedback changes routing (default
+`20`, at least `1`). `NEXUS_FEEDBACK_WINDOW_SECONDS` is how long a request accepts
+feedback and how far back routing looks (default 30 days; routing applies it in
+whole hours). See
+[docs/guides/FEEDBACK_LOOP_GUIDE.md](docs/guides/FEEDBACK_LOOP_GUIDE.md).
+
+## Feedback-Aware Routing
+
+The `feedback-aware` strategy learns from `POST /v1/feedback`. Its candidates are
+exactly the models `rule-based` would try for the request (its pick plus its
+fallback chain), keeping only fallbacks that serve the request's domain and
+latency class, and dropping providers with an open circuit and models the engine
+would refuse before dispatch (no known price, or over the caller's budget).
+Requests it cannot serve fail like any other strategy's: 402 `budget_exceeded`
+when the budget refuses every candidate, 500 `model_price_unknown` when none has
+a price. Each candidate gets a draw from
+`Beta(1 + positives, 1 + negatives)` of the caller's `NEXUS_FEEDBACK_METRIC`
+feedback for the request's domain; the highest draw wins. The random generator
+is seeded from the request id, so a decision can be replayed. Numeric values `v`
+count as `v` positives and `1 - v` negatives.
+
+Below `NEXUS_FEEDBACK_MIN_SAMPLES` values across the candidates, the decision is
+`rule-based`'s and the rationale starts with `cold start: <n>/<min> ...`. Otherwise
+the rationale reports the draw, posterior mean, and `n` of the chosen model and
+the best alternative. The fallback chain is the other candidates by posterior
+mean, then the rest of `rule-based`'s attempts.
+
+```dotenv
+NEXUS_DEFAULT_STRATEGY=feedback-aware
+NEXUS_FEEDBACK_METRIC=quality
+NEXUS_FEEDBACK_MIN_SAMPLES=20
+```
+
+Or per request with `X-Router-Strategy: feedback-aware`. See
+[docs/guides/FEEDBACK_LOOP_GUIDE.md](docs/guides/FEEDBACK_LOOP_GUIDE.md).

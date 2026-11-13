@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-2110%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-2152%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -38,6 +38,9 @@ Nexus is designed for AI infrastructure engineers running multi-model production
 
 - Issue: support and compliance teams ask why a model answered a request.
   Nexus solves this by persisting durable audit records with `request_id`, selected model, strategy, rationale, latency, token usage, and cost.
+
+- Issue: the gateway logs every request but never learns which model actually satisfied users.
+  Nexus solves this with `POST /v1/feedback` (thumbs up/down or a score attached to a `request_id`), per-model summaries with confidence intervals, and a `feedback-aware` strategy that Thompson-samples among the models the default policy would try.
 
 - Issue: a single API key can overwhelm the router.
   Nexus solves this with a token-bucket rate limiter keyed by API key identifier.
@@ -113,7 +116,8 @@ Mock providers answer `[<model>] routed response`; routing, budgets, rate limits
 | Area | What ships | Learn more |
 | --- | --- | --- |
 | OpenAI- and Anthropic-compatible API | `POST /v1/chat/completions` (with SSE streaming), `POST /v1/responses` (OpenAI Responses API and its SSE event stream), `POST /v1/messages` and `POST /v1/messages/count_tokens` (Anthropic Messages API, text-only, with Anthropic SSE events), `GET /v1/models` (model discovery with pricing, limits, and health), `GET`/`POST /v1/spend`, `GET /health`, `GET /metrics` | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md), [Anthropic Messages API guide](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md), [Models API guide](docs/guides/MODELS_API_GUIDE.md), [SSE streaming guide](docs/guides/SSE_STREAMING_GUIDE.md) |
-| Routing | 124 strategies chosen per request with `X-Router-Strategy` (default `rule-based`), from cost-optimal and latency-aware to token-budget, long-context, A/B, and canary routing | [Routing Strategies](#routing-strategies), [CONFIGURATION.md](CONFIGURATION.md) |
+| Routing | 125 strategies chosen per request with `X-Router-Strategy` (default `rule-based`), from cost-optimal and latency-aware to token-budget, long-context, A/B, canary, and feedback-aware routing | [Routing Strategies](#routing-strategies), [CONFIGURATION.md](CONFIGURATION.md) |
+| Feedback loop | `POST /v1/feedback` rates a completed request by its `request_id` (tenant-scoped, idempotent), `GET /v1/feedback/summary` reports Wilson and normal-approximation intervals per model, strategy, domain, or provider, and `feedback-aware` routes by Thompson sampling with a seeded, replayable draw | [Feedback loop guide](docs/guides/FEEDBACK_LOOP_GUIDE.md) |
 | Reliability | per-provider circuit breakers, health-ranked fallback chains, and no fallback splicing once a stream has started | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md), [Fallback scoreboard guide](docs/guides/FALLBACK_SCOREBOARD_GUIDE.md) |
 | Cost control | provider list prices (including long-prompt tiers), pre-dispatch budget caps, a durable spend ledger, and Prometheus cost metrics | [Built-in model catalog](CONFIGURATION.md#built-in-model-catalog) |
 | Gateway guards | API keys reduced to non-reversible fingerprints, per-key and per-tenant (`X-Tenant-Id`) rate limits, `Idempotency-Key` replay, and an exact-match response cache | [Gateway guards guide](docs/guides/GATEWAY_GUARDS_GUIDE.md), [Response cache guide](docs/guides/RESPONSE_CACHE_GUIDE.md) |
@@ -138,7 +142,8 @@ flowchart LR
     act --> anthropic["Anthropic Claude 5.5"]
     act --> google["Google Gemini 4 / 3.8"]
     act --> moonshot["Moonshot Kimi K3.1"]
-    act --> records[("spend ledger · audit log<br/>Prometheus · OpenTelemetry")]
+    act --> records[("spend ledger · audit log · feedback store<br/>Prometheus · OpenTelemetry")]
+    records -.->|"POST /v1/feedback ratings → feedback-aware"| decide
 ```
 
 Each request moves `RECEIVED → CLASSIFIED → ROUTED → DISPATCHED → RESPONDED`, with `FALLBACK` and `FAILED` paths; see [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -152,6 +157,7 @@ Each request moves `RECEIVED → CLASSIFIED → ROUTED → DISPATCHED → RESPON
 | call nexus through the OpenAI Responses API | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) |
 | call nexus through the Anthropic Messages API (Anthropic SDK, text only) | [Anthropic Messages API guide](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md) |
 | fill a client's model picker with nexus models | [Models API guide](docs/guides/MODELS_API_GUIDE.md) |
+| rate answers and route by user feedback | [Feedback loop guide](docs/guides/FEEDBACK_LOOP_GUIDE.md) |
 | configure strategies, budgets, limits, and models | [CONFIGURATION.md](CONFIGURATION.md) |
 | understand the request lifecycle | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | review guardrails and the security policy | [SAFETY.md](SAFETY.md), [SECURITY.md](SECURITY.md) |
@@ -217,6 +223,10 @@ Anthropic Messages API (`POST /v1/messages`, streaming, `count_tokens`) with cur
 Model discovery (`GET /v1/models`) with the official OpenAI SDK:
 
 ![Nexus models API demo](assets/demo/models-api.gif)
+
+Feedback loop (`POST /v1/feedback`, `GET /v1/feedback/summary`, and `feedback-aware` routing) against the mock-provider server:
+
+![Nexus feedback loop demo](assets/demo/feedback-loop.gif)
 
 Request cost forecast demo:
 
@@ -354,6 +364,7 @@ Soft rate-limit avoidance demo:
 - **OpenAI Responses API** (`POST /v1/responses`): text-only subset with the official SSE event stream, OpenAI error envelopes, and a `nexus` routing block — see `docs/guides/RESPONSES_API_GUIDE.md`
 - **Anthropic Messages API** (`POST /v1/messages`, `POST /v1/messages/count_tokens`): text-only subset for Anthropic SDK apps (`base_url` swap), with Anthropic SSE events, Anthropic error envelopes, `x-api-key` auth, gateway-enforced `stop_sequences`, and a `nexus` routing block; tools and thinking are rejected, so it is not a Claude Code backend — see `docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md`
 - **Model discovery** (`GET /v1/models`, `GET /v1/models/{id}`): OpenAI-compatible model list for client model pickers, with nexus pricing, token limits, capabilities, and live provider health — see `docs/guides/MODELS_API_GUIDE.md`
+- **Request feedback** (`POST /v1/feedback`, `GET /v1/feedback/summary`): rate a completed request by its `request_id` (boolean or `[0, 1]`, one value per request, metric, and source; tenant-scoped; comments never logged) and summarize with 95% intervals; durable SQLite store (`NEXUS_FEEDBACK_PATH`) — see `docs/guides/FEEDBACK_LOOP_GUIDE.md`
 - **Router engine** with configurable strategies
 - **Adapter pipeline** with full observability
 - **Async-first** design using `asyncio` + `httpx`
@@ -601,6 +612,7 @@ Select a strategy with `X-Router-Strategy`:
 - `webhook-prefer`: when `metadata.requires_webhook` / `metadata.webhook_callbacks` / `metadata.async_webhook` is truthy, prefers candidates advertising `webhook` capability (from `metadata.webhook_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 - `memory-tool-prefer`: when `metadata.requires_memory_tool` / `metadata.memory_tool` / `metadata.agent_memory` is truthy, prefers candidates advertising `memory_tool` capability (from `metadata.memory_tool_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
 - `background-mode-prefer`: when `metadata.requires_background_mode` / `metadata.background_mode` / `metadata.background_agent` is truthy, prefers candidates advertising `background_mode` capability (from `metadata.background_mode_models`, `metadata.model_capabilities` / the known-model map, or a name heuristic), ranking by support then quality then cost; otherwise quality-first for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1
+- `feedback-aware`: Thompson sampling over `Beta(1 + positives, 1 + negatives)` of the caller's `POST /v1/feedback` ratings for the request's domain, among the models `rule-based` would try (minus open circuits and models the engine would refuse for price or budget), with a draw seeded by the request id; below `NEXUS_FEEDBACK_MIN_SAMPLES` (default `20`) it is a `rule-based` cold start — see `docs/guides/FEEDBACK_LOOP_GUIDE.md`
 - `ab`: deterministic request-id buckets across two model arms
 
 ## Documentation
@@ -612,6 +624,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) | OpenAI Responses API compatibility (`POST /v1/responses`), streaming events, supported fields |
 | [Anthropic Messages API guide](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md) | Anthropic Messages API compatibility (`POST /v1/messages`, `count_tokens`), streaming events, supported fields, error mapping, limitations |
 | [Models API guide](docs/guides/MODELS_API_GUIDE.md) | OpenAI-compatible model discovery (`GET /v1/models`) with pricing, limits, capabilities, and live health |
+| [Feedback loop guide](docs/guides/FEEDBACK_LOOP_GUIDE.md) | Request feedback API, Wilson/normal summaries, and `feedback-aware` Thompson-sampling routing |
 | [Use cases](docs/guides/USE_CASES.md) | Three end-to-end scenarios (cost control, OpenAI SDK migration with tenant guards, regulated domains) with real output |
 | [Advisor catalog](docs/ADVISOR_CATALOG.md) | Every advisor entry with its guide and module |
 | [Epsilon-greedy guide](docs/guides/EPSILON_GREEDY_GUIDE.md) | Explore/exploit routing walkthrough |

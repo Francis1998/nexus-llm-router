@@ -98,6 +98,47 @@ A provider that rejects *every* request with 400 (Anthropic, for example,
 reports an exhausted credit balance that way) therefore no longer fails over
 automatically; alert on `provider_request_rejected` log volume per provider.
 
+## Request feedback
+
+`POST /v1/feedback` lets callers rate completed requests, and the
+`feedback-aware` strategy routes by those ratings. Because feedback changes
+routing, it is guarded against poisoning:
+
+- **Tenant scoping.** Requests, feedback, summaries, and routing statistics are
+  partitioned by the API key fingerprint plus `X-Tenant-Id` recorded for each
+  request. Feedback from any other key or tenant gets the same 404 as an unknown
+  request id, so callers cannot probe for other tenants' requests, and one
+  tenant's feedback never routes another tenant's traffic. The response cache
+  is namespaced the same way, so cached answers (and their request ids) are
+  never replayed across callers.
+- **Request-bound, idempotent votes.** Feedback must reference a completed
+  request of the caller inside `NEXUS_FEEDBACK_WINDOW_SECONDS`, and each
+  `(request_id, metric, source)` keeps one value: retries replace a vote instead
+  of adding one. A caller's influence is bounded by its own rate-limited,
+  budgeted traffic, at most one human and one automated value per request and
+  metric.
+- **Minimum samples.** Below `NEXUS_FEEDBACK_MIN_SAMPLES` values across a
+  request's candidates, `feedback-aware` is exactly `rule-based`.
+- **Bounded influence.** `feedback-aware` only reorders the models `rule-based`
+  would try, minus fallbacks outside the request's domain or latency class, open
+  circuits, and models the engine would refuse before dispatch (no known price,
+  or over the caller's budget); feedback can never route to anything else, and
+  refusals keep the 402 `budget_exceeded` / 500 `model_price_unknown` statuses. Thompson sampling starts every model at `Beta(1, 1)`, and
+  feedback older than the window stops counting.
+- **Typed metrics.** A metric keeps one value kind (boolean or numeric) per
+  caller; a conflicting write is a 409, so `1` cannot silently replace `true`.
+- **Failure isolation.** A feedback-store error never fails a request: indexing
+  errors are logged as `feedback_index_failed`, and `feedback-aware` falls back
+  to `rule-based` when it cannot read feedback.
+
+Privacy: comments are stored in `NEXUS_FEEDBACK_PATH` and returned only to the
+caller that wrote them; they are never logged and never exported as metrics.
+Feedback logs (`feedback_recorded`, `feedback_rejected`) and the
+`router_feedback_total{metric, model}` counter carry no tenant ids or key
+fingerprints, and client-chosen metric names beyond 32 per process share the
+`other` label. See
+[docs/guides/FEEDBACK_LOOP_GUIDE.md](docs/guides/FEEDBACK_LOOP_GUIDE.md#safety-privacy-and-limits).
+
 ## Prompt injection gateway
 
 `PromptInjectionGateway` can allow, redact, or block high-risk prompt patterns before routing. Advisory control complementary to routing shed strategies.
