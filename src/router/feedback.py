@@ -573,9 +573,10 @@ class FeedbackStore:
         if since is not None:
             where += " AND updated_at >= ?"
             params.append(float(since))
-        # ``column`` comes from the fixed allowlist above; values are bound.
+        # ``column`` comes from the fixed allowlist above and ``where`` from fixed
+        # fragments; every value is bound, so this is not an injection vector.
         query = (
-            f"SELECT {column} AS key, COUNT(*) AS n, SUM(value) AS total, "  # noqa: S608
+            f"SELECT {column} AS key, COUNT(*) AS n, SUM(value) AS total, "  # noqa: S608  # nosec B608
             "SUM(value * value) AS total_squares, "
             "SUM(value_kind = 'numeric') AS numeric_rows "
             f"FROM feedback WHERE {where} GROUP BY {column}"
