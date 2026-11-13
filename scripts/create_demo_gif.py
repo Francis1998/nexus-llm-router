@@ -1,5 +1,6 @@
 """Render terminal-style demo GIFs."""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -23,6 +24,7 @@ MUTED = (148, 163, 184)
 ACCENT = (96, 165, 250)
 WARN = (251, 191, 36)
 SUCCESS = (52, 211, 153)
+PALETTE_COLORS = 24
 Color = tuple[int, int, int]
 Line = tuple[str, Color]
 Slide = tuple[str, list[Line]]
@@ -312,6 +314,45 @@ def render_slide_frame(title: str, lines: list[Line], step: int, total_steps: in
         font=font,
     )
     return image
+
+
+def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    """Return Pillow's bundled default font at ``size`` (same on every machine)."""
+    return ImageFont.load_default(size=size)
+
+
+def wrap(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, width: int) -> list[str]:
+    """Greedy word wrap to a pixel width, keeping indentation and hard-splitting long tokens."""
+    stripped = text.lstrip(" ")
+    indent = text[: len(text) - len(stripped)]
+    width -= int(font.getlength(indent))
+    lines: list[str] = []
+    current = ""
+    for word in stripped.split(" "):
+        candidate = f"{current} {word}" if current else word
+        if font.getlength(candidate) <= width:
+            current = candidate
+            continue
+        if current:
+            lines.append(current)
+        while font.getlength(word) > width:
+            cut = len(word)
+            while cut > 1 and font.getlength(word[:cut]) > width:
+                cut -= 1
+            lines.append(word[:cut])
+            word = word[cut:]
+        current = word
+    if current:
+        lines.append(current)
+    return [f"{indent}{line}" for line in lines]
+
+
+def shared_palette(frames: Sequence[Image.Image]) -> list[Image.Image]:
+    """Map every frame onto one small palette so the GIF stays compact."""
+    palette = frames[-1].quantize(
+        colors=PALETTE_COLORS, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE
+    )
+    return [frame.quantize(palette=palette, dither=Image.Dither.NONE) for frame in frames]
 
 
 def save_gif(path: Path, frames: list[Image.Image], duration_ms: int) -> None:
