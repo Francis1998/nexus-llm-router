@@ -61,6 +61,14 @@ _DEFAULT_DEPRECATIONS: dict[str, _DeprecationEntry] = {
         severity="warn",
         reason="gemini-1.5-pro is deprecated; prefer gemini-4-argon",
     ),
+    "gemini-2.5-pro": _DeprecationEntry(
+        replacement="gemini-4-argon",
+        severity="warn",
+        reason=(
+            "gemini-2.5-pro is deprecated and from 2026-12-01 is served by gemini-3.8-flash "
+            "at 3.8 Flash rates; prefer gemini-4-argon"
+        ),
+    ),
     "moonshot-v1-128k": _DeprecationEntry(
         replacement="kimi-k3.1-pro",
         severity="warn",

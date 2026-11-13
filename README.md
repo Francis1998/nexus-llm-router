@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-2105%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-2106%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -162,7 +162,14 @@ Each request moves `RECEIVED → CLASSIFIED → ROUTED → DISPATCHED → RESPON
 
 ## Current Model Stack
 
-Default catalog (`src/router/config.py`), verified against the provider docs on 2026-11-06:
+Verified on 2026-11-12 against the provider docs:
+[OpenAI models](https://developers.openai.com/api/docs/models),
+[Anthropic models](https://platform.claude.com/docs/en/models/overview),
+[Google models](https://aistudio.google.com/docs/models) and
+[pricing](https://aistudio.google.com/docs/pricing), and
+[Kimi pricing](https://platform.kimi.ai/docs/pricing/chat).
+
+Default catalog (`src/router/config.py`):
 
 | Catalog role | Model | List price per 1M tokens (input / output) | Context window |
 | --- | --- | --- | --- |
@@ -174,7 +181,30 @@ Default catalog (`src/router/config.py`), verified against the provider docs on 
 | Google flash | `gemini-3.8-flash` | $0.75 / $3.75 ($1.50 / $7.50 from 2027-01-01) | 1,048,576 |
 | Moonshot | `kimi-k3.1-pro` | $2 / $10 | 1,048,576 |
 
-The adapters also price `gpt-6.1-sol`, `gpt-6.1-terra`, `claude-fable-5-1`, `claude-sonnet-5-5`, `kimi-k3.1-pro-highspeed`, and `kimi-k3`. Nexus never forwards sampling parameters, which these models reject or ignore; see [Provider parameter compatibility](CONFIGURATION.md#provider-parameter-compatibility).
+The adapters also price these current models. Add one to the catalog to route
+to it; see [How completions are priced](CONFIGURATION.md#how-completions-are-priced).
+
+| Model | List price per 1M tokens (input / output) | Context window | Notes |
+| --- | --- | --- | --- |
+| `gpt-6.1-sol` | $2 / $10; 2x / 1.5x above 272K input tokens | 1,050,000 | |
+| `gpt-6.1-terra` | $1 / $5; 2x / 1.5x above 272K input tokens | 1,050,000 | |
+| `claude-fable-5-2` | $8 / $40 | 1,000,000 | For demanding reasoning and long-horizon agentic work; supersedes `claude-fable-5-1` ($10 / $50, still priced) |
+| `claude-sonnet-5-5` | $2 / $10 | 1,000,000 | |
+| `gemini-4-carbon` | $2 / $10 ($4 / $20 from 2026-12-01) | 1,048,576 | Google's strongest reasoning model |
+| `gemini-4-hydrogen` | $1.50 / $7.50 | 1,048,576 | Released 2026-11-12; Google's recommended upgrade from Gemini 3.8 Flash |
+| `gemini-3.5-flash-lite` | $0.30 / $2.50 | 1,048,576 | Google's fastest, lowest-cost model |
+| `kimi-k3.1-pro-highspeed` | $4 / $20 | 1,048,576 | |
+| `kimi-k3` | $3 / $15 | 1,048,576 | |
+
+The default roles are unchanged:
+
+- Gemini 4 Argon has the same list price as Carbon, and Google positions it for lower token spend per turn.
+- Hydrogen costs twice as much as Gemini 3.8 Flash until 3.8 Flash rises to $1.50 / $7.50 on 2027-01-01.
+- Claude Opus 5.5 is Anthropic's recommended starting point at half Fable 5.2's price.
+
+Gemini 2.5 Pro is deprecated: from 2026-12-01 Google answers it with Gemini 3.8 Flash. `ModelDeprecationGuard` points it at `gemini-4-argon`.
+
+Nexus never forwards sampling parameters, which these models reject or ignore; see [Provider parameter compatibility](CONFIGURATION.md#provider-parameter-compatibility).
 
 ## Demo Gallery
 
