@@ -114,6 +114,10 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         yield response.content
         yield response
 
+    def has_price(self, model: str) -> bool:
+        """Return whether the Gemini price table lists ``model``."""
+        return model in self._costs
+
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Estimate Gemini completion cost."""
         input_cost, output_cost = self._costs.get(model, (0.0, 0.0))

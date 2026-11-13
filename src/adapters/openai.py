@@ -101,6 +101,10 @@ class OpenAIAdapter(BaseProviderAdapter):
         yield response.content
         yield response
 
+    def has_price(self, model: str) -> bool:
+        """Return whether the OpenAI price table lists ``model``."""
+        return model in self._costs
+
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Estimate OpenAI completion cost, including GPT-6 long-prompt pricing."""
         input_cost, output_cost = self._costs.get(model, (0.0, 0.0))

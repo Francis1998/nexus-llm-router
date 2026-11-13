@@ -52,9 +52,13 @@ Strategies return `RoutingDecision`, which includes selected model, provider, st
 - `complete()`
 - `stream()`
 - `estimate_cost()`
+- `has_price()`
 - `health_check()`
 
-Concrete adapters live in `src/adapters/`.
+Concrete adapters live in `src/adapters/`. A completion's `cost_usd` comes from
+the adapter's price table; for a catalog model the table lacks (`has_price()` is
+`False`) the engine bills the catalog price instead, and a model priced nowhere
+is never dispatched.
 
 ### Response normalization contract
 

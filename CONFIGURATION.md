@@ -1011,6 +1011,36 @@ pins these payloads for every current model.
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
 
+### How completions are priced
+
+Provider adapters keep their own price tables (`src/adapters/*.py`), separate
+from the catalog. Each completion, streamed or not, is billed once, and that
+cost is what the response `cost_usd`, the spend ledger (`/v1/spend` and tenant
+spend quotas), per-user budgets (`NEXUS_BUDGET_CAP_USD`),
+`router_cost_usd_total`, and audit records report:
+
+1. The adapter's price, when its table lists the model. The built-in catalog
+   and the adapter tables carry the same list prices. For such a model, a
+   catalog price override changes routing and pre-dispatch estimates, not the
+   billed cost.
+2. Otherwise, the model's catalog prices, including its `long_prompt_pricing`
+   tier. This covers SKUs onboarded only through the catalog, such as
+   fine-tunes (`ft:...`) or models released after the adapter tables were last
+   updated. The router logs `model_price_from_catalog` (info) once per model.
+3. A model that neither prices (missing from its adapter's table, with `$0`
+   catalog input and output rates) fails closed: its spend could not be
+   budgeted, so the router never dispatches it. Each attempt is skipped like a
+   budget refusal and the request moves down the fallback chain. The router
+   logs `model_price_unknown` (warning) once per model; set the model's catalog
+   prices to route to it.
+
+Pre-dispatch budget checks estimate each attempt from the catalog prices (the
+prompt-token estimate plus `max_tokens`). For a custom adapter,
+`BaseProviderAdapter.has_price()` defaults to `True`, so the router bills
+whatever its `estimate_cost` returns, including $0 for a free self-hosted
+model. Override `has_price()` to bill catalog prices for models the adapter
+cannot price.
+
 ## Canary-Cost-Blend Routing
 The `canary-cost-blend` strategy is a **cost-first** counterpart to
 NEXUS_CANARY_COST_BLEND_PERCENT=10.0
@@ -1745,6 +1775,36 @@ pins these payloads for every current model.
 | Moonshot Kimi K3.x | `temperature` is fixed at 1.0 (other values error); `top_p`, `n`, and penalties are fixed | `model`, `messages`, `max_completion_tokens` |
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
+
+### How completions are priced
+
+Provider adapters keep their own price tables (`src/adapters/*.py`), separate
+from the catalog. Each completion, streamed or not, is billed once, and that
+cost is what the response `cost_usd`, the spend ledger (`/v1/spend` and tenant
+spend quotas), per-user budgets (`NEXUS_BUDGET_CAP_USD`),
+`router_cost_usd_total`, and audit records report:
+
+1. The adapter's price, when its table lists the model. The built-in catalog
+   and the adapter tables carry the same list prices. For such a model, a
+   catalog price override changes routing and pre-dispatch estimates, not the
+   billed cost.
+2. Otherwise, the model's catalog prices, including its `long_prompt_pricing`
+   tier. This covers SKUs onboarded only through the catalog, such as
+   fine-tunes (`ft:...`) or models released after the adapter tables were last
+   updated. The router logs `model_price_from_catalog` (info) once per model.
+3. A model that neither prices (missing from its adapter's table, with `$0`
+   catalog input and output rates) fails closed: its spend could not be
+   budgeted, so the router never dispatches it. Each attempt is skipped like a
+   budget refusal and the request moves down the fallback chain. The router
+   logs `model_price_unknown` (warning) once per model; set the model's catalog
+   prices to route to it.
+
+Pre-dispatch budget checks estimate each attempt from the catalog prices (the
+prompt-token estimate plus `max_tokens`). For a custom adapter,
+`BaseProviderAdapter.has_price()` defaults to `True`, so the router bills
+whatever its `estimate_cost` returns, including $0 for a free self-hosted
+model. Override `has_price()` to bill catalog prices for models the adapter
+cannot price.
 
 ## Canary-Cost-Blend Routing
 The `canary-cost-blend` strategy is a **cost-first** counterpart to

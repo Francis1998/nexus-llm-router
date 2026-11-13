@@ -90,6 +90,15 @@ class ProviderRejectedRequestError(RoutingFailedError):
         self.status_code = status_code
 
 
+class UnpricedModelError(BudgetExceededError):
+    """Raised before dispatching a model that neither its adapter nor the catalog prices.
+
+    The request's spend could not be recorded or held against a budget, so the
+    attempt is skipped like any other budget refusal (fail closed) and the
+    fallback chain continues with the next model.
+    """
+
+
 class NexusRouter:
     """Production routing engine implementing Observe, Decide, and Act."""
 
@@ -295,6 +304,7 @@ class NexusRouter:
         )
         self._fallback_scoreboard = ProviderFallbackScoreboard()
         self._logger = get_logger(__name__)
+        self._catalog_priced_models, self._unpriced_models = self._classify_model_prices()
 
     @property
     def model_catalog(self) -> Mapping[str, ModelCandidate]:
@@ -357,6 +367,7 @@ class NexusRouter:
             # budget rejections could open a healthy provider's circuit and
             # degrade unrelated traffic.
             try:
+                self._assert_priced(model_name)
                 estimated_cost = candidate.estimate_cost(
                     signals.prompt_tokens_estimate, request.max_tokens
                 )
@@ -398,7 +409,7 @@ class NexusRouter:
                     self._inflight_stats.finish(candidate.provider)
                 return self._respond(
                     request=request,
-                    provider_response=provider_response,
+                    provider_response=self._apply_catalog_price(model_name, provider_response),
                     strategy=strategy,
                     rationale=self._rationale(decision.rationale, model_name, attempt_index),
                     state_machine=state_machine,
@@ -508,6 +519,7 @@ class NexusRouter:
             is_last_attempt = attempt_index == len(attempts) - 1
 
             try:
+                self._assert_priced(model_name)
                 estimated_cost = candidate.estimate_cost(
                     signals.prompt_tokens_estimate, request.max_tokens
                 )
@@ -572,7 +584,7 @@ class NexusRouter:
                     )
                 router_response = self._respond(
                     request=request,
-                    provider_response=provider_response,
+                    provider_response=self._apply_catalog_price(model_name, provider_response),
                     strategy=strategy,
                     rationale=self._rationale(decision.rationale, model_name, attempt_index),
                     state_machine=state_machine,
@@ -643,6 +655,79 @@ class NexusRouter:
 
         message = f"all provider attempts failed: {last_error}"
         raise RoutingFailedError(message)
+
+    def _classify_model_prices(self) -> tuple[frozenset[str], frozenset[str]]:
+        """Find catalog models that their provider adapter cannot price.
+
+        Adapters keep their own price tables, and ``estimate_cost`` returns 0.0
+        for a model missing from one, which would bill catalog-only SKUs
+        (fine-tunes, newly released models) at $0. Those models are billed at
+        their catalog prices instead (``_apply_catalog_price``). A model whose
+        catalog rates are $0 too has no known price, so it is never dispatched
+        (``_assert_priced``). Both cases are logged once per model.
+
+        Returns:
+            ``(catalog_priced, unpriced)`` catalog model names.
+        """
+        adapters = dict(self._adapter_registry.items())
+        catalog_priced: set[str] = set()
+        unpriced: set[str] = set()
+        for model_name, candidate in self._model_catalog.items():
+            adapter = adapters.get(candidate.provider)
+            if adapter is None or adapter.has_price(model_name):
+                continue
+            if candidate.input_cost_per_1k > 0 or candidate.output_cost_per_1k > 0:
+                catalog_priced.add(model_name)
+                self._logger.info(
+                    "model_price_from_catalog",
+                    provider=candidate.provider,
+                    model=model_name,
+                    reason="provider adapter has no price for the model",
+                )
+            else:
+                unpriced.add(model_name)
+                self._logger.warning(
+                    "model_price_unknown",
+                    provider=candidate.provider,
+                    model=model_name,
+                    reason="no adapter price and $0 catalog prices; the model is not dispatched",
+                )
+        return frozenset(catalog_priced), frozenset(unpriced)
+
+    def _assert_priced(self, model_name: str) -> None:
+        """Refuse to dispatch a model whose spend nothing can price.
+
+        Args:
+            model_name: Catalog model about to be attempted.
+
+        Raises:
+            UnpricedModelError: If neither its adapter nor the catalog prices it.
+        """
+        if model_name in self._unpriced_models:
+            raise UnpricedModelError(
+                f"model {model_name} has no price: its provider adapter does not list it "
+                "and its catalog input and output prices are $0"
+            )
+
+    def _apply_catalog_price(
+        self, model_name: str, provider_response: ProviderResponse
+    ) -> ProviderResponse:
+        """Bill catalog prices when the provider adapter cannot price the model.
+
+        Args:
+            model_name: Catalog model that produced the response.
+            provider_response: Normalized provider response.
+
+        Returns:
+            The response, re-priced from the catalog (long-prompt tier included)
+            when the adapter has no price for ``model_name``; otherwise unchanged.
+        """
+        if model_name not in self._catalog_priced_models:
+            return provider_response
+        cost_usd = self._model_catalog[model_name].estimate_cost(
+            provider_response.input_tokens, provider_response.output_tokens
+        )
+        return provider_response.model_copy(update={"cost_usd": cost_usd})
 
     def _respond(
         self,
