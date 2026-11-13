@@ -117,10 +117,17 @@ async def _captured_payload(
         ("gemini-3.8-flash", ModelTier.ECONOMY),
         ("kimi-k3.1-pro", ModelTier.FRONTIER),
         ("kimi-k3.1-pro-highspeed", ModelTier.FRONTIER),
+        # 2026-11-12 lineup: Fable 5.2 and Gemini 4 Carbon are flagships, Gemini 4
+        # Hydrogen is Google's fast workhorse (the upgrade path from 3.8 Flash, priced
+        # between it and the Gemini 4 frontier models), and Flash-Lite is the cheapest.
+        ("claude-fable-5-2", ModelTier.FRONTIER),
+        ("gemini-4-carbon", ModelTier.FRONTIER),
+        ("gemini-4-hydrogen", ModelTier.MID),
+        ("gemini-3.5-flash-lite", ModelTier.ECONOMY),
     ],
 )
 def test_infer_model_tier_classifies_current_lineups(model: str, tier: ModelTier) -> None:
-    """Tier-based strategies must not demote current flagships to the mid tier."""
+    """Flagships classify as frontier, workhorses as mid, and flash / lite SKUs as economy."""
     assert infer_model_tier(model) is tier
 
 
