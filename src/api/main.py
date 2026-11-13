@@ -3,12 +3,13 @@
 import json
 from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass
+from datetime import datetime
 from functools import lru_cache
 from time import time
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import uuid4
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response, status
+from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.exception_handlers import (
     http_exception_handler,
     request_validation_exception_handler,
@@ -19,6 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from adapters.registry import AdapterRegistry, build_adapter_registry
 from api import anthropic_messages
+from api import feedback as feedback_api
 from api.anthropic_messages import COUNT_TOKENS_PATH, MESSAGES_PATH
 from api.errors import (
     ROUTING_ERRORS,
@@ -27,6 +29,7 @@ from api.errors import (
     conversation_error,
     routing_error,
 )
+from api.feedback import FEEDBACK_PATH, FEEDBACK_SUMMARY_PATH
 from api.models import model_object
 from api.responses import (
     RESPONSES_PATH,
@@ -43,6 +46,7 @@ from api.schemas import (
     AnthropicTokenCount,
     ChatCompletionRequest,
     ChatCompletionResponse,
+    FeedbackCreateRequest,
     MessageCountTokensRequest,
     MessageCreateRequest,
     ModelHealth,
@@ -54,16 +58,19 @@ from api.schemas import (
     SpendSummaryResponse,
 )
 from cache.response_cache import ResponseCache
-from observability.logging import configure_logging
+from observability.logging import configure_logging, get_logger
 from observability.metrics import (
+    BoundedLabelValues,
     metrics_response,
     response_cache_hits_total,
     response_cache_misses_total,
+    router_feedback_total,
 )
 from observability.tracing import configure_tracing
 from router.analyzer import estimate_prompt_tokens
 from router.config import RouterSettings, load_settings
 from router.engine import NexusRouter, RoutingFailedError
+from router.feedback import METRIC_PATTERN, FeedbackKindConflictError, FeedbackScope, FeedbackStore
 from router.schemas import ChatMessage, RouterRequest, RouterResponse, RoutingStrategyName
 from safety.budget import BudgetExceededError
 from safety.gateway_guards import GatewayGuardService
@@ -85,6 +92,9 @@ from safety.tenant_rate_limiter import TenantRateLimiter, TenantRateLimitExceede
 configure_logging()
 app = FastAPI(title="Nexus LLM Router", version="0.1.0")
 configure_tracing(app, "nexus-llm-router")
+_logger = get_logger(__name__)
+# Feedback metric names are client-chosen; cap the Prometheus label values.
+_FEEDBACK_METRIC_LABELS = BoundedLabelValues(limit=32)
 
 
 @lru_cache(maxsize=1)
@@ -125,6 +135,15 @@ def get_spend_ledger() -> SpendLedger:
         Spend ledger instance.
     """
     return SpendLedger(get_settings().spend_ledger_path)
+
+
+def get_feedback_store() -> FeedbackStore:
+    """Return the request-feedback store the router indexes completed requests in.
+
+    Returns:
+        The router's feedback store.
+    """
+    return get_router().feedback_store
 
 
 @lru_cache(maxsize=1)
@@ -216,8 +235,18 @@ class _Caller:
 
     @property
     def principal(self) -> str:
-        """Budget, spend, and response-cache subject (end user or key fingerprint)."""
+        """Budget and spend subject (end user or key fingerprint)."""
         return self.end_user or self.api_key_id
+
+    @property
+    def cache_namespace(self) -> str:
+        """Response-cache namespace: API key fingerprint, ``X-Tenant-Id``, and principal.
+
+        A cache hit replays the original ``request_id`` and routing decision, so
+        it must stay with the caller allowed to rate that request (and, for
+        ``feedback-aware``, the caller whose feedback chose the model).
+        """
+        return f"{self.api_key_id}|{self.tenant_id or ''}|{self.principal}"
 
     @property
     def idempotency_tenant(self) -> str:
@@ -447,6 +476,7 @@ async def chat_completions(
             request_id=uuid4().hex,
             messages=payload.messages,
             api_key_id=caller.api_key_id,
+            tenant_id=caller.tenant_id,
             user_id=caller.principal,
             session_id=payload.user or "default",
             requested_model=payload.model,
@@ -459,7 +489,7 @@ async def chat_completions(
 
         try:
             router_response = await _complete_cached(
-                router_request, temperature=payload.temperature, tenant=caller.principal
+                router_request, temperature=payload.temperature, tenant=caller.cache_namespace
             )
         except GatewayError as exception:
             raise HTTPException(exception.status_code, detail=exception.message) from exception
@@ -477,10 +507,11 @@ async def chat_completions(
 async def request_validation_error_handler(
     request: Request, exception: RequestValidationError
 ) -> JSONResponse:
-    """Return API-style 400s for ``/v1/responses`` and ``/v1/messages*``.
+    """Return API-style errors for ``/v1/responses``, ``/v1/messages*``, and ``/v1/feedback*``.
 
-    ``/v1/responses`` gets the OpenAI envelope and ``/v1/messages*`` the
-    Anthropic one; every other route keeps FastAPI's 422s.
+    ``/v1/responses`` gets an OpenAI-envelope 400, ``/v1/messages*`` the
+    Anthropic one, and ``/v1/feedback*`` an OpenAI-envelope 422; every other
+    route keeps FastAPI's 422s.
 
     Args:
         request: FastAPI request object.
@@ -493,6 +524,9 @@ async def request_validation_error_handler(
     if anthropic_messages.is_messages_path(path):
         error = anthropic_messages.validation_error(exception.errors())
         return JSONResponse(status_code=error.status_code, content=error.to_anthropic_body())
+    if feedback_api.is_feedback_path(path):
+        error = feedback_api.validation_error(exception.errors())
+        return JSONResponse(status_code=error.status_code, content=error.to_openai_body())
     if path != RESPONSES_PATH:
         return await request_validation_exception_handler(request, exception)
     error = validation_error(exception.errors())
@@ -596,6 +630,7 @@ async def _route_response(
         request_id=uuid4().hex,
         messages=messages,
         api_key_id=caller.api_key_id,
+        tenant_id=caller.tenant_id,
         user_id=caller.principal,
         session_id=end_user or "default",
         requested_model=payload.model,
@@ -615,7 +650,7 @@ async def _route_response(
     router_response = await _complete_cached(
         router_request,
         temperature=draft.temperature,
-        tenant=caller.principal,
+        tenant=caller.cache_namespace,
     )
     body = complete_response(draft, router_response, f"msg_{uuid4().hex}").model_dump(mode="json")
     if reservation is not None:
@@ -748,6 +783,7 @@ async def _route_message(
         request_id=uuid4().hex,
         messages=messages,
         api_key_id=caller.api_key_id,
+        tenant_id=caller.tenant_id,
         user_id=caller.principal,
         session_id=caller.end_user or "default",
         requested_model=payload.model,
@@ -776,7 +812,7 @@ async def _route_message(
     router_response = await _complete_cached(
         router_request,
         temperature=1.0 if payload.temperature is None else payload.temperature,
-        tenant=caller.principal,
+        tenant=caller.cache_namespace,
     )
     message = anthropic_messages.complete_message(message_id, router_response, stop_sequences)
     body = message.model_dump(mode="json")
@@ -931,3 +967,123 @@ def post_spend(payload: SpendRecordRequest) -> SpendSummaryResponse:
         by_provider=summary.by_provider,
         by_model=summary.by_model,
     )
+
+
+def _openai_error(error: GatewayError) -> JSONResponse:
+    """Render a gateway error as an OpenAI-style JSON response."""
+    return JSONResponse(status_code=error.status_code, content=error.to_openai_body())
+
+
+def _feedback_scope(request: Request, x_tenant_id: str | None) -> FeedbackScope:
+    """Admit a feedback caller and return the scope its requests belong to.
+
+    The key may arrive as ``Authorization`` or ``x-api-key``, so feedback works
+    for requests made through ``/v1/chat/completions``, ``/v1/responses``, and
+    ``/v1/messages`` alike.
+    """
+    caller = _admit_caller(request, x_tenant_id, None, api_key_id=_anthropic_api_key_id(request))
+    return FeedbackScope(api_key_id=caller.api_key_id, tenant_id=caller.tenant_id)
+
+
+@app.post(FEEDBACK_PATH, response_model=None)
+def create_feedback(
+    payload: FeedbackCreateRequest,
+    request: Request,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> JSONResponse:
+    """Attach feedback to a completed request, replacing the caller's earlier value.
+
+    One value is kept per ``(request_id, metric, source)``. Only the API key
+    and ``X-Tenant-Id`` that made the request may rate it; anything else gets
+    the same 404 as an unknown id. The comment is stored and returned, never
+    logged.
+
+    Args:
+        payload: Feedback body.
+        request: FastAPI request object.
+        x_tenant_id: Optional tenant id; must match the original request's.
+
+    Returns:
+        The stored ``feedback`` object, or an OpenAI-style error.
+    """
+    try:
+        scope = _feedback_scope(request, x_tenant_id)
+        write = get_feedback_store().record(
+            scope,
+            request_id=payload.request_id,
+            metric=payload.metric,
+            value=payload.value,
+            source=payload.source,
+            comment=payload.comment,
+        )
+    except FeedbackKindConflictError as conflict:
+        return _openai_error(feedback_api.kind_conflict(conflict))
+    except GatewayError as error:
+        return _openai_error(error)
+    if write is None:
+        _logger.info("feedback_rejected", request_id=payload.request_id, reason="request_not_found")
+        return _openai_error(feedback_api.request_not_found(payload.request_id))
+    record = write.record
+    metric_label = (
+        record.metric
+        if record.metric == get_settings().feedback_metric
+        else _FEEDBACK_METRIC_LABELS.label(record.metric)
+    )
+    router_feedback_total.labels(metric_label, record.model).inc()
+    _logger.info(
+        "feedback_recorded",
+        request_id=record.request_id,
+        feedback_id=record.feedback_id,
+        metric=record.metric,
+        source=record.source,
+        value=record.value,
+        model=record.model,
+        provider=record.provider,
+        strategy=record.strategy,
+        domain=record.domain,
+        created=write.created,
+    )
+    return JSONResponse(content=feedback_api.feedback_object(record).model_dump(mode="json"))
+
+
+@app.get(FEEDBACK_SUMMARY_PATH, response_model=None)
+def feedback_summary(
+    request: Request,
+    metric: Annotated[str, Query(pattern=METRIC_PATTERN)] = "quality",
+    group_by: Literal["model", "strategy", "domain", "provider"] = "model",
+    since: datetime | None = None,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> JSONResponse:
+    """Summarize the caller's feedback for one metric, per model, strategy, domain, or provider.
+
+    Boolean metrics report positives and a 95% Wilson score interval; numeric
+    metrics report the mean with a 95% normal-approximation interval. Only the
+    caller's own feedback (API key fingerprint plus ``X-Tenant-Id``) is counted.
+
+    Args:
+        request: FastAPI request object.
+        metric: Metric name.
+        group_by: Snapshot field to group by.
+        since: Optional ISO 8601 timestamp (naive values are UTC); only feedback
+            written at or after it is counted.
+        x_tenant_id: Optional tenant id.
+
+    Returns:
+        The ``feedback.summary`` object, or an OpenAI-style error.
+    """
+    try:
+        scope = _feedback_scope(request, x_tenant_id)
+    except GatewayError as error:
+        return _openai_error(error)
+    try:
+        since_utc = feedback_api.as_utc(since)
+    except OverflowError:
+        return _openai_error(feedback_api.since_out_of_range())
+    summary = get_feedback_store().summary(
+        scope,
+        metric=metric,
+        group_by=group_by,
+        since=since_utc.timestamp() if since_utc is not None else None,
+    )
+    body = feedback_api.summary_response(summary, since_utc).model_dump(mode="json")
+    return JSONResponse(content=body)

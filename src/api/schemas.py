@@ -1,14 +1,17 @@
 """FastAPI request and response schemas."""
 
+from datetime import datetime
 from time import time
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
 
+from router.feedback import METRIC_PATTERN
 from router.schemas import ChatMessage, RouterResponse, RoutingStrategyName
 
 DEFAULT_MAX_TOKENS = 512
+FEEDBACK_COMMENT_MAX_CHARS = 1000
 _METADATA_MAX_PAIRS = 16
 _METADATA_MAX_KEY_CHARS = 64
 _METADATA_MAX_VALUE_CHARS = 512
@@ -108,6 +111,64 @@ class SpendSummaryResponse(BaseModel):
     by_tenant: dict[str, float]
     by_provider: dict[str, float]
     by_model: dict[str, float]
+
+
+FeedbackValue = StrictBool | Annotated[float, Field(ge=0.0, le=1.0, strict=True)]
+
+
+class FeedbackCreateRequest(BaseModel):
+    """``POST /v1/feedback`` body; unknown fields are rejected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(min_length=1, max_length=128)
+    metric: str = Field(default="quality", pattern=METRIC_PATTERN)
+    value: FeedbackValue
+    comment: str | None = Field(default=None, max_length=FEEDBACK_COMMENT_MAX_CHARS)
+    source: Literal["human", "automated"] = "human"
+
+
+class FeedbackObject(BaseModel):
+    """Stored feedback with the routing snapshot of the request it rates."""
+
+    id: str
+    object: Literal["feedback"] = "feedback"
+    request_id: str
+    metric: str
+    value: bool | float
+    source: Literal["human", "automated"]
+    comment: str | None
+    model: str
+    provider: str
+    strategy: str
+    domain: str
+    created_at: int
+    updated_at: int
+
+
+class FeedbackSummaryGroup(BaseModel):
+    """Feedback aggregate for one ``group_by`` value."""
+
+    key: str
+    n: int
+    positives: int | None
+    mean: float
+    ci_low: float
+    ci_high: float
+
+
+class FeedbackSummaryResponse(BaseModel):
+    """``GET /v1/feedback/summary`` payload for the caller's own feedback."""
+
+    object: Literal["feedback.summary"] = "feedback.summary"
+    metric: str
+    group_by: Literal["model", "strategy", "domain", "provider"]
+    kind: Literal["boolean", "numeric"] | None
+    interval: Literal["wilson", "normal"] | None
+    confidence: float = 0.95
+    since: datetime | None
+    n: int
+    groups: list[FeedbackSummaryGroup]
 
 
 class ResponseCreateRequest(BaseModel):
