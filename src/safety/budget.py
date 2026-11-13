@@ -32,9 +32,21 @@ class BudgetGuardrail:
         Raises:
             BudgetExceededError: If the spend cap would be exceeded.
         """
-        current_spend = self._spend_by_subject.get(subject, 0.0)
-        if current_spend + estimated_cost_usd > self._cap_usd + self._EPSILON_USD:
+        if not self.can_spend(subject, estimated_cost_usd):
             raise BudgetExceededError(f"budget cap exceeded for {subject}")
+
+    def can_spend(self, subject: str, estimated_cost_usd: float) -> bool:
+        """Return whether an estimated spend fits the cap, without raising.
+
+        Args:
+            subject: User or session budget key.
+            estimated_cost_usd: Estimated next request cost.
+
+        Returns:
+            ``True`` when :meth:`assert_can_spend` would pass.
+        """
+        current_spend = self._spend_by_subject.get(subject, 0.0)
+        return not current_spend + estimated_cost_usd > self._cap_usd + self._EPSILON_USD
 
     def record_spend(self, subject: str, cost_usd: float) -> None:
         """Record actual spend for a subject.

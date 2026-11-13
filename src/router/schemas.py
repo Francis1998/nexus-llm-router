@@ -148,6 +148,7 @@ class RoutingStrategyName(StrEnum):
     AGENTS_API_PREFER = "agents-api-prefer"
     WEBHOOK_PREFER = "webhook-prefer"
     MEMORY_TOOL_PREFER = "memory-tool-prefer"
+    FEEDBACK_AWARE = "feedback-aware"
     AB_TEST = "ab"
 
 
@@ -166,6 +167,7 @@ class RouterRequest(BaseModel):
     request_id: str
     messages: list[ChatMessage]
     api_key_id: str = "anonymous"
+    tenant_id: str | None = None
     user_id: str = "anonymous"
     session_id: str = "default"
     requested_model: str | None = None
@@ -313,7 +315,12 @@ class RouterResponse(BaseModel):
 
 
 class AuditRecord(BaseModel):
-    """Durable audit record for a routing decision."""
+    """Durable audit record for a routing decision.
+
+    ``api_key_id`` is the caller's non-reversible key fingerprint and
+    ``tenant_id`` its optional ``X-Tenant-Id``; together they scope feedback on
+    the request. ``domain`` is the analyzer's domain tag.
+    """
 
     request_id: str
     chosen_model: str
@@ -325,3 +332,6 @@ class AuditRecord(BaseModel):
     input_tokens: int
     output_tokens: int
     state: str
+    api_key_id: str | None = None
+    tenant_id: str | None = None
+    domain: DomainTag | None = None

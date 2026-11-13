@@ -1,6 +1,7 @@
 """Observe-Decide-Act routing engine."""
 
 import asyncio
+import sqlite3
 import time
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from types import MappingProxyType
@@ -18,8 +19,10 @@ from router.analyzer import RequestAnalyzer
 from router.audit import AuditLog
 from router.config import RouterSettings, default_model_catalog
 from router.fallback_scoreboard import ProviderFallbackScoreboard
+from router.feedback import FeedbackStore
 from router.schemas import (
     AuditRecord,
+    DomainTag,
     ModelCandidate,
     ProviderResponse,
     RouterRequest,
@@ -118,6 +121,7 @@ class NexusRouter:
         adapter_registry: AdapterRegistry,
         analyzer: RequestAnalyzer | None = None,
         model_catalog: Mapping[str, ModelCandidate] | None = None,
+        feedback_store: FeedbackStore | None = None,
     ) -> None:
         """Initialize router dependencies.
 
@@ -126,11 +130,17 @@ class NexusRouter:
             adapter_registry: Provider adapter registry.
             analyzer: Optional request analyzer override.
             model_catalog: Optional model catalog override.
+            feedback_store: Optional request-feedback store override; defaults
+                to one at ``settings.feedback_path``.
         """
         self._settings = settings
         self._adapter_registry = adapter_registry
         self._analyzer = analyzer or RequestAnalyzer()
         self._model_catalog = dict(model_catalog or default_model_catalog())
+        self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
+        self._feedback_store = feedback_store or FeedbackStore(
+            settings.feedback_path, window_seconds=settings.feedback_window_seconds
+        )
         self._latency_stats = LatencyStats()
         self._inflight_stats = InflightStats()
         self._success_stats = SuccessStats()
@@ -303,10 +313,13 @@ class NexusRouter:
             tenant_soft_isolation_rpm=settings.tenant_soft_isolation_rpm,
             prompt_injection_risk_threshold=settings.prompt_injection_risk_threshold,
             thinking_complexity_threshold=settings.thinking_complexity_threshold,
+            feedback_stats=self._feedback_store,
+            dispatch_guard=self,
+            feedback_metric=settings.feedback_metric,
+            feedback_min_samples=settings.feedback_min_samples,
         )
         self._audit_log = AuditLog(settings.audit_log_path)
         self._spend_ledger = SpendLedger(settings.spend_ledger_path)
-        self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
         self._pii_scrubber = PiiScrubber(settings.enable_pii_scrubbing)
         self._rate_limiter = TokenBucketRateLimiter(
             settings.rate_limit_capacity,
@@ -320,6 +333,30 @@ class NexusRouter:
     def model_catalog(self) -> Mapping[str, ModelCandidate]:
         """Return the routable model catalog (read-only view)."""
         return MappingProxyType(self._model_catalog)
+
+    @property
+    def feedback_store(self) -> FeedbackStore:
+        """Return the store that indexes completed requests and their feedback."""
+        return self._feedback_store
+
+    def allows_dispatch(self, model: str, subject: str, estimated_cost_usd: float) -> bool:
+        """Return whether ``model`` would pass the pre-dispatch price and budget checks.
+
+        Read-only twin of the attempt loop's ``_assert_priced`` and
+        ``BudgetGuardrail.assert_can_spend``, so a strategy can avoid choosing a
+        model the engine would skip.
+
+        Args:
+            model: Catalog model name.
+            subject: Budget subject (``RouterRequest.user_id``).
+            estimated_cost_usd: Estimated cost of the request on ``model``.
+
+        Returns:
+            ``False`` when the model has no known price or does not fit the budget.
+        """
+        if model in self._unpriced_models:
+            return False
+        return self._budget_guardrail.can_spend(subject, estimated_cost_usd)
 
     def provider_routable(self, provider: str) -> bool:
         """Return whether the provider's circuit breaker currently allows routing.
@@ -427,6 +464,7 @@ class NexusRouter:
                     provider=candidate.provider,
                     prompt_tokens_estimate=signals.prompt_tokens_estimate,
                     attempt_started_at=attempt_started_at,
+                    domain=signals.domain_tag,
                 )
             except Exception as exception:
                 rejection = self._client_rejection(
@@ -601,6 +639,7 @@ class NexusRouter:
                     provider=candidate.provider,
                     prompt_tokens_estimate=signals.prompt_tokens_estimate,
                     attempt_started_at=attempt_started_at,
+                    domain=signals.domain_tag,
                 )
             except Exception as exception:
                 rejection = self._client_rejection(
@@ -779,6 +818,7 @@ class NexusRouter:
         provider: str,
         prompt_tokens_estimate: int,
         attempt_started_at: float | None = None,
+        domain: DomainTag | None = None,
     ) -> RouterResponse:
         """Build the router response and persist observability side effects."""
         self._circuit_breakers.record_success(provider)
@@ -841,20 +881,23 @@ class NexusRouter:
             request_id=request.request_id,
             finish_reason=provider_response.finish_reason,
         )
-        self._audit_log.append(
-            AuditRecord(
-                request_id=request.request_id,
-                chosen_model=provider_response.model,
-                provider=provider,
-                routing_strategy=strategy.strategy_name,
-                rationale=rationale,
-                latency_ms=latency_ms,
-                token_cost=provider_response.cost_usd,
-                input_tokens=provider_response.input_tokens,
-                output_tokens=provider_response.output_tokens,
-                state=state_machine.current_state.value,
-            ),
+        audit_record = AuditRecord(
+            request_id=request.request_id,
+            chosen_model=provider_response.model,
+            provider=provider,
+            routing_strategy=strategy.strategy_name,
+            rationale=rationale,
+            latency_ms=latency_ms,
+            token_cost=provider_response.cost_usd,
+            input_tokens=provider_response.input_tokens,
+            output_tokens=provider_response.output_tokens,
+            state=state_machine.current_state.value,
+            api_key_id=request.api_key_id,
+            tenant_id=request.tenant_id,
+            domain=domain,
         )
+        self._audit_log.append(audit_record)
+        self._register_for_feedback(audit_record)
         self._logger.info(
             "routing_response",
             request_id=request.request_id,
@@ -863,6 +906,20 @@ class NexusRouter:
             cost_usd=response.cost_usd,
         )
         return response
+
+    def _register_for_feedback(self, record: AuditRecord) -> None:
+        """Make a completed request addressable by ``POST /v1/feedback``.
+
+        A failing feedback store never fails the request: the provider already
+        answered, and treating the error as a provider failure would retry (and
+        bill) a fallback. Feedback for this request then returns 404.
+        """
+        try:
+            self._feedback_store.register_request(record)
+        except (sqlite3.Error, OSError) as error:
+            self._logger.warning(
+                "feedback_index_failed", request_id=record.request_id, error=str(error)
+            )
 
     def _client_rejection(
         self,
