@@ -74,6 +74,22 @@ class BaseProviderAdapter(ABC):
             Estimated cost in USD.
         """
 
+    def has_price(self, model: str) -> bool:
+        """Return whether ``estimate_cost`` knows the price of ``model``.
+
+        Adapters with a static price table return ``False`` for models missing
+        from it, for which ``estimate_cost`` returns 0.0; the router then bills
+        the model's catalog prices instead. The default trusts ``estimate_cost``.
+
+        Args:
+            model: Provider model name.
+
+        Returns:
+            ``True`` when the adapter prices ``model``.
+        """
+        del model
+        return True
+
     @abstractmethod
     async def health_check(self) -> bool:
         """Check provider availability.
