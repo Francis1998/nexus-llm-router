@@ -373,15 +373,15 @@ matching Anthropic `type`:
 | --- | --- | --- | --- |
 | 400 | `invalid_request_error` | Missing or invalid fields (including an empty `messages` list, with or without `system`), rejected features and blocks, a body that is not JSON, an unknown `X-Router-Strategy`, or a provider rejecting the request itself with HTTP 400 | `BadRequestError` |
 | 401 | `authentication_error` | `x-api-key` and `Authorization` carry different keys | `AuthenticationError` |
-| 402 | `billing_error` | The router raised a budget error directly (same 402 as the other endpoints) | `APIStatusError` |
+| 402 | `billing_error` | The budget guardrail refused every candidate model (same 402 as the other endpoints) | `APIStatusError` |
 | 404 | `not_found_error` | Unknown path below `/v1/messages` (for example `/v1/messages/batches`) | `NotFoundError` |
 | 405 | `invalid_request_error` | Wrong method, for example `GET /v1/messages` | `APIStatusError` |
 | 409 | `conflict_error` | Another request with the same `Idempotency-Key` is still running | `ConflictError` |
 | 413 | `request_too_large` | A provider rejected the request as too large (HTTP 413) | `ContentTooLargeError` |
 | 422 | `invalid_request_error` | A provider rejected the request as unprocessable (HTTP 422) | `UnprocessableEntityError` |
 | 429 | `rate_limit_error` | Per-key router rate limit or `X-Tenant-Id` bucket exhausted | `RateLimitError` |
-| 500 | `api_error` | Internal gateway error (for example a corrupt response-cache entry) | `InternalServerError` |
-| 503 | `overloaded_error` | Every provider attempt failed, including candidates skipped by the budget cap (the message then says `budget cap exceeded`) | `ServiceUnavailableError` |
+| 500 | `api_error` | Internal gateway error, for example a corrupt response-cache entry or no candidate model with a price (`model ... has no price`) | `InternalServerError` |
+| 503 | `overloaded_error` | An affordable, priced candidate failed at its provider or had an open circuit, and no other attempt succeeded | `ServiceUnavailableError` |
 
 A provider's rejection of the request itself (HTTP 400, 413, or 422) keeps the
 provider's status, as on the other endpoints: it is not retried on another

@@ -300,9 +300,10 @@ typed exceptions (`BadRequestError`, `RateLimitError`, …).
 | 400 | `invalid_request_error` | `null` | Body is not valid JSON. |
 | 409 | `invalid_request_error` | `idempotency_key_in_use` | Another request with the same `Idempotency-Key` is still running; retry after it completes to get the replay. |
 | 429 | `rate_limit_error` | `rate_limit_exceeded` | Per-key router rate limit or `X-Tenant-Id` bucket exhausted. |
-| 402 | `budget_exceeded` | `budget_exceeded` | Budget guardrail rejected the request. |
+| 402 | `budget_exceeded` | `budget_exceeded` | The budget guardrail refused every candidate model: the user's recorded spend plus each candidate's estimated cost exceeds `NEXUS_BUDGET_CAP_USD`. Retrying cannot succeed until the budget allows it. |
 | 400 / 413 / 422 | `invalid_request_error` | `provider_rejected_request` | The routed provider rejected the request itself (for example a prompt longer than its context window). Nexus returns the provider's status without trying fallbacks or counting it against the provider's circuit breaker. |
-| 503 | `routing_failed` | `routing_failed` | Every provider attempt in the fallback chain failed (including candidates skipped by the budget cap). |
+| 500 | `server_error` | `model_price_unknown` | No candidate model has a price (no adapter price and $0 catalog prices), so nexus refused to dispatch spend it could not record or budget. This is a gateway configuration error; see [How completions are priced](../../CONFIGURATION.md#how-completions-are-priced). |
+| 503 | `routing_failed` | `routing_failed` | An affordable, priced candidate failed at its provider or had an open circuit, and every other attempt in the fallback chain failed or was skipped. A retry may succeed. |
 
 Other routes keep their existing error formats (`/v1/chat/completions` still
 returns FastAPI `{"detail": ...}` bodies and 422 validation errors; only an empty

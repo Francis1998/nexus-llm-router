@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from router.engine import ProviderRejectedRequestError, RoutingFailedError
+from router.engine import ProviderRejectedRequestError, RoutingFailedError, UnpricedModelError
 from router.schemas import ChatMessage
 from safety.budget import BudgetExceededError
 from safety.rate_limiter import RateLimitExceededError
@@ -126,8 +126,10 @@ def routing_error(
         exception: Failure raised by ``NexusRouter``.
 
     Returns:
-        429 for rate limits, 402 for budget caps, the provider's 4xx when it
-        rejected the request itself, 503 when every provider failed.
+        429 for rate limits, 402 when the budget guardrail refused every
+        candidate, the provider's 4xx when it rejected the request itself, 500
+        (``model_price_unknown``) when no candidate model has a price, and 503
+        when every provider attempt failed.
     """
     if isinstance(exception, RateLimitExceededError):
         return GatewayError(
@@ -139,6 +141,10 @@ def routing_error(
         )
     if isinstance(exception, ProviderRejectedRequestError):
         return GatewayError(exception.status_code, str(exception), code="provider_rejected_request")
+    if isinstance(exception, UnpricedModelError):
+        return GatewayError(
+            500, str(exception), error_type="server_error", code="model_price_unknown"
+        )
     return GatewayError(503, str(exception), error_type="routing_failed", code="routing_failed")
 
 

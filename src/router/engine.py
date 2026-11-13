@@ -90,12 +90,22 @@ class ProviderRejectedRequestError(RoutingFailedError):
         self.status_code = status_code
 
 
-class UnpricedModelError(BudgetExceededError):
-    """Raised before dispatching a model that neither its adapter nor the catalog prices.
+class UnpricedModelError(RoutingFailedError):
+    """Raised for a model that neither its adapter nor the catalog prices.
 
-    The request's spend could not be recorded or held against a budget, so the
-    attempt is skipped like any other budget refusal (fail closed) and the
-    fallback chain continues with the next model.
+    Its spend could not be recorded or held against a budget, so the attempt is
+    skipped before dispatch (fail closed) and the fallback chain continues. The
+    router raises it for the request only when no candidate has a price: a
+    gateway configuration error, not a budget overrun.
+    """
+
+
+class BudgetRefusedError(RoutingFailedError, BudgetExceededError):
+    """Raised when the budget guardrail refused every candidate with a price.
+
+    No candidate fit the subject's remaining budget, so retrying cannot succeed
+    until the budget allows it. It is a ``BudgetExceededError`` for the API's
+    402 mapping and a ``RoutingFailedError`` for callers catching that.
     """
 
 
@@ -355,7 +365,7 @@ class NexusRouter:
             rationale=decision.rationale,
         )
         attempts = self._order_attempts(decision.chosen_model, decision.fallback_chain)
-        last_error: Exception | None = None
+        attempt_errors: list[Exception] = []
 
         for attempt_index, model_name in enumerate(attempts):
             candidate = self._model_catalog[model_name]
@@ -373,8 +383,8 @@ class NexusRouter:
                 )
                 self._budget_guardrail.assert_can_spend(request.user_id, estimated_cost)
                 self._circuit_breakers.assert_available(candidate.provider)
-            except (BudgetExceededError, CircuitOpenError) as guardrail_error:
-                last_error = guardrail_error
+            except (BudgetExceededError, CircuitOpenError, UnpricedModelError) as guardrail_error:
+                attempt_errors.append(guardrail_error)
                 self._logger.warning(
                     "provider_attempt_skipped",
                     request_id=request.request_id,
@@ -424,7 +434,7 @@ class NexusRouter:
                 )
                 if rejection is not None:
                     raise rejection from exception
-                last_error = exception
+                attempt_errors.append(exception)
                 attempt_latency_ms = (time.perf_counter() - attempt_started_at) * 1000.0
                 self._fallback_scoreboard.record_outcome(
                     candidate.provider,
@@ -464,8 +474,7 @@ class NexusRouter:
                     continue
                 state_machine.transition(RequestState.FAILED)
 
-        message = f"all provider attempts failed: {last_error}"
-        raise RoutingFailedError(message)
+        raise self._routing_failure(attempt_errors)
 
     async def complete_stream(
         self,
@@ -512,7 +521,7 @@ class NexusRouter:
             rationale=decision.rationale,
         )
         attempts = self._order_attempts(decision.chosen_model, decision.fallback_chain)
-        last_error: Exception | None = None
+        attempt_errors: list[Exception] = []
 
         for attempt_index, model_name in enumerate(attempts):
             candidate = self._model_catalog[model_name]
@@ -525,8 +534,8 @@ class NexusRouter:
                 )
                 self._budget_guardrail.assert_can_spend(request.user_id, estimated_cost)
                 self._circuit_breakers.assert_available(candidate.provider)
-            except (BudgetExceededError, CircuitOpenError) as guardrail_error:
-                last_error = guardrail_error
+            except (BudgetExceededError, CircuitOpenError, UnpricedModelError) as guardrail_error:
+                attempt_errors.append(guardrail_error)
                 self._logger.warning(
                     "provider_attempt_skipped",
                     request_id=request.request_id,
@@ -599,7 +608,7 @@ class NexusRouter:
                 )
                 if rejection is not None:
                     raise rejection from exception
-                last_error = exception
+                attempt_errors.append(exception)
                 attempt_latency_ms = (time.perf_counter() - attempt_started_at) * 1000.0
                 self._fallback_scoreboard.record_outcome(
                     candidate.provider,
@@ -653,8 +662,7 @@ class NexusRouter:
                     on_complete(router_response)
                 return
 
-        message = f"all provider attempts failed: {last_error}"
-        raise RoutingFailedError(message)
+        raise self._routing_failure(attempt_errors)
 
     def _classify_model_prices(self) -> tuple[frozenset[str], frozenset[str]]:
         """Find catalog models that their provider adapter cannot price.
@@ -728,6 +736,37 @@ class NexusRouter:
             provider_response.input_tokens, provider_response.output_tokens
         )
         return provider_response.model_copy(update={"cost_usd": cost_usd})
+
+    @staticmethod
+    def _routing_failure(attempt_errors: Sequence[Exception]) -> RoutingFailedError:
+        """Return the error for a request that no attempt could serve.
+
+        Candidates refused before dispatch for the budget or for a missing price
+        never reached a provider. When those refusals cover every attempt, the
+        request fails for that reason: ``BudgetRefusedError`` (HTTP 402) when the
+        budget refused at least one priced candidate, else ``UnpricedModelError``
+        (HTTP 500). An open circuit or a provider failure means an affordable,
+        priced candidate could not be served, which a retry may get past, so the
+        request fails with ``RoutingFailedError`` (HTTP 503).
+
+        Args:
+            attempt_errors: Why each attempt was skipped or failed, in order.
+
+        Returns:
+            The error to raise.
+        """
+        last_error = attempt_errors[-1] if attempt_errors else None
+        budget_refusals = [
+            error for error in attempt_errors if isinstance(error, BudgetExceededError)
+        ]
+        refused_before_dispatch = all(
+            isinstance(error, (BudgetExceededError, UnpricedModelError)) for error in attempt_errors
+        )
+        if attempt_errors and refused_before_dispatch:
+            if budget_refusals:
+                return BudgetRefusedError(str(budget_refusals[-1]))
+            return UnpricedModelError(str(last_error))
+        return RoutingFailedError(f"all provider attempts failed: {last_error}")
 
     def _respond(
         self,

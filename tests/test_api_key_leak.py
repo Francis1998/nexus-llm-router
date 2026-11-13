@@ -94,15 +94,15 @@ def test_rate_limit_429_detail_does_not_echo_authorization_secret(
     assert re.search(r"key_[0-9a-f]{16}", detail)
 
 
-def test_budget_exhaustion_503_detail_does_not_echo_authorization_secret(
+def test_budget_exhaustion_402_detail_does_not_echo_authorization_secret(
     gateway: GatewayFactory,
 ) -> None:
-    """Budget guardrail rejections surface as 503 and must not leak the key."""
+    """Budget guardrail rejections surface as 402 and must not leak the key."""
     client, _ = gateway(budget_cap_usd=0.0)
 
     response = _chat(client, "over budget", LEAK_CANARY)
 
-    assert response.status_code == 503
+    assert response.status_code == 402
     assert "budget cap exceeded" in response.json()["detail"]
     assert LEAK_CANARY not in response.json()["detail"]
 

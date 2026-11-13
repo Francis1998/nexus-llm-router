@@ -16,7 +16,7 @@ Provider calls are wrapped in `asyncio.wait_for` and adapter-level `httpx` timeo
 
 ## Budget Guardrail
 
-Spend is tracked by user key. Nexus rejects requests when estimated next spend would exceed `NEXUS_BUDGET_CAP_USD`.
+Spend is tracked by user key. Nexus rejects requests when estimated next spend would exceed `NEXUS_BUDGET_CAP_USD`: when the cap refuses every candidate model, the request fails with HTTP 402 `budget_exceeded` (`billing_error` on `/v1/messages`; a `budget_exceeded` error frame on chat-completion streams).
 Recorded spend uses the provider adapter's price for the model, or the catalog price when the adapter has none; a model priced by neither is never dispatched (see [CONFIGURATION.md](CONFIGURATION.md#how-completions-are-priced)).
 
 ## PII Scrubbing
@@ -57,7 +57,9 @@ Client-side guardrails are evaluated per candidate *before* dispatch:
 
 - **Budget cap** (`BudgetExceededError`)
 - **Unpriced model** (`UnpricedModelError`): neither its adapter nor the catalog
-  prices it, so its spend could not be budgeted
+  prices it, so its spend could not be budgeted. When no candidate has a
+  price, the request fails with HTTP 500 `model_price_unknown`, a gateway
+  configuration error
 - **Open circuit** (`CircuitOpenError`)
 
 When a guardrail rejects a candidate, Nexus **skips** that candidate and moves to

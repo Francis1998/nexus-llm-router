@@ -1044,7 +1044,13 @@ spend quotas), per-user budgets (`NEXUS_BUDGET_CAP_USD`),
    budgeted, so the router never dispatches it. Each attempt is skipped like a
    budget refusal and the request moves down the fallback chain. The router
    logs `model_price_unknown` (warning) once per model; set the model's catalog
-   prices to route to it.
+   prices to route to it. If no candidate has a price, the request fails with
+   HTTP 500 (`server_error`, code `model_price_unknown`).
+
+When the budget cap (`NEXUS_BUDGET_CAP_USD`) refuses every candidate, the
+request fails with HTTP 402 (`budget_exceeded`; `billing_error` on
+`/v1/messages`). If an affordable candidate failed at its provider instead,
+the request fails with 503 (`routing_failed`), which a retry may get past.
 
 Pre-dispatch budget checks estimate each attempt from the catalog prices (the
 prompt-token estimate plus `max_tokens`). For a custom adapter,
@@ -1821,7 +1827,13 @@ spend quotas), per-user budgets (`NEXUS_BUDGET_CAP_USD`),
    budgeted, so the router never dispatches it. Each attempt is skipped like a
    budget refusal and the request moves down the fallback chain. The router
    logs `model_price_unknown` (warning) once per model; set the model's catalog
-   prices to route to it.
+   prices to route to it. If no candidate has a price, the request fails with
+   HTTP 500 (`server_error`, code `model_price_unknown`).
+
+When the budget cap (`NEXUS_BUDGET_CAP_USD`) refuses every candidate, the
+request fails with HTTP 402 (`budget_exceeded`; `billing_error` on
+`/v1/messages`). If an affordable candidate failed at its provider instead,
+the request fails with 503 (`routing_failed`), which a retry may get past.
 
 Pre-dispatch budget checks estimate each attempt from the catalog prices (the
 prompt-token estimate plus `max_tokens`). For a custom adapter,
