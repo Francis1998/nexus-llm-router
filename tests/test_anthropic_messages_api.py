@@ -1001,15 +1001,15 @@ def test_router_errors_map_to_anthropic_status_and_type(
     assert _assert_anthropic_error(gw.create(_body()), status, error_type) == str(exception)
 
 
-def test_budget_exhaustion_is_a_routing_failure_that_hides_the_key(
+def test_budget_exhaustion_is_a_billing_error_that_hides_the_key(
     gateway: GatewayFactory,
 ) -> None:
-    """A spent budget skips every candidate, so the router reports 503 like the other APIs."""
+    """A spent budget refuses every candidate: 402 ``billing_error`` like the other APIs."""
     gw = gateway(budget_cap_usd=0.0)
 
     response = gw.create(_body(), **{"x-api-key": API_KEY})
 
-    message = _assert_anthropic_error(response, 503, "overloaded_error")
+    message = _assert_anthropic_error(response, 402, "billing_error")
     assert "budget cap exceeded" in message
     assert API_KEY not in message
 

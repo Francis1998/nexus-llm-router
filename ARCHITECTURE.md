@@ -96,7 +96,9 @@ ingress path: the `Authorization` header (or, on the Anthropic paths, an
 equivalent `x-api-key`) is reduced to a non-reversible key fingerprint,
 `X-Tenant-Id` hard limits and per-endpoint `Idempotency-Key` replay run before
 routing, and non-streaming requests use the exact-match response cache. Router
-failures map to 429 / 402 / 503; a provider's 400 / 413 / 422 rejection of the
+failures map to 429 (rate limit), 402 (the budget guardrail refused every
+candidate), 500 (no candidate model has a price), and 503 (an affordable,
+priced candidate failed at its provider); a provider's 400 / 413 / 422 rejection of the
 request itself is returned with its status, without fallback or a
 circuit-breaker failure. Errors are rendered as OpenAI envelopes on
 `/v1/responses` and Anthropic envelopes on `/v1/messages*`. Responses and
