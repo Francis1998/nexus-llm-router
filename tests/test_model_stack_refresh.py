@@ -143,6 +143,14 @@ async def _captured_payload(
         ("gemini-4-carbon", ModelTier.FRONTIER),
         ("gemini-4-hydrogen", ModelTier.MID),
         ("gemini-3.5-flash-lite", ModelTier.ECONOMY),
+        # 2026-11-19 lineup: GPT-6.2 Astra / Sol succeed GPT-6 Astra / GPT-6.1 Sol in
+        # the same tier (also behind a gateway prefix), and Gemini 4 Neon is
+        # frontier-level ("quality close to Gemini 4 Carbon") at $3 / $15, twice
+        # Hydrogen's price, so it sits with Carbon and Argon.
+        ("gpt-6.2-astra", ModelTier.FRONTIER),
+        ("gpt-6.2-sol", ModelTier.FRONTIER),
+        ("openai/gpt-6.2-astra", ModelTier.FRONTIER),
+        ("gemini-4-neon", ModelTier.FRONTIER),
     ],
 )
 def test_infer_model_tier_classifies_current_lineups(model: str, tier: ModelTier) -> None:
