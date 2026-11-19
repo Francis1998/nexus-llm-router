@@ -280,7 +280,7 @@ of being silently dropped.
 | `Authorization` | Never used verbatim: nexus derives a non-reversible `key_<16 hex>` fingerprint for per-key rate limits, budgets, cache and idempotency scopes (see [SECURITY.md](../../SECURITY.md#credential-handling)). |
 | `X-Router-Strategy` | Any [routing strategy](../../CONFIGURATION.md) name; unknown names → 400 `invalid_value` with `param: "X-Router-Strategy"`. |
 | `X-Tenant-Id` | Optional hard per-tenant token bucket (`NEXUS_TENANT_RATE_LIMIT_*`), checked before routing. |
-| `Idempotency-Key` | Non-streaming requests only: a retry with the same key and tenant replays the stored `response` verbatim. While the original is still running, a duplicate gets HTTP 409 `idempotency_key_in_use` instead of a second provider call; a failed request releases the key. Keys are scoped per endpoint, so a Responses key never replays a Chat Completions body or vice versa (whatever the key spells). Ignored when `stream: true`. |
+| `Idempotency-Key` | Non-streaming requests only: a retry with the same key from the same caller (API key fingerprint, `X-Tenant-Id`, and `safety_identifier` or `user`) replays the stored `response` verbatim; another API key or end user reusing the key gets its own routed response. While the original is still running, a duplicate gets HTTP 409 `idempotency_key_in_use` instead of a second provider call; a failed request releases the key. Keys are scoped per endpoint, so a Responses key never replays a Chat Completions body or vice versa (whatever the key spells). Ignored when `stream: true`. |
 
 Non-streaming requests also use the exact-match response cache (shared with
 Chat Completions, keyed on messages, model, temperature, `max_output_tokens`,

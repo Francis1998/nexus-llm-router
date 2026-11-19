@@ -34,6 +34,12 @@ derives a deterministic, non-reversible fingerprint instead
 - A missing or empty header maps to the shared `anonymous` identity.
 - The same key always maps to the same id, so per-key rate limits, budgets,
   idempotency scopes, and response-cache namespaces stay isolated.
+- `Idempotency-Key` replays, and the 409 for an in-flight duplicate, are scoped
+  to the key fingerprint plus `X-Tenant-Id` and the end-user id (`user`,
+  `safety_identifier`, or `metadata.user_id`). Tenant and end-user ids are
+  client-chosen, so they narrow a key's scope but never replace it: another key
+  sending the same tenant or end-user id and `Idempotency-Key` is routed as a
+  new request instead of receiving the stored response.
 - On the Anthropic Messages endpoints (`/v1/messages*`), an `x-api-key` header
   is fingerprinted the same way (`fingerprint_request_credentials`), so
   `x-api-key: <key>` and `Authorization: Bearer <key>` map to the same id.
@@ -49,6 +55,17 @@ identifier, so it could be echoed in 429/503 responses and persisted in
 `NEXUS_SPEND_LEDGER_PATH` / `NEXUS_IDEMPOTENCY_PATH`. If you ran such a build
 with real keys, rotate the affected keys and delete or restrict access to those
 SQLite files and any captured logs.
+
+### Upgrading from builds with tenant-wide idempotency scopes
+
+Earlier builds scoped `Idempotency-Key` replays by `X-Tenant-Id` alone, else by
+the end-user id, else by the key fingerprint. Any API key that sent another
+caller's tenant or end-user id with the same `Idempotency-Key` therefore received
+that caller's stored response (or a 409 while it ran), and a response stored by
+one key could be replayed to another. Records stored under a tenant or end-user
+scope no longer replay after upgrading. Every record expires after
+`NEXUS_IDEMPOTENCY_TTL_SECONDS` (24 hours by default); delete
+`NEXUS_IDEMPOTENCY_PATH` to drop the old records at once.
 
 ### Provider API keys
 

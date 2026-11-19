@@ -250,8 +250,18 @@ class _Caller:
 
     @property
     def idempotency_tenant(self) -> str:
-        """Scope for ``Idempotency-Key`` replays."""
-        return self.tenant_id or self.principal
+        """Scope for ``Idempotency-Key`` replays: key fingerprint, ``X-Tenant-Id``, end user.
+
+        A replay returns the stored response verbatim, so it must only reach the
+        caller that made the original request. ``X-Tenant-Id`` and end-user ids are
+        client-chosen and can repeat across API keys, so they narrow the key's scope
+        but never replace it. Callers sending neither keep the bare key fingerprint
+        earlier builds stored, so those records still replay; the JSON form cannot
+        collide with it or with another tenant and end-user pair.
+        """
+        if not self.tenant_id and not self.end_user:
+            return self.api_key_id
+        return json.dumps([self.api_key_id, self.tenant_id or "", self.end_user or ""])
 
 
 def _parse_strategy(header: str | None) -> RoutingStrategyName | None:
