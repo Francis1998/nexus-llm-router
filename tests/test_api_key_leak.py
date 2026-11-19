@@ -8,6 +8,7 @@ and the durable SQLite state files.
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -25,6 +26,7 @@ from router.engine import NexusRouter
 from router.schemas import RouterRequest, RouterResponse
 from safety.gateway_guards import GatewayGuardService
 from safety.idempotency import IdempotencyStore
+from safety.key_fingerprint import fingerprint_api_key
 from safety.spend_ledger import SpendLedger
 from safety.tenant_rate_limiter import TenantRateLimiter
 
@@ -253,3 +255,62 @@ def test_idempotency_replay_stays_with_the_end_user(gateway: GatewayFactory) -> 
     assert alice.status_code == bob.status_code == 200
     assert bob.json()["id"] != alice.json()["id"], "another end user got the stored response"
     assert alice_retry.json()["id"] == alice.json()["id"]
+
+
+# Keys earlier builds stored for ``Idempotency-Key: report-7``: raw on chat,
+# ``"<key>\n<path>"`` on the other endpoints.
+LEGACY_RECORDS = [
+    pytest.param(
+        "/v1/chat/completions",
+        {"messages": [{"role": "user", "content": "Draft the Q3 payroll summary."}]},
+        "report-7",
+        id="chat",
+    ),
+    pytest.param(
+        "/v1/responses",
+        {"input": "Draft the Q3 payroll summary."},
+        "report-7\n/v1/responses",
+        id="responses",
+    ),
+    pytest.param(
+        "/v1/messages",
+        {
+            "model": "auto",
+            "max_tokens": 64,
+            "messages": [{"role": "user", "content": "Draft the Q3 payroll summary."}],
+        },
+        "report-7\n/v1/messages",
+        id="messages",
+    ),
+]
+
+
+@pytest.mark.parametrize("tenant", [None, "acme"], ids=["no-tenant", "tenant"])
+@pytest.mark.parametrize(("path", "body", "legacy_key"), LEGACY_RECORDS)
+def test_records_stored_by_earlier_builds_never_replay(
+    gateway: GatewayFactory,
+    path: str,
+    body: dict[str, object],
+    legacy_key: str,
+    tenant: str | None,
+) -> None:
+    """A record an earlier build stored under a client-chosen tenant is never replayed.
+
+    Earlier builds stored records under ``X-Tenant-Id``, else the end-user id
+    (any string), so another key could plant one whose tenant spells a
+    victim's key fingerprint or current caller scope, during or before an
+    upgrade (including from old instances in a mixed-version deployment).
+    """
+    client, _ = gateway()
+    victim = fingerprint_api_key(f"Bearer {LEAK_CANARY}")
+    planted_tenant = victim if tenant is None else json.dumps([victim, tenant, ""])
+    guards = main.get_gateway_guards()
+    assert guards.remember_response(legacy_key, planted_tenant, '{"id": "planted"}')
+    headers = {"Authorization": f"Bearer {LEAK_CANARY}", "Idempotency-Key": "report-7"}
+    if tenant is not None:
+        headers["X-Tenant-Id"] = tenant
+
+    response = client.post(path, json=body, headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["id"] != "planted", "a legacy record was replayed"
