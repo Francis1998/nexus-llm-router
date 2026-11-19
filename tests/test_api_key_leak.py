@@ -175,3 +175,81 @@ def test_per_key_rate_limit_isolation_is_preserved(gateway: GatewayFactory) -> N
     assert _chat(client, "a1", LEAK_CANARY).status_code == 200
     assert _chat(client, "a2", LEAK_CANARY).status_code == 429
     assert _chat(client, "b1", OTHER_CANARY).status_code == 200
+
+
+IDEMPOTENT_CALLS = [
+    pytest.param(
+        "/v1/chat/completions",
+        {"messages": [{"role": "user", "content": "Summarize the Q3 payroll."}]},
+        {"X-Tenant-Id": "acme"},
+        id="chat-tenant",
+    ),
+    pytest.param(
+        "/v1/chat/completions",
+        {"messages": [{"role": "user", "content": "Summarize the Q3 payroll."}], "user": "alice"},
+        {},
+        id="chat-user",
+    ),
+    pytest.param(
+        "/v1/responses",
+        {"input": "Summarize the Q3 payroll.", "safety_identifier": "alice"},
+        {},
+        id="responses-safety-identifier",
+    ),
+    pytest.param(
+        "/v1/messages",
+        {
+            "model": "auto",
+            "max_tokens": 64,
+            "messages": [{"role": "user", "content": "Summarize the Q3 payroll."}],
+            "metadata": {"user_id": "alice"},
+        },
+        {},
+        id="messages-user-id",
+    ),
+]
+
+
+@pytest.mark.parametrize(("path", "body", "headers"), IDEMPOTENT_CALLS)
+def test_idempotency_replay_never_crosses_api_keys(
+    gateway: GatewayFactory, path: str, body: dict[str, object], headers: dict[str, str]
+) -> None:
+    """Another key reusing an ``Idempotency-Key`` with the same tenant or end user is routed.
+
+    ``X-Tenant-Id`` and end-user ids are client-chosen, so sharing them must not
+    let one key replay (read) the response stored for another key's request.
+    """
+    client, _ = gateway()
+    owner = {"Authorization": f"Bearer {LEAK_CANARY}", "Idempotency-Key": "report-7", **headers}
+    other = {**owner, "Authorization": f"Bearer {OTHER_CANARY}"}
+
+    first = client.post(path, json=body, headers=owner)
+    intruder = client.post(path, json=body, headers=other)
+    retry = client.post(path, json=body, headers=owner)
+    intruder_retry = client.post(path, json=body, headers=other)
+
+    assert first.status_code == intruder.status_code == 200
+    assert intruder.json()["id"] != first.json()["id"], "another key got the stored response"
+    assert retry.json()["id"] == first.json()["id"]
+    assert intruder_retry.json()["id"] == intruder.json()["id"]
+
+
+def test_idempotency_replay_stays_with_the_end_user(gateway: GatewayFactory) -> None:
+    """Under one key and ``X-Tenant-Id``, another end user's request is routed, not replayed."""
+    client, _ = gateway()
+    headers = {
+        "Authorization": f"Bearer {LEAK_CANARY}",
+        "X-Tenant-Id": "acme",
+        "Idempotency-Key": "report-7",
+    }
+    body = {"messages": [{"role": "user", "content": "Summarize my pay slip."}]}
+
+    alice = client.post("/v1/chat/completions", json={**body, "user": "alice"}, headers=headers)
+    bob = client.post("/v1/chat/completions", json={**body, "user": "bob"}, headers=headers)
+    alice_retry = client.post(
+        "/v1/chat/completions", json={**body, "user": "alice"}, headers=headers
+    )
+
+    assert alice.status_code == bob.status_code == 200
+    assert bob.json()["id"] != alice.json()["id"], "another end user got the stored response"
+    assert alice_retry.json()["id"] == alice.json()["id"]
