@@ -1,6 +1,7 @@
 """Pluggable routing strategies for the decide phase."""
 
 import random
+import re
 import sqlite3
 import time
 from abc import ABC, abstractmethod
@@ -461,6 +462,12 @@ class ModelTier(StrEnum):
     ECONOMY = "economy"
 
 
+# GPT-6 point releases keep their family's tier: Astra (flagship) and Sol (everyday
+# workhorse) are frontier in every release (gpt-6-astra, gpt-6.1-sol, gpt-6.2-astra,
+# gpt-6.2-sol, ...), Terra stays mid, and Luna is economy.
+_GPT6_FRONTIER_FAMILY = re.compile(r"\bgpt-6(?:\.\d+)?-(?:astra|sol)\b")
+
+
 def infer_model_tier(model_name: str) -> ModelTier:
     """Infer a model's capability tier from its name using catalog heuristics.
 
@@ -468,6 +475,8 @@ def infer_model_tier(model_name: str) -> ModelTier:
     such as ``gemini-3.8-flash`` or ``gpt-6-luna`` classify as economy rather
     than frontier. Mid markers come next so a generation's workhorse model, such
     as ``gemini-4-hydrogen``, is not caught by that generation's frontier marker.
+    GPT-6 Astra and Sol match by family, so a point release such as
+    ``gpt-6.2-astra`` is frontier without a new marker.
     """
     normalized = model_name.lower()
     economy_markers = ("-mini", "nano", "flash", "haiku-light", "-lite", "lite-", "-luna")
@@ -476,10 +485,9 @@ def infer_model_tier(model_name: str) -> ModelTier:
     mid_markers = ("gemini-4-hydrogen", "gpt-4.1", "claude-haiku", "gemini-2")
     if any(marker in normalized for marker in mid_markers):
         return ModelTier.MID
+    if _GPT6_FRONTIER_FAMILY.search(normalized):
+        return ModelTier.FRONTIER
     frontier_markers = (
-        "gpt-6-astra",
-        "gpt-6-sol",
-        "gpt-6.1-sol",
         "gpt-5",
         "claude-fable",
         "claude-opus",
