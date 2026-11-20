@@ -29,7 +29,11 @@ them lightly without breaking clients that omit the headers.
    the key. Both only act while the token still owns the key, so a request that
    outlived its lease cannot release or overwrite a newer request's
    reservation. Streaming requests only replay (`check_idempotency`), because
-   streams are never stored.
+   streams are never stored. Keys are scoped to the caller: the API key
+   fingerprint plus `X-Tenant-Id` and the end-user id (`user`,
+   `safety_identifier`, or `metadata.user_id`). Tenant and end-user ids are
+   client-chosen, so another key that reuses them never replays this caller's
+   response.
 4. When either header is absent, behaviour matches the pre-guard API
    (fully backward compatible).
 

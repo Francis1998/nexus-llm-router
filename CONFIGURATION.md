@@ -2575,10 +2575,12 @@ NEXUS_TENANT_RATE_LIMIT_REFILL_PER_SECOND=1.0
 `NEXUS_IDEMPOTENCY_PATH` is the SQLite path for durable idempotency keys.
 `NEXUS_IDEMPOTENCY_TTL_SECONDS` is the response replay TTL (default `86400`).
 `NEXUS_IDEMPOTENCY_LEASE_SECONDS` is how long an in-flight non-streaming request
-holds its `Idempotency-Key` (default `300`). A concurrent request with the same
-key and scope gets HTTP 409 instead of a second provider call. After the
-original completes, retries replay its response; if it fails, the key is
-released. A reservation left by a crashed process expires after the lease.
+holds its `Idempotency-Key` (default `300`). Keys are scoped per endpoint and per
+caller (API key fingerprint, `X-Tenant-Id`, and end-user id). A concurrent
+request with the same key and scope gets HTTP 409 instead of a second provider
+call. After the original completes, retries replay its response; if it fails,
+the key is released. A reservation left by a crashed process expires after the
+lease.
 Keep the lease longer than your slowest request (fallback attempts times
 `REQUEST_TIMEOUT_SECONDS`), or a long-running original can lose its key.
 `NEXUS_TENANT_RATE_LIMIT_CAPACITY` is the per-tenant token-bucket size.

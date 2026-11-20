@@ -258,7 +258,7 @@ else is validated and rejected the same way.
 | `model` | `RouterRequest.requested_model` (strategy hint) |
 | `max_tokens` | `RouterRequest.max_tokens` (completion cap and budget estimate) |
 | `system` + `messages` | `RouterRequest.messages`: one system message, then one message per turn |
-| `metadata.user_id` | budget, spend-ledger, and response-cache subject (`user_id`), `session_id`, and idempotency tenant when `X-Tenant-Id` is absent |
+| `metadata.user_id` | budget, spend-ledger, and response-cache subject (`user_id`), `session_id`, and part of the idempotency scope (with the key fingerprint and `X-Tenant-Id`) |
 | `stream` | `NexusRouter.complete_stream` instead of `complete` |
 | `temperature` | response-cache key only |
 | `stop_sequences` | applied to the routed output by the gateway |
@@ -349,7 +349,7 @@ data: {"type": "message_delta", "delta": {"stop_reason": "max_tokens", "stop_seq
 | `anthropic-beta` | Accepted and ignored. Beta features used in the body are still validated (an unknown field is a 400). |
 | `X-Router-Strategy` | Any [routing strategy](../../CONFIGURATION.md) name; unknown names → 400. |
 | `X-Tenant-Id` | Optional hard per-tenant token bucket (`NEXUS_TENANT_RATE_LIMIT_*`), checked before routing. |
-| `Idempotency-Key` | Non-streaming requests only: a retry with the same key and tenant replays the stored `message` verbatim; while the original is still running a duplicate gets 409 `conflict_error` (no second provider call); a failed request releases the key. Keys are scoped per endpoint, so the same key on `/v1/messages`, `/v1/responses`, and `/v1/chat/completions` never collides. Ignored when `stream: true`. |
+| `Idempotency-Key` | Non-streaming requests only: a retry with the same key from the same caller (API key fingerprint, `X-Tenant-Id`, and `metadata.user_id`) replays the stored `message` verbatim, and another API key or end user reusing the key gets its own routed answer; while the original is still running a duplicate gets 409 `conflict_error` (no second provider call); a failed request releases the key. Keys are scoped per endpoint, so the same key on `/v1/messages`, `/v1/responses`, and `/v1/chat/completions` never collides. Ignored when `stream: true`. |
 
 Non-streaming requests also use the exact-match response cache shared with
 Chat Completions and Responses (keyed on messages, model, temperature,
