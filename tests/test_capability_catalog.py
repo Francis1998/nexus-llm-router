@@ -84,3 +84,36 @@ def test_thread_safe_upsert_and_snapshot() -> None:
         thread.join()
     assert errors == []
     assert len(catalog) == 200
+
+
+_GPT_6_ASTRA_CAPABILITIES = frozenset(
+    {
+        "agents_api",
+        "background_mode",
+        "deep_research",
+        "json",
+        "long_context",
+        "mcp",
+        "memory_tool",
+        "parallel_tool_calls",
+        "streaming",
+        "tools",
+        "vision",
+        "webhook",
+    }
+)
+
+
+def test_superseded_gpt_6_astra_keeps_its_capabilities() -> None:
+    """GPT-6 Astra is superseded by GPT-6.2 Astra but still served.
+
+    Moving the frontier role constant to ``gpt-6.2-astra`` must not drop the
+    older model's entries: operators who keep ``gpt-6-astra`` in a custom
+    catalog rely on them for ``/v1/models`` capabilities, the capability gate
+    and context-window fitting.
+    """
+    from router.strategies import _KNOWN_MODEL_CONTEXT_WINDOWS, known_model_capabilities
+
+    assert known_model_capabilities("gpt-6-astra") == _GPT_6_ASTRA_CAPABILITIES
+    assert ModelCapabilityCatalog().get("gpt-6-astra") == _GPT_6_ASTRA_CAPABILITIES
+    assert _KNOWN_MODEL_CONTEXT_WINDOWS.get("gpt-6-astra") == 1_050_000
