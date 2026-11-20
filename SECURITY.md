@@ -62,10 +62,20 @@ Earlier builds scoped `Idempotency-Key` replays by `X-Tenant-Id` alone, else by
 the end-user id, else by the key fingerprint. Any API key that sent another
 caller's tenant or end-user id with the same `Idempotency-Key` therefore received
 that caller's stored response (or a 409 while it ran), and a response stored by
-one key could be replayed to another. Records stored under a tenant or end-user
-scope no longer replay after upgrading. Every record expires after
-`NEXUS_IDEMPOTENCY_TTL_SECONDS` (24 hours by default); delete
-`NEXUS_IDEMPOTENCY_PATH` to drop the old records at once.
+one key could be replayed to another.
+
+No record stored by an earlier build replays after upgrading. Stored keys now
+start with a line break, which neither the keys earlier builds stored nor any
+client-sent key can contain (HTTP header values cannot hold line breaks). A
+planted record whose client-chosen tenant spells another caller's scope can
+therefore never match:
+
+- A retry that spans the upgrade runs once more.
+- Old records expire after `NEXUS_IDEMPOTENCY_TTL_SECONDS` (24 hours by default).
+  Delete `NEXUS_IDEMPOTENCY_PATH` to drop them at once.
+- During a rolling deploy, old and new instances sharing `NEXUS_IDEMPOTENCY_PATH`
+  neither replay each other's records nor see each other's in-flight
+  reservations. A duplicate that reaches the other version is routed again.
 
 ### Provider API keys
 

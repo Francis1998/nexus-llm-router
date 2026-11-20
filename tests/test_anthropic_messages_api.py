@@ -1045,7 +1045,10 @@ def test_idempotency_key_replays_and_is_scoped_per_endpoint(gateway: GatewayFact
 def test_idempotency_key_in_flight_is_a_409_conflict_error(gateway: GatewayFactory) -> None:
     """A duplicate of a still-running request gets 409 instead of a second provider call."""
     gw = gateway()
-    main.get_gateway_guards().reserve_idempotency("order-7\n/v1/messages", "anonymous")
+    anonymous = main._Caller(api_key_id="anonymous", end_user=None, tenant_id=None)
+    main.get_gateway_guards().reserve_idempotency(
+        main._idempotency_scope("order-7", "/v1/messages"), anonymous.idempotency_tenant
+    )
 
     duplicate = gw.create(_body(), **{"Idempotency-Key": "order-7"})
     chat = gw.client.post(

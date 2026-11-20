@@ -255,12 +255,9 @@ class _Caller:
         A replay returns the stored response verbatim, so it must only reach the
         caller that made the original request. ``X-Tenant-Id`` and end-user ids are
         client-chosen and can repeat across API keys, so they narrow the key's scope
-        but never replace it. Callers sending neither keep the bare key fingerprint
-        earlier builds stored, so those records still replay; the JSON form cannot
-        collide with it or with another tenant and end-user pair.
+        but never replace it. JSON keeps every caller's scope distinct, whatever the
+        tenant and end-user ids contain.
         """
-        if not self.tenant_id and not self.end_user:
-            return self.api_key_id
         return json.dumps([self.api_key_id, self.tenant_id or "", self.end_user or ""])
 
 
@@ -326,15 +323,21 @@ def _anthropic_api_key_id(request: Request) -> str:
         ) from exception
 
 
-def _idempotency_scope(idempotency_key: str, path: str) -> str:
-    """Scope an ``Idempotency-Key`` to one endpoint, away from chat-completion keys.
+_CHAT_COMPLETIONS_PATH = "/v1/chat/completions"
 
-    Chat keys stay raw so records stored before the other endpoints existed
-    still replay. HTTP header values cannot contain line breaks, so a key ending
-    in ``"\\n/v1/responses"`` or ``"\\n/v1/messages"`` can never equal any
-    client-supplied key.
+
+def _idempotency_scope(idempotency_key: str, path: str) -> str:
+    """Return the stored key for an ``Idempotency-Key`` sent to one endpoint.
+
+    The path keeps endpoints apart, so a Responses key never replays a chat body.
+    The leading line break separates these keys from every key earlier builds
+    stored (the raw header on chat, ``"<key>\\n<path>"`` elsewhere): HTTP header
+    values cannot contain line breaks, so neither those keys nor any client-sent
+    key can start with one. Records that earlier builds stored under client-chosen
+    tenants (``X-Tenant-Id`` or end-user ids, which could spell another caller's
+    scope) therefore never replay, even when old and new instances share a store.
     """
-    return f"{idempotency_key}\n{path}"
+    return f"\n{path}\n{idempotency_key}"
 
 
 def _claim_idempotency(
@@ -463,13 +466,14 @@ async def chat_completions(
     guards = get_gateway_guards()
     reservation: IdempotencyReservation | None = None
     if idempotency_key:
+        scoped_key = _idempotency_scope(idempotency_key, _CHAT_COMPLETIONS_PATH)
         existing: IdempotencyRecord | None
         if payload.stream:
             # Streams are never stored, so they only replay a completed response.
-            existing = guards.check_idempotency(idempotency_key, caller.idempotency_tenant)
+            existing = guards.check_idempotency(scoped_key, caller.idempotency_tenant)
         else:
             try:
-                claim = guards.reserve_idempotency(idempotency_key, caller.idempotency_tenant)
+                claim = guards.reserve_idempotency(scoped_key, caller.idempotency_tenant)
             except IdempotencyKeyInUseError as exception:
                 raise HTTPException(409, detail=str(exception)) from exception
             if isinstance(claim, IdempotencyReservation):
