@@ -172,7 +172,7 @@ def concurrency_cap_slides() -> list[Slide]:
             [
                 ("strategy = concurrency-cap", MUTED),
                 ("NEXUS_CONCURRENCY_CAP = 8 live attempts/provider", ACCENT),
-                ("models = GPT-6 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro", TEXT),
+                ("models = GPT-6.2 Astra / Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro", TEXT),
             ],
         ),
         (

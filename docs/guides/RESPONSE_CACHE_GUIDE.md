@@ -51,7 +51,7 @@ POST /v1/chat/completions
 Content-Type: application/json
 
 {
-  "model": "gpt-6-astra",
+  "model": "gpt-6.2-astra",
   "temperature": 0,
   "user": "tenant-a",
   "messages": [{"role": "user", "content": "Summarize refund policy"}]

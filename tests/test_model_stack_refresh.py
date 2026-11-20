@@ -1,8 +1,9 @@
 """Regression tests for the November 2026 provider model refresh.
 
-Pins the behaviour nexus needs for the current OpenAI GPT-6, Anthropic Claude 5.5 /
-Fable 5.2, Google Gemini 4 / 3.x and Kimi K3.x line-ups: tier classification, provider
-parameter compatibility, list prices, and catalog/adapter consistency.
+Pins the behaviour nexus needs for the current OpenAI GPT-6.2 / GPT-6, Anthropic
+Claude 5.5 / Fable 5.2, Google Gemini 4 / 3.x and Kimi K3.x line-ups: tier
+classification, provider parameter compatibility, list prices, and catalog/adapter
+consistency.
 """
 
 from __future__ import annotations
@@ -39,11 +40,12 @@ from safety.circuit_breaker import CircuitBreakerRegistry
 from safety.model_deprecation import ModelDeprecationGuard
 
 CURRENT_MODELS = {
-    "openai": ("gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna"),
+    "openai": ("gpt-6.2-astra", "gpt-6.2-sol", "gpt-6.1-terra", "gpt-6-luna"),
     "anthropic": ("claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"),
     "google": (
         "gemini-4-carbon",
         "gemini-4-argon",
+        "gemini-4-neon",
         "gemini-4-hydrogen",
         "gemini-3.8-flash",
         "gemini-3.5-flash-lite",
@@ -51,16 +53,21 @@ CURRENT_MODELS = {
     "moonshot": ("kimi-k3.1-pro", "kimi-k3.1-pro-highspeed", "kimi-k3"),
 }
 # Superseded, not deprecated: still served by the provider, so still priced.
-SUPERSEDED_MODELS = {"anthropic": ("claude-fable-5-1",)}
+SUPERSEDED_MODELS = {
+    "openai": ("gpt-6-astra", "gpt-6.1-sol"),
+    "anthropic": ("claude-fable-5-1",),
+}
 PRICED_MODELS = [
     (provider, model)
     for models_by_provider in (CURRENT_MODELS, SUPERSEDED_MODELS)
     for provider, models in models_by_provider.items()
     for model in models
 ]
-# USD per 1M tokens (input, output) from the provider pricing pages on 2026-11-12.
+# USD per 1M tokens (input, output) from the provider pricing pages on 2026-11-19.
 # Gemini 4 Carbon and Argon rise to $4 / $20 on 2026-12-01.
 LIST_PRICES: dict[str, tuple[float, float]] = {
+    "gpt-6.2-astra": (8.0, 40.0),
+    "gpt-6.2-sol": (2.0, 10.0),
     "gpt-6-astra": (10.0, 50.0),
     "gpt-6.1-sol": (2.0, 10.0),
     "gpt-6.1-terra": (1.0, 5.0),
@@ -72,6 +79,7 @@ LIST_PRICES: dict[str, tuple[float, float]] = {
     "claude-haiku-5-5": (0.10, 0.50),
     "gemini-4-carbon": (2.0, 10.0),
     "gemini-4-argon": (2.0, 10.0),
+    "gemini-4-neon": (3.0, 15.0),
     "gemini-4-hydrogen": (1.50, 7.50),
     "gemini-3.8-flash": (0.75, 3.75),
     "gemini-3.5-flash-lite": (0.30, 2.50),
@@ -143,6 +151,14 @@ async def _captured_payload(
         ("gemini-4-carbon", ModelTier.FRONTIER),
         ("gemini-4-hydrogen", ModelTier.MID),
         ("gemini-3.5-flash-lite", ModelTier.ECONOMY),
+        # 2026-11-19 lineup: GPT-6.2 Astra / Sol succeed GPT-6 Astra / GPT-6.1 Sol in
+        # the same tier (also behind a gateway prefix), and Gemini 4 Neon is
+        # frontier-level ("quality close to Gemini 4 Carbon") at $3 / $15, twice
+        # Hydrogen's price, so it sits with Carbon and Argon.
+        ("gpt-6.2-astra", ModelTier.FRONTIER),
+        ("gpt-6.2-sol", ModelTier.FRONTIER),
+        ("openai/gpt-6.2-astra", ModelTier.FRONTIER),
+        ("gemini-4-neon", ModelTier.FRONTIER),
     ],
 )
 def test_infer_model_tier_classifies_current_lineups(model: str, tier: ModelTier) -> None:
@@ -189,11 +205,13 @@ def test_default_catalog_routes_to_current_models_with_matching_prices() -> None
     catalog = default_model_catalog()
 
     assert set(catalog) == {
-        "gpt-6-astra",
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
         "gpt-6-luna",
         "claude-opus-5-5",
         "claude-haiku-5-5",
         "gemini-4-argon",
+        "gemini-4-neon",
         "gemini-3.8-flash",
         "kimi-k3.1-pro",
     }
@@ -234,7 +252,7 @@ def test_name_fallback_recognizes_gpt6_and_kimi_k3_models(
         ("kimi-k2.7-code", "kimi-k3.1-pro"),
         ("kimi-k2.7-code-highspeed", "kimi-k3.1-pro-highspeed"),
         ("moonshot-v1-128k", "kimi-k3.1-pro"),
-        ("gpt-4o", "gpt-6.1-sol"),
+        ("gpt-4o", "gpt-6.2-sol"),
         ("gpt-4o-mini", "gpt-6-luna"),
         ("claude-3-5-sonnet", "claude-sonnet-5-5"),
         ("gemini-1.5-pro", "gemini-4-argon"),
@@ -252,9 +270,15 @@ def test_deprecation_guard_points_retired_models_at_current_replacements(
     assert verdict.severity == "warn"
 
 
-@pytest.mark.parametrize("model", ["claude-fable-5-1", "gemini-3.8-flash"])
+@pytest.mark.parametrize(
+    "model", ["gpt-6-astra", "gpt-6.1-sol", "claude-fable-5-1", "gemini-3.8-flash"]
+)
 def test_deprecation_guard_does_not_flag_superseded_models(model: str) -> None:
-    """Fable 5.1 (superseded by 5.2) and 3.8 Flash (upgradable to Hydrogen) stay supported."""
+    """Superseded models the provider still serves stay supported.
+
+    GPT-6 Astra and GPT-6.1 Sol (superseded by GPT-6.2 Astra / Sol), Fable 5.1
+    (superseded by 5.2) and 3.8 Flash (upgradable to Hydrogen).
+    """
     verdict = ModelDeprecationGuard().check(model)
 
     assert verdict.is_deprecated is False
@@ -263,6 +287,8 @@ def test_deprecation_guard_does_not_flag_superseded_models(model: str) -> None:
 
 # (provider, model, threshold, base $/1M (in, out), long-prompt $/1M (in, out))
 LONG_PROMPT_TIERS = [
+    ("openai", "gpt-6.2-astra", 272_000, (8.0, 40.0), (16.0, 60.0)),
+    ("openai", "gpt-6.2-sol", 272_000, (2.0, 10.0), (4.0, 15.0)),
     ("openai", "gpt-6-astra", 272_000, (10.0, 50.0), (20.0, 75.0)),
     ("openai", "gpt-6.1-sol", 272_000, (2.0, 10.0), (4.0, 15.0)),
     ("openai", "gpt-6.1-terra", 272_000, (1.0, 5.0), (2.0, 7.5)),
@@ -279,7 +305,7 @@ def test_long_prompt_pricing_applies_to_the_whole_request(
     base: tuple[float, float],
     long: tuple[float, float],
 ) -> None:
-    """GPT-6 (>272K input) and Haiku 5.5 (>100K prompt) bill the whole request higher."""
+    """GPT-6.x (>272K input) and Haiku 5.5 (>100K prompt) bill the whole request higher."""
 
     def usd(rates: tuple[float, float], input_tokens: int) -> float:
         return (input_tokens * rates[0] + 1_000 * rates[1]) / 1_000_000
@@ -347,7 +373,8 @@ def test_gpt6_luna_is_structured_output_capable() -> None:
 
 # Keys each provider rejects (or ignores) for the current models: Claude 5.x returns
 # 400 for temperature/top_p/top_k, GPT-6 rejects them unless reasoning effort is
-# ``none``, Gemini 3.x/4 ignores them, and Kimi K3.x fixes them.
+# ``none`` (which GPT-6.2 rejects outright), Gemini 3.x/4 ignores them, and Kimi
+# K3.x fixes them.
 FORBIDDEN_SAMPLING_KEYS = {
     "openai": {"temperature", "top_p", "logprobs", "top_logprobs"},
     "anthropic": {"temperature", "top_p", "top_k"},

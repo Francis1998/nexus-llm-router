@@ -23,7 +23,7 @@ Against the mock-provider server (`PYTHONPATH=src python scripts/serve_mock.py
 
 ```bash
 curl -s localhost:8000/v1/models | jq -c '.data[] | {id, owned_by, context: .nexus.context_window}'
-curl -s localhost:8000/v1/models/gpt-6-astra | jq .nexus.pricing
+curl -s localhost:8000/v1/models/gpt-6.2-astra | jq .nexus.pricing
 ```
 
 With the official OpenAI Python SDK:
@@ -35,7 +35,7 @@ client = OpenAI(base_url="http://localhost:8000/v1", api_key="local-dev")
 for model in client.models.list():
     print(model.id, model.owned_by, model.model_extra["nexus"]["pricing"])
 
-astra = client.models.retrieve("gpt-6-astra")
+astra = client.models.retrieve("gpt-6.2-astra")
 print(astra.model_extra["nexus"]["max_input_tokens"])  # 922000
 ```
 
@@ -45,25 +45,25 @@ details; the GIF above is its real output.
 ## Response
 
 `GET /v1/models` returns `{"object": "list", "data": [...]}` in catalog order.
-Real `GET /v1/models/gpt-6-astra` output from the mock-provider server:
+Real `GET /v1/models/gpt-6.2-astra` output from the mock-provider server:
 
 ```json
 {
-  "id": "gpt-6-astra",
+  "id": "gpt-6.2-astra",
   "object": "model",
-  "created": 1794045198,
+  "created": 1795150194,
   "owned_by": "openai",
   "nexus": {
     "provider": "openai",
     "context_window": 1050000,
     "max_input_tokens": 922000,
     "pricing": {
-      "input_per_1m_tokens": 10.0,
-      "output_per_1m_tokens": 50.0,
+      "input_per_1m_tokens": 8.0,
+      "output_per_1m_tokens": 40.0,
       "long_prompt": {
         "threshold_tokens": 272000,
-        "input_per_1m_tokens": 20.0,
-        "output_per_1m_tokens": 75.0
+        "input_per_1m_tokens": 16.0,
+        "output_per_1m_tokens": 60.0
       }
     },
     "capabilities": [
@@ -107,8 +107,8 @@ Real `GET /v1/models/gpt-6-astra` output from the mock-provider server:
 | `owned_by` | Provider: `openai`, `anthropic`, `google`, or `moonshot`. |
 | `nexus.provider` | Provider adapter that serves the model. |
 | `nexus.context_window` | Total context window in tokens. |
-| `nexus.max_input_tokens` | Input cap when it is lower than the window (GPT-6: 922,000), otherwise `null`. Routing strategies enforce it. |
-| `nexus.pricing` | List prices in USD per 1M tokens. `long_prompt` gives the whole-request rates above `threshold_tokens` (GPT-6 above 272K input tokens, Claude Haiku 5.5 above 100K), or `null`. |
+| `nexus.max_input_tokens` | Input cap when it is lower than the window (GPT-6 and GPT-6.2: 922,000), otherwise `null`. Routing strategies enforce it. |
+| `nexus.pricing` | List prices in USD per 1M tokens. `long_prompt` gives the whole-request rates above `threshold_tokens` (GPT-6.x above 272K input tokens, Claude Haiku 5.5 above 100K), or `null`. |
 | `nexus.capabilities` | Built-in capability flags used by capability-aware strategies (`vision`, `tools`, `json`, `long_context`, ...). |
 | `nexus.domains` | Domains the catalog allows the model for (`code`, `general`, `legal`, `medical`). |
 | `nexus.regions` | Regions used by region-aware strategies. |
@@ -127,10 +127,11 @@ Unknown IDs return the OpenAI error envelope, so SDKs raise `NotFoundError`:
 
 ## What is listed
 
-Only the routable catalog: the seven defaults in the README's
-[Current Model Stack](../../README.md#current-model-stack), or your custom
-catalog. Models that the adapters can price but that are not in the catalog
-(such as `gpt-6.1-sol` or `claude-sonnet-5-5`) are not listed; add them to the
+Only the routable catalog: the nine defaults in the README's
+[Current Model Stack](../../README.md#current-model-stack) (including GPT-6.2 Sol
+and Gemini 4 Neon), or your custom catalog. Models that the adapters can price
+but that are not in the catalog (such as `gpt-6.1-terra`, `claude-sonnet-5-5`, or
+the superseded `gpt-6-astra` and `gpt-6.1-sol`) are not listed; add them to the
 catalog to make them routable and pinnable. The endpoints need no API key and
 do not call providers.
 
@@ -148,36 +149,40 @@ breaker state).
 
 ## How this demo was recorded
 
-Recorded on 2026-11-07 from a real run: `scripts/serve_mock.py` on port 8765
-(port 8000 was busy on the recording machine), then curl and
-`scripts/models_api_demo.py` with the official OpenAI Python SDK. The
-transcript below is the verbatim output, rendered to
-`assets/demo/models-api.gif`:
+Recorded on 2026-11-19 from a real run: `scripts/serve_mock.py` on port 8793,
+then curl and `scripts/models_api_demo.py` with the official OpenAI Python SDK.
+The transcript below is the verbatim output, rendered to
+`assets/demo/models-api.gif` with `scripts/render_transcript_gif.py --rows 22
+--type-steps 4 --font-size 13`:
 
 ```text
-$ PYTHONPATH=src python scripts/serve_mock.py --port 8765 &
-$ curl -s localhost:8765/v1/models | jq -c '.data[] | {id, owned_by, context: .nexus.context_window, routable: .nexus.health.routable}'
-{"id":"gpt-6-astra","owned_by":"openai","context":1050000,"routable":true}
+$ PYTHONPATH=src python scripts/serve_mock.py --port 8793 &
+$ curl -s localhost:8793/v1/models | jq -c '.data[] | {id, owned_by, context: .nexus.context_window, routable: .nexus.health.routable}'
+{"id":"gpt-6.2-astra","owned_by":"openai","context":1050000,"routable":true}
 {"id":"gpt-6-luna","owned_by":"openai","context":1050000,"routable":true}
 {"id":"claude-opus-5-5","owned_by":"anthropic","context":1000000,"routable":true}
 {"id":"claude-haiku-5-5","owned_by":"anthropic","context":1000000,"routable":true}
 {"id":"gemini-4-argon","owned_by":"google","context":1048576,"routable":true}
 {"id":"gemini-3.8-flash","owned_by":"google","context":1048576,"routable":true}
 {"id":"kimi-k3.1-pro","owned_by":"moonshot","context":1048576,"routable":true}
-$ curl -s localhost:8765/v1/models/gpt-4o | jq -c .
+{"id":"gpt-6.2-sol","owned_by":"openai","context":1050000,"routable":true}
+{"id":"gemini-4-neon","owned_by":"google","context":1048576,"routable":true}
+$ curl -s localhost:8793/v1/models/gpt-4o | jq -c .
 {"error":{"message":"The model 'gpt-4o' does not exist","type":"invalid_request_error","param":"model","code":"model_not_found"}}
-$ uv run --quiet --no-project --with openai python scripts/models_api_demo.py --base-url http://localhost:8765/v1
+$ uv run --quiet --no-project --with openai python scripts/models_api_demo.py --base-url http://localhost:8793/v1
 model              owned_by     context  $in/1M  $out/1M  routable
-gpt-6-astra        openai     1,050,000    10.0     50.0  True
+gpt-6.2-astra      openai     1,050,000     8.0     40.0  True
 gpt-6-luna         openai     1,050,000     0.1      0.5  True
 claude-opus-5-5    anthropic  1,000,000     4.0     20.0  True
 claude-haiku-5-5   anthropic  1,000,000     0.1      0.5  True
 gemini-4-argon     google     1,048,576     2.0     10.0  True
 gemini-3.8-flash   google     1,048,576    0.75     3.75  True
 kimi-k3.1-pro      moonshot   1,048,576     2.0     10.0  True
+gpt-6.2-sol        openai     1,050,000     2.0     10.0  True
+gemini-4-neon      google     1,048,576     3.0     15.0  True
 
-gpt-6-astra: max input 922,000 tokens
-  long-prompt pricing: {'threshold_tokens': 272000, 'input_per_1m_tokens': 20.0, 'output_per_1m_tokens': 75.0}
+gpt-6.2-astra: max input 922,000 tokens
+  long-prompt pricing: {'threshold_tokens': 272000, 'input_per_1m_tokens': 16.0, 'output_per_1m_tokens': 60.0}
   capabilities: agents_api, background_mode, deep_research, json, long_context, mcp, memory_tool, parallel_tool_calls, streaming, tools, vision, webhook
 ```
 

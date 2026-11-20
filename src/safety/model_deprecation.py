@@ -31,15 +31,18 @@ class _DeprecationEntry:
 
 # Small curated seed of legacy aliases → current SKUs (November 2026 line-ups).
 # Distinct from ``router.model_ids`` catalog sync — this is a safety guard for
-# callers still sending retired IDs, not a capability catalog refresh.
+# callers still sending retired IDs, not a capability catalog refresh. Superseded
+# models that their provider still serves (gpt-6-astra → gpt-6.2-astra,
+# gpt-6.1-sol → gpt-6.2-sol, claude-fable-5-1 → claude-fable-5-2) are not
+# deprecated, so they are deliberately absent.
 _KIMI_K2_RETIREMENT = (
     "Kimi K2 series is closed to new users since 2026-10-31 and retires by the end of December 2026"
 )
 _DEFAULT_DEPRECATIONS: dict[str, _DeprecationEntry] = {
     "gpt-4o": _DeprecationEntry(
-        replacement="gpt-6.1-sol",
+        replacement="gpt-6.2-sol",
         severity="warn",
-        reason="gpt-4o is deprecated; prefer gpt-6.1-sol",
+        reason="gpt-4o is deprecated; prefer gpt-6.2-sol",
     ),
     "gpt-4o-mini": _DeprecationEntry(
         replacement="gpt-6-luna",

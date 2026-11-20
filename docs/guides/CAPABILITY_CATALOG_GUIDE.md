@@ -17,7 +17,7 @@ process.
 
 ## How it works
 
-1. Construction auto-seeds `gpt-6-astra`, `claude-opus-5-5`, `gemini-3.8-flash`,
+1. Construction auto-seeds `gpt-6.2-astra`, `claude-opus-5-5`, `gemini-3.8-flash`,
    and `kimi-k3.1-pro` (or pass a custom `seed=` / `auto_seed=False`).
 2. `get(model)` returns a frozenset (or `None`).
 3. `upsert(model, capabilities)` inserts or replaces an entry.
@@ -34,9 +34,10 @@ Pass `catalog.snapshot()` (or the catalog itself via a thin adapter) as the
 from router.capability_catalog import ModelCapabilityCatalog
 
 catalog = ModelCapabilityCatalog()
-print(catalog.get("gpt-6-astra"))  # frozenset with tools, vision, ...
+print(catalog.get("gpt-6.2-astra"))  # frozenset with tools, vision, ...
 # GPT-6.1 Terra supports reasoning effort `none`, so logprobs are available;
-# GPT-6 Astra and GPT-6.1 Sol never run with `none` and must not list them.
+# GPT-6.2 Astra / Sol reject `none` (as GPT-6 Astra / GPT-6.1 Sol never ran
+# with it), so they must not list logprobs.
 catalog.upsert("gpt-6.1-terra", {"json", "logprobs", "streaming", "tools", "vision"})
 capability_map = catalog.snapshot()
 # hand capability_map to ModelCapabilityGateStrategy / prefer strategies
@@ -50,4 +51,4 @@ catalog.refresh_from_static()
 | Static known-model map | Yes | `_KNOWN_MODEL_CAPABILITIES` |
 | Live refresh without restart | Yes (provider sync) | `ModelCapabilityCatalog` |
 | Thread-safe shared catalog | Yes | RLock + `snapshot()` |
-| Seed frontier SKUs | Yes | GPT-6 Astra / Claude Opus 5.5 / Gemini 3.8 Flash / Kimi K3.1 Pro |
+| Seed frontier SKUs | Yes | GPT-6.2 Astra / Claude Opus 5.5 / Gemini 3.8 Flash / Kimi K3.1 Pro |

@@ -43,7 +43,7 @@ rejected the request (HTTP 400): ...", "type": "invalid_request_error"}}` and
 curl -N http://localhost:8000/v1/chat/completions \
   -H 'content-type: application/json' \
   -d '{
-    "model": "gpt-6-astra",
+    "model": "gpt-6.2-astra",
     "stream": true,
     "messages": [{"role": "user", "content": "Write a haiku about routing"}]
   }'

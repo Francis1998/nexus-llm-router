@@ -412,7 +412,7 @@ def test_feedback_aware_routing_learns_from_posted_feedback(
     monkeypatch.setattr(main, "uuid4", lambda: uuid.UUID(int=next(request_ids)))
     headers = {**ACME, "X-Router-Strategy": "feedback-aware"}
     cold = app.chat(DESIGN_PROMPT.format(system="payments platform"), headers=headers)["router"]
-    ratings = {"gpt-6-luna": False, "claude-opus-5-5": True, "gpt-6-astra": False}
+    ratings = {"gpt-6-luna": False, "claude-opus-5-5": True, "gpt-6.2-astra": False}
     for index, (model, liked) in enumerate(ratings.items()):
         for attempt in range(4):
             system = f"system {index}-{attempt}"
@@ -464,7 +464,7 @@ def test_feedback_aware_never_picks_a_model_the_engine_cannot_price(
     app = gateway(unpriced=frozenset({"claude-opus-5-5"}), feedback_min_samples=5)
     store = app.router.feedback_store
     scope = FeedbackScope(fingerprint_api_key(ACME["Authorization"]), "acme")
-    seeded = [("claude-opus-5-5", True)] * 10 + [("gpt-6-luna", False), ("gpt-6-astra", True)] * 3
+    seeded = [("claude-opus-5-5", True)] * 10 + [("gpt-6-luna", False), ("gpt-6.2-astra", True)] * 3
     for n, (model, liked) in enumerate(seeded):
         store.register_request(
             AuditRecord(

@@ -30,10 +30,13 @@ def run(base_url: str) -> None:
     nexus = (message.model_extra or {})["nexus"]
     usage = message.usage
     print(f"create: {message.id[:12]}... model={message.model} stop={message.stop_reason}")
-    print(f"  text={message.content[0].text!r} usage in={usage.input_tokens} out={usage.output_tokens}")
+    print(
+        f"  text={message.content[0].text!r} usage in={usage.input_tokens} "
+        f"out={usage.output_tokens}"
+    )
     print(f"  nexus strategy={nexus['routing_strategy']} rationale={nexus['rationale']!r}")
 
-    with client.messages.stream(model="gpt-6-astra", max_tokens=256, messages=messages) as stream:
+    with client.messages.stream(model="gpt-6.2-astra", max_tokens=256, messages=messages) as stream:
         text = "".join(stream.text_stream)
         final = stream.get_final_message()
     print(f"stream: text_stream={text!r} stop={final.stop_reason} out={final.usage.output_tokens}")

@@ -113,13 +113,15 @@ def test_sticky_canary_cost_pins_same_tenant_off_slice() -> None:
 def test_sticky_canary_cost_explore_blends_toward_cheaper() -> None:
     """Explore-slice traffic should blend toward a cheaper healthy model."""
     catalog = default_model_catalog()
-    tenant_id = "tenant-cost-explore"
+    cheapest_cost = min(candidate.estimate_cost(8, 512) for candidate in catalog.values())
+    # Find a tenant whose sticky primary is not already the cheapest catalog model.
+    tenant_id = next(
+        tenant
+        for tenant in (f"tenant-cost-explore-{index}" for index in range(200))
+        if catalog[_primary_model(tenant)].estimate_cost(8, 512) > cheapest_cost
+    )
     sticky_model = _primary_model(tenant_id)
     sticky_cost = catalog[sticky_model].estimate_cost(8, 512)
-    cheaper_exists = any(
-        candidate.estimate_cost(8, 512) < sticky_cost for candidate in catalog.values()
-    )
-    assert cheaper_exists, "test requires a sticky primary that is not the cheapest model"
 
     strategy = _strategy(sticky_canary_cost_percent=100.0)
     decision = strategy.choose(

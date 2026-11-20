@@ -22,7 +22,7 @@ from cache.response_cache import ResponseCache
 from router.analyzer import RequestAnalyzer
 from router.config import RouterSettings
 from router.engine import NexusRouter, RoutingFailedError
-from router.model_ids import ANTHROPIC_SAFETY_MODEL, GEMINI_FLASH_MODEL
+from router.model_ids import ANTHROPIC_SAFETY_MODEL, GEMINI_FLASH_MODEL, OPENAI_FRONTIER_MODEL
 from router.schemas import ChatMessage, ProviderResponse, RouterRequest, RouterResponse
 from safety.budget import BudgetExceededError
 from safety.gateway_guards import GatewayGuardService
@@ -1118,7 +1118,10 @@ def test_strategy_header_routes_and_unknown_strategy_is_a_400(gateway: GatewayFa
 
 @pytest.mark.parametrize(
     ("requested", "served"),
-    [(ANTHROPIC_SAFETY_MODEL, ANTHROPIC_SAFETY_MODEL), ("gpt-6-astra", "gpt-6-astra")],
+    [
+        (ANTHROPIC_SAFETY_MODEL, ANTHROPIC_SAFETY_MODEL),
+        (OPENAI_FRONTIER_MODEL, OPENAI_FRONTIER_MODEL),
+    ],
 )
 def test_explicit_catalog_model_is_honored_like_chat_completions(
     gateway: GatewayFactory, requested: str, served: str

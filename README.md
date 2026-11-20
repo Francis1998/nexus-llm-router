@@ -1,10 +1,10 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-2155%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-2161%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
-**Point any OpenAI SDK at one endpoint and let policy pick the model.** Nexus routes every request to GPT-6, Claude 5.5, Gemini 4 / 3.8, or Kimi K3.1 based on task, cost, latency, and provider health, and enforces budgets, fallbacks, rate limits, and an audit trail along the way.
+**Point any OpenAI SDK at one endpoint and let policy pick the model.** Nexus routes every request to GPT-6.2 / GPT-6, Claude 5.5, Gemini 4 / 3.8, or Kimi K3.1 based on task, cost, latency, and provider health, and enforces budgets, fallbacks, rate limits, and an audit trail along the way.
 
 ![nexus-llm-router: the official OpenAI SDK calling POST /v1/responses](assets/demo/responses-api.gif)
 
@@ -22,10 +22,10 @@ Nexus is designed for AI infrastructure engineers running multi-model production
   Nexus solves this by classifying prompt complexity and routing simple tasks to cheaper low-latency models while reserving premium models for hard prompts.
 
 - Issue: spend grows faster than product usage.
-  Nexus solves this with cost-aware routing, model cost estimates (including GPT-6 and Claude Haiku 5.5 long-prompt pricing tiers), per-user budget guardrails, and Prometheus cost metrics.
+  Nexus solves this with cost-aware routing, model cost estimates (including GPT-6.x and Claude Haiku 5.5 long-prompt pricing tiers), per-user budget guardrails, and Prometheus cost metrics.
 
 - Issue: code, medical, legal, and general prompts need different quality defaults.
-  Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude Opus 5.5 and complex code to GPT-6 Astra.
+  Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude Opus 5.5 and complex code to GPT-6.2 Astra.
 
 - Issue: one provider has an incident and the app fails hard.
   Nexus solves this with per-provider circuit breakers and automatic fallback chains.
@@ -54,7 +54,7 @@ Nexus is designed for AI infrastructure engineers running multi-model production
 - Issue: teams need OpenAI compatibility without giving up provider choice.
   Nexus solves this by exposing `/v1/chat/completions`, the OpenAI Responses API (`/v1/responses`), and the Anthropic Messages API (`/v1/messages`) while normalizing OpenAI, Anthropic, Gemini, and Moonshot adapters behind one interface.
 
-- Issue: current models reject sampling parameters (Claude 5.5 returns HTTP 400 for non-default `temperature` / `top_p` / `top_k`, GPT-6 allows them only with reasoning effort `none`, Kimi K3.x fixes `temperature` at 1.0, and Gemini 3.x/4 ignores them).
+- Issue: current models reject sampling parameters (Claude 5.5 returns HTTP 400 for non-default `temperature` / `top_p` / `top_k`, GPT-6 allows them only with reasoning effort `none` and GPT-6.2 rejects `none` outright, Kimi K3.x fixes `temperature` at 1.0, and Gemini 3.x/4 ignores them).
   Nexus solves this by never forwarding `temperature`, `top_p`, `top_k`, or logprobs upstream; each adapter sends only the fields the current models accept (see [Provider parameter compatibility](CONFIGURATION.md#provider-parameter-compatibility)).
 
 - Issue: model routing becomes a hidden product decision.
@@ -93,7 +93,7 @@ from openai import OpenAI
 
 client = OpenAI(base_url="http://localhost:8000/v1", api_key="local-dev")
 response = client.responses.create(
-    model="gpt-6-astra",
+    model="gpt-6.2-astra",
     input=(
         "Design a multi-region failover strategy for a payments platform: compare "
         "active-active, active-passive, and pilot-light architectures, analyze cost, "
@@ -105,7 +105,7 @@ print(response.model_extra["nexus"]["rationale"])
 ```
 
 ```text
-gpt-6-astra | [gpt-6-astra] routed response
+gpt-6.2-astra | [gpt-6.2-astra] routed response
 explicit compatible model request honored
 ```
 
@@ -138,7 +138,7 @@ flowchart LR
         api --> observe --> decide --> act
     end
     client --> api
-    act --> openai["OpenAI GPT-6"]
+    act --> openai["OpenAI GPT-6.2 / GPT-6"]
     act --> anthropic["Anthropic Claude 5.5"]
     act --> google["Google Gemini 4 / 3.8"]
     act --> moonshot["Moonshot Kimi K3.1"]
@@ -168,31 +168,44 @@ Each request moves `RECEIVED → CLASSIFIED → ROUTED → DISPATCHED → RESPON
 
 ## Current Model Stack
 
-Verified on 2026-11-12 against the provider docs:
-[OpenAI models](https://developers.openai.com/api/docs/models),
+Verified on 2026-11-19 against the provider docs:
+[OpenAI models](https://developers.openai.com/api/docs/models) (including
+[GPT-6.2 Astra](https://developers.openai.com/api/docs/models/gpt-6.2-astra),
+[GPT-6.2 Sol](https://developers.openai.com/api/docs/models/gpt-6.2-sol), and the
+[Using GPT-6.2 guide](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.2-astra)),
 [Anthropic models](https://platform.claude.com/docs/en/models/overview),
-[Google models](https://aistudio.google.com/docs/models) and
+[Google models](https://aistudio.google.com/docs/models) (including
+[Gemini 4 Neon](https://aistudio.google.com/docs/models/gemini-4-neon)) and
 [pricing](https://aistudio.google.com/docs/pricing), and
 [Kimi pricing](https://platform.kimi.ai/docs/pricing/chat).
 
-Default catalog (`src/router/config.py`):
+Default catalog (`src/router/config.py`), in catalog order:
 
 | Catalog role | Model | List price per 1M tokens (input / output) | Context window |
 | --- | --- | --- | --- |
-| OpenAI frontier | `gpt-6-astra` | $10 / $50; 2x input and 1.5x output above 272K input tokens | 1,050,000 (max input 922,000) |
+| OpenAI frontier | `gpt-6.2-astra` | $8 / $40; 2x input and 1.5x output above 272K input tokens | 1,050,000 (max input 922,000) |
 | OpenAI balanced | `gpt-6-luna` | $0.10 / $0.50; 2x input and 1.5x output above 272K input tokens | 1,050,000 (max input 922,000) |
 | Anthropic safety (medical, legal) | `claude-opus-5-5` | $4 / $20 | 1,000,000 |
 | Anthropic fast | `claude-haiku-5-5` | $0.10 / $0.50; $0.50 / $2.50 above 100K prompt tokens | 1,000,000 |
 | Google pro | `gemini-4-argon` | $2 / $10 ($4 / $20 from 2026-12-01) | 1,048,576 |
 | Google flash | `gemini-3.8-flash` | $0.75 / $3.75 ($1.50 / $7.50 from 2027-01-01) | 1,048,576 |
 | Moonshot | `kimi-k3.1-pro` | $2 / $10 | 1,048,576 |
+| OpenAI everyday | `gpt-6.2-sol` | $2 / $10; 2x input and 1.5x output above 272K input tokens | 1,050,000 (max input 922,000) |
+| Google frontier (paid tier only) | `gemini-4-neon` | $3 / $15 | 1,048,576 |
+
+`GET /v1/models` lists these nine models. `rule-based` honors any of them that a
+request names, unless a domain or complexity rule claims the prompt first (see
+[Choosing a model](docs/guides/RESPONSES_API_GUIDE.md#choosing-a-model)). No
+`rule-based` rule picks the OpenAI everyday or Google frontier entries on its own;
+other strategies weigh them like any catalog model.
 
 The adapters also price these current models. Add one to the catalog to route
 to it; see [How completions are priced](CONFIGURATION.md#how-completions-are-priced).
 
 | Model | List price per 1M tokens (input / output) | Context window | Notes |
 | --- | --- | --- | --- |
-| `gpt-6.1-sol` | $2 / $10; 2x / 1.5x above 272K input tokens | 1,050,000 | |
+| `gpt-6-astra` | $10 / $50; 2x / 1.5x above 272K input tokens | 1,050,000 | Superseded by `gpt-6.2-astra`; still served and priced |
+| `gpt-6.1-sol` | $2 / $10; 2x / 1.5x above 272K input tokens | 1,050,000 | Superseded by `gpt-6.2-sol`; still served and priced |
 | `gpt-6.1-terra` | $1 / $5; 2x / 1.5x above 272K input tokens | 1,050,000 | |
 | `claude-fable-5-2` | $8 / $40 | 1,000,000 | For demanding reasoning and long-horizon agentic work; supersedes `claude-fable-5-1` ($10 / $50, still priced) |
 | `claude-sonnet-5-5` | $2 / $10 | 1,000,000 | |
@@ -202,9 +215,39 @@ to it; see [How completions are priced](CONFIGURATION.md#how-completions-are-pri
 | `kimi-k3.1-pro-highspeed` | $4 / $20 | 1,048,576 | |
 | `kimi-k3` | $3 / $15 | 1,048,576 | |
 
-The default roles are unchanged:
+What changed on 2026-11-19:
 
-- Gemini 4 Argon has the same list price as Carbon, and Google positions it for lower token spend per turn.
+- **GPT-6.2 Astra** (OpenAI, 2026-11-17) is the OpenAI frontier role. It supersedes
+  GPT-6 Astra at 20% lower list prices with the same window and input cap, so
+  `rule-based` complex-code prompts, `NEXUS_CANARY_MODEL`, and the default
+  `NEXUS_FAILOVER_PRIORITY` now use it. **GPT-6.2 Sol**, OpenAI's model for everyday
+  work, supersedes GPT-6.1 Sol at the same price. Both have a 128,000-token
+  maximum output, text and image input, and knowledge cutoffs of 2026-05-18 (Astra)
+  and 2026-06-01 (Sol). Clients that pin `gpt-6-astra` or `gpt-6.1-sol` should move
+  to the 6.2 IDs. The older models remain available from OpenAI, stay priced, and
+  `ModelDeprecationGuard` does not flag them; add them to a custom catalog to keep
+  pinning them.
+- GPT-6.2 rejects reasoning effort `none` (OpenAI's migration guide says to send
+  `low` instead of `none` or `minimal`), requires omitting `temperature`, `top_p`,
+  `logprobs`, and `top_logprobs`, offers no Flex processing, and calls tools only
+  through the Responses API. Nexus forwards none of those fields from any of its
+  APIs, and `/v1/responses` refuses `tools` with a 400.
+- **Gemini 4 Neon** (Google, GA 2026-11-18) sits between Hydrogen and Carbon, with
+  "quality close to Gemini 4 Carbon at a lower token cost per task". It is served on
+  the paid tier only, so drop it from your catalog if your `GOOGLE_API_KEY` is on
+  the free tier. Nexus does not set a thinking level, so Neon uses its default
+  (`high`), and its default synchronous output limit is 65,536 tokens.
+- Cost estimates use standard input and output rates. Nexus does not model cached
+  input (GPT-6.2 Astra $0.40, GPT-6.2 Sol $0.10, and Gemini 4 Neon $0.15 per 1M,
+  Neon through implicit caching only), cache writes (GPT-6.2 Astra $10, Sol $2.50
+  per 1M), Batch (half price for GPT-6.2; $1.50 / $7.50 for Neon, also its Flex
+  price), or Neon's Priority tier ($5.40 / $27).
+
+The other roles are unchanged:
+
+- Gemini 4 Argon stays the Google pro role: it has the same list price as Carbon,
+  Google positions it for lower token spend per turn, and it costs less than Neon
+  until its 2026-12-01 increase.
 - Hydrogen costs twice as much as Gemini 3.8 Flash until 3.8 Flash rises to $1.50 / $7.50 on 2027-01-01.
 - Claude Opus 5.5 is Anthropic's recommended starting point at half Fable 5.2's price.
 

@@ -1,6 +1,7 @@
 """Pluggable routing strategies for the decide phase."""
 
 import random
+import re
 import sqlite3
 import time
 from abc import ABC, abstractmethod
@@ -15,10 +16,13 @@ from router.model_ids import (
     ANTHROPIC_FAST_MODEL,
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_FLASH_MODEL,
+    GEMINI_FRONTIER_MODEL,
     GEMINI_PRO_MODEL,
     MOONSHOT_BALANCED_MODEL,
     OPENAI_BALANCED_MODEL,
+    OPENAI_EVERYDAY_MODEL,
     OPENAI_FRONTIER_MODEL,
+    OPENAI_SUPERSEDED_FRONTIER_ID,
 )
 from router.schemas import (
     DomainTag,
@@ -125,7 +129,7 @@ class RuleBasedStrategy(RoutingStrategy):
             )
         if signals.domain_tag is DomainTag.CODE and signals.complexity_score >= 0.55:
             return self._decision(
-                OPENAI_FRONTIER_MODEL, "complex code prompt favors GPT-6 Astra quality"
+                OPENAI_FRONTIER_MODEL, "complex code prompt favors GPT-6.2 Astra quality"
             )
         if (
             signals.complexity_score <= 0.35
@@ -461,6 +465,12 @@ class ModelTier(StrEnum):
     ECONOMY = "economy"
 
 
+# GPT-6 point releases keep their family's tier: Astra (flagship) and Sol (everyday
+# workhorse) are frontier in every release (gpt-6-astra, gpt-6.1-sol, gpt-6.2-astra,
+# gpt-6.2-sol, ...), Terra stays mid, and Luna is economy.
+_GPT6_FRONTIER_FAMILY = re.compile(r"\bgpt-6(?:\.\d+)?-(?:astra|sol)\b")
+
+
 def infer_model_tier(model_name: str) -> ModelTier:
     """Infer a model's capability tier from its name using catalog heuristics.
 
@@ -468,6 +478,8 @@ def infer_model_tier(model_name: str) -> ModelTier:
     such as ``gemini-3.8-flash`` or ``gpt-6-luna`` classify as economy rather
     than frontier. Mid markers come next so a generation's workhorse model, such
     as ``gemini-4-hydrogen``, is not caught by that generation's frontier marker.
+    GPT-6 Astra and Sol match by family, so a point release such as
+    ``gpt-6.2-astra`` is frontier without a new marker.
     """
     normalized = model_name.lower()
     economy_markers = ("-mini", "nano", "flash", "haiku-light", "-lite", "lite-", "-luna")
@@ -476,10 +488,9 @@ def infer_model_tier(model_name: str) -> ModelTier:
     mid_markers = ("gemini-4-hydrogen", "gpt-4.1", "claude-haiku", "gemini-2")
     if any(marker in normalized for marker in mid_markers):
         return ModelTier.MID
+    if _GPT6_FRONTIER_FAMILY.search(normalized):
+        return ModelTier.FRONTIER
     frontier_markers = (
-        "gpt-6-astra",
-        "gpt-6-sol",
-        "gpt-6.1-sol",
         "gpt-5",
         "claude-fable",
         "claude-opus",
@@ -10474,9 +10485,27 @@ class ProviderSuccessFloorStrategy(RoutingStrategy):
 
 
 _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
-    # GPT-6 Astra: text + image input only, no Realtime API, and no logprobs
-    # (it cannot run with reasoning effort ``none``).
+    # GPT-6.2 Astra, like GPT-6 Astra: text + image input only, no Realtime API, and
+    # no logprobs (GPT-6.2 rejects reasoning effort ``none``, which logprobs need).
     OPENAI_FRONTIER_MODEL: frozenset(
+        {
+            "agents_api",
+            "background_mode",
+            "deep_research",
+            "json",
+            "long_context",
+            "mcp",
+            "memory_tool",
+            "parallel_tool_calls",
+            "streaming",
+            "tools",
+            "vision",
+            "webhook",
+        }
+    ),
+    # GPT-6 Astra: superseded by GPT-6.2 Astra but still served, so operators can keep
+    # pinning it in a custom catalog with the capabilities it always had.
+    OPENAI_SUPERSEDED_FRONTIER_ID: frozenset(
         {
             "agents_api",
             "background_mode",
@@ -10494,6 +10523,19 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
     ),
     OPENAI_BALANCED_MODEL: frozenset(
         {"json", "logprobs", "long_context", "parallel_tool_calls", "streaming", "tools", "vision"}
+    ),
+    # GPT-6.2 Sol: the same rules as Astra (no audio, Realtime, or logprobs); tool
+    # calling goes through the Responses API.
+    OPENAI_EVERYDAY_MODEL: frozenset(
+        {
+            "background_mode",
+            "json",
+            "long_context",
+            "parallel_tool_calls",
+            "streaming",
+            "tools",
+            "vision",
+        }
     ),
     ANTHROPIC_SAFETY_MODEL: frozenset(
         {
@@ -10514,6 +10556,9 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
     GEMINI_FLASH_MODEL: frozenset(
         {"vision", "tools", "json", "streaming", "audio", "long_context"}
     ),
+    GEMINI_FRONTIER_MODEL: frozenset(
+        {"vision", "tools", "long_context", "json", "streaming", "audio"}
+    ),
     MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context", "json", "streaming", "vision"}),
 }
 
@@ -10532,11 +10577,14 @@ def known_model_capabilities(model: str) -> frozenset[str]:
 
 _KNOWN_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     OPENAI_FRONTIER_MODEL: 1_050_000,
+    OPENAI_SUPERSEDED_FRONTIER_ID: 1_050_000,
     OPENAI_BALANCED_MODEL: 1_050_000,
+    OPENAI_EVERYDAY_MODEL: 1_050_000,
     ANTHROPIC_SAFETY_MODEL: 1_000_000,
     ANTHROPIC_FAST_MODEL: 1_000_000,
     GEMINI_PRO_MODEL: 1_048_576,
     GEMINI_FLASH_MODEL: 1_048_576,
+    GEMINI_FRONTIER_MODEL: 1_048_576,
     MOONSHOT_BALANCED_MODEL: 1_048_576,
 }
 

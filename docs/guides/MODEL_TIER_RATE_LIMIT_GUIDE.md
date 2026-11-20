@@ -23,8 +23,9 @@ saturated providers before hard rate limits or circuit breakers trip.
    - **Economy**: `-mini`, `nano`, `flash`, `-luna`, `haiku-light`, `-lite`, etc.
    - **Mid**: `gemini-4-hydrogen` (Gemini 4's fast workhorse), `gpt-6.1-terra`,
      `gpt-4.1`, `claude-haiku`, `gemini-2`, etc.
-   - **Frontier**: `gpt-6-astra`, `gpt-6(.1)-sol`, `gpt-5`, `claude-fable`,
-     `claude-opus`, `claude-sonnet-5` / `-4`, `gemini-4` (Carbon, Argon),
+   - **Frontier**: GPT-6 Astra and Sol in every point release (`gpt-6-astra`,
+     `gpt-6.1-sol`, `gpt-6.2-astra`, `gpt-6.2-sol`, ...), `gpt-5`, `claude-fable`,
+     `claude-opus`, `claude-sonnet-5` / `-4`, `gemini-4` (Carbon, Argon, Neon),
      `gemini-3`, `kimi-k3`, `kimi-k2`, `o3`, etc.
 3. Read each provider's rolling request timestamps from shared `TierRequestStats`.
 4. Prefer candidates whose provider is under the tier RPM limit

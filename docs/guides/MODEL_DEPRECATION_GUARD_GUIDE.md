@@ -36,7 +36,7 @@ from safety.model_deprecation import ModelDeprecationGuard
 guard = ModelDeprecationGuard()
 verdict = guard.check("gpt-4o")
 assert verdict.is_deprecated
-assert verdict.replacement == "gpt-6.1-sol"
+assert verdict.replacement == "gpt-6.2-sol"
 assert verdict.severity == "warn"
 
 guard.register("legacy-x", "kimi-k3.1-pro", severity="block")
@@ -48,7 +48,7 @@ assert blocked.severity == "block"
 
 | Deprecated | Replacement | Severity |
 | --- | --- | --- |
-| `gpt-4o` / `gpt-4o-mini` | `gpt-6.1-sol` / `gpt-6-luna` | warn |
+| `gpt-4o` / `gpt-4o-mini` | `gpt-6.2-sol` / `gpt-6-luna` | warn |
 | `claude-3-5-sonnet` (+ dated) | `claude-sonnet-5-5` | warn |
 | `gemini-1.5-pro` | `gemini-4-argon` | warn |
 | `gemini-2.5-pro` | `gemini-4-argon` | warn |
@@ -65,9 +65,10 @@ Google deprecated Gemini 2.5 Pro. From 2026-12-01, requests for `gemini-2.5-pro`
 are served by Gemini 3.8 Flash at 3.8 Flash rates
 ([Gemini pricing](https://aistudio.google.com/docs/pricing#gemini-2.5-pro)), so
 the guard points it at the default catalog's pro model. Superseded models that
-providers still serve are not flagged: `claude-fable-5-1` (superseded by
-`claude-fable-5-2`) and `gemini-3.8-flash` (Google recommends upgrading to
-`gemini-4-hydrogen`) pass the guard unchanged.
+providers still serve are not flagged: `gpt-6-astra` and `gpt-6.1-sol`
+(superseded by `gpt-6.2-astra` and `gpt-6.2-sol` on 2026-11-17),
+`claude-fable-5-1` (superseded by `claude-fable-5-2`), and `gemini-3.8-flash`
+(Google recommends upgrading to `gemini-4-hydrogen`) pass the guard unchanged.
 
 ## Gap vs LiteLLM / OpenRouter
 
@@ -76,4 +77,4 @@ providers still serve are not flagged: `claude-fable-5-1` (superseded by
 | Alias / deprecation table | Yes (hosted) | `ModelDeprecationGuard` (local) |
 | Warn vs block severity | Varies | Explicit `warn` \| `block` |
 | Extensible register API | Config / dashboard | `register()` / `unregister()` |
-| Frontier traffic | Yes | GPT-6 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |
+| Frontier traffic | Yes | GPT-6.2 Astra / Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro |

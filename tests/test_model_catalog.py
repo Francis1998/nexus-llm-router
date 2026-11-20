@@ -77,7 +77,7 @@ def test_readme_documents_current_domain_routing_models() -> None:
     """README domain-routing copy must reference current frontier models."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert "Claude Opus 5.5" in readme
-    assert "GPT-6 Astra" in readme
+    assert "GPT-6.2 Astra" in readme
     assert "GPT-4o" not in readme
 
 

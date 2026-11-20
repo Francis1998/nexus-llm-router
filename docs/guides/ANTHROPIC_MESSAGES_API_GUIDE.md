@@ -199,17 +199,17 @@ in `messages` (the assistant `text` blocks you received can be replayed as is).
 
 `scripts/anthropic_messages_demo.py` runs create, `messages.stream()`,
 `count_tokens`, `stop_sequences`, and a rejected tool call with the official
-SDK. Real output against the mock-provider server (`anthropic` 2.6.0):
+SDK. Real output against the mock-provider server (`anthropic` 2.11.0):
 
 ```text
-create: msg_9ca8b99a... model=claude-opus-5-5 stop=end_turn
+create: msg_dff454e0... model=claude-opus-5-5 stop=end_turn
   text='[claude-opus-5-5] routed response' usage in=60 out=16
   nexus strategy=rule-based rationale='explicit compatible model request honored'
-stream: text_stream='[gpt-6-astra] routed response' stop=end_turn out=16
+stream: text_stream='[gpt-6.2-astra] routed response' stop=end_turn out=16
 count_tokens: input_tokens=60 (router estimate, no provider call)
 stop_sequences: text='[claude-opus-5-5] ' stop=stop_sequence stop_sequence='routed'
 tools: HTTP 400 invalid_request_error
-anthropic 2.6.0
+anthropic 2.11.0
 ```
 
 The SDK raises its usual typed exceptions for nexus errors
@@ -476,13 +476,13 @@ Otherwise the strategy decides, and `message.model` always reports the model
 that served the request.
 
 The default catalog ships the current provider line-ups (verified against the
-provider docs on 2026-11-12):
+provider docs on 2026-11-19):
 
 | Role in the catalog | Default model | Other current IDs with prices in the adapters |
 | --- | --- | --- |
 | Anthropic safety / fast | `claude-opus-5-5` / `claude-haiku-5-5` | `claude-fable-5-2`, `claude-sonnet-5-5` ([models](https://platform.claude.com/docs/en/about-claude/models/overview)) |
-| OpenAI frontier / balanced | `gpt-6-astra` / `gpt-6-luna` | `gpt-6.1-sol`, `gpt-6.1-terra` ([models](https://developers.openai.com/api/docs/models)) |
-| Google pro / flash | `gemini-4-argon` / `gemini-3.8-flash` | `gemini-4-carbon`, `gemini-4-hydrogen`, `gemini-3.5-flash-lite` ([models](https://aistudio.google.com/docs/models)) |
+| OpenAI frontier / balanced / everyday | `gpt-6.2-astra` / `gpt-6-luna` / `gpt-6.2-sol` | `gpt-6.1-terra`; superseded `gpt-6-astra`, `gpt-6.1-sol` ([models](https://developers.openai.com/api/docs/models)) |
+| Google pro / flash / frontier (paid tier only) | `gemini-4-argon` / `gemini-3.8-flash` / `gemini-4-neon` | `gemini-4-carbon`, `gemini-4-hydrogen`, `gemini-3.5-flash-lite` ([models](https://aistudio.google.com/docs/models)) |
 | Kimi (Moonshot) | `kimi-k3.1-pro` | `kimi-k3.1-pro-highspeed`, `kimi-k3` ([pricing](https://platform.kimi.ai/docs/pricing/chat)) |
 
 Real behavior against the mock-provider server with the default `rule-based`
@@ -492,11 +492,14 @@ strategy and the failover prompt from the Quickstart:
 | --- | --- | --- |
 | `claude-opus-5-5` | `claude-opus-5-5` | explicit compatible model request honored |
 | `claude-haiku-5-5` | `claude-haiku-5-5` | explicit compatible model request honored |
-| `gpt-6-astra` | `gpt-6-astra` | explicit compatible model request honored |
+| `gpt-6.2-astra` | `gpt-6.2-astra` | explicit compatible model request honored |
+| `gpt-6.2-sol` | `gpt-6.2-sol` | explicit compatible model request honored |
 | `gemini-4-argon` | `gemini-4-argon` | explicit compatible model request honored |
+| `gemini-4-neon` | `gemini-4-neon` | explicit compatible model request honored |
 | `kimi-k3.1-pro` | `kimi-k3.1-pro` | explicit compatible model request honored |
 | `claude-sonnet-5-5` (not in the default catalog) | `gpt-6-luna` | general prompt routed to balanced low-cost model |
 | `claude-fable-5-2` (not in the default catalog) | `gpt-6-luna` | general prompt routed to balanced low-cost model |
+| `gpt-6-astra` (superseded, not in the default catalog) | `gpt-6-luna` | general prompt routed to balanced low-cost model |
 
 A short prompt such as "Is this a refund request?" with
 `model: "claude-opus-5-5"` is claimed by the `rule-based` "simple realtime
@@ -528,34 +531,34 @@ ledger, `Idempotency-Key`, and response cache shared by
 ## How this demo was recorded
 
 The GIF is rendered from a real terminal session against mock providers (no
-API keys), recorded on 2026-11-07 on port 8765. Model names are whatever this
+API keys), recorded on 2026-11-19 on port 8793. Model names are whatever this
 build's routing strategy picked from its catalog; mock providers answer
 `[model] routed response`. `scripts/anthropic_messages_demo.py` uses the
-official `anthropic` package (2.6.0 at recording time, run through
+official `anthropic` package (2.11.0 at recording time, run through
 `uv run --with anthropic`, so it is not a nexus dependency). The transcript
-was rendered with the shared transcript renderer used for the Responses API
-demo (`--rows 28 --type-steps 4 --font-size 13`).
+was rendered with `scripts/render_transcript_gif.py --rows 28 --type-steps 4
+--font-size 13`.
 
 <details>
 <summary>Full transcript</summary>
 
 ```text
-$ PYTHONPATH=src python scripts/serve_mock.py --port 8765 > /dev/null 2>&1 &
-$ curl -s localhost:8765/v1/messages -H 'content-type: application/json' -H 'x-api-key: sk-demo' -H 'anthropic-version: 2026-10-21' -d '{"model":"auto","max_tokens":256,"system":"Be terse.","messages":[{"role":"user","content":"Summarize the refund policy."}]}' | jq -c '{id, model, stop_reason, text: .content[0].text, usage, strategy: .nexus.routing_strategy}'
-{"id":"msg_75bbd47f8cfc4fe1b21bcde15c1886a2","model":"gemini-3.8-flash","stop_reason":"end_turn","text":"[gemini-3.8-flash] routed response","usage":{"input_tokens":9,"output_tokens":16},"strategy":"rule-based"}
-$ curl -sN localhost:8765/v1/messages -H 'content-type: application/json' -H 'x-api-key: sk-demo' -d '{"model":"auto","max_tokens":256,"stream":true,"messages":[{"role":"user","content":"Summarize the refund policy."}]}' | sed -n 's/^event: //p' | paste -sd' ' -
+$ PYTHONPATH=src python scripts/serve_mock.py --port 8793 > /dev/null 2>&1 &
+$ curl -s localhost:8793/v1/messages -H 'content-type: application/json' -H 'x-api-key: sk-demo' -H 'anthropic-version: 2026-10-21' -d '{"model":"auto","max_tokens":256,"system":"Be terse.","messages":[{"role":"user","content":"Summarize the refund policy."}]}' | jq -c '{id, model, stop_reason, text: .content[0].text, usage, strategy: .nexus.routing_strategy}'
+{"id":"msg_be134b6f99fd469f87c86909a0f5b2e0","model":"gemini-3.8-flash","stop_reason":"end_turn","text":"[gemini-3.8-flash] routed response","usage":{"input_tokens":9,"output_tokens":16},"strategy":"rule-based"}
+$ curl -sN localhost:8793/v1/messages -H 'content-type: application/json' -H 'x-api-key: sk-demo' -d '{"model":"auto","max_tokens":256,"stream":true,"messages":[{"role":"user","content":"Summarize the refund policy."}]}' | sed -n 's/^event: //p' | paste -sd' ' -
 message_start content_block_start ping content_block_delta content_block_delta content_block_delta content_block_stop message_delta message_stop
-$ curl -s localhost:8765/v1/messages/count_tokens -H 'content-type: application/json' -d '{"model":"auto","system":"Be terse.","messages":[{"role":"user","content":"Summarize the refund policy."}]}' | jq -c .
+$ curl -s localhost:8793/v1/messages/count_tokens -H 'content-type: application/json' -d '{"model":"auto","system":"Be terse.","messages":[{"role":"user","content":"Summarize the refund policy."}]}' | jq -c .
 {"input_tokens":9}
-$ uv run --quiet --no-project --with anthropic python scripts/anthropic_messages_demo.py --base-url http://localhost:8765
-create: msg_9ca8b99a... model=claude-opus-5-5 stop=end_turn
+$ uv run --quiet --no-project --with anthropic python scripts/anthropic_messages_demo.py --base-url http://localhost:8793
+create: msg_dff454e0... model=claude-opus-5-5 stop=end_turn
   text='[claude-opus-5-5] routed response' usage in=60 out=16
   nexus strategy=rule-based rationale='explicit compatible model request honored'
-stream: text_stream='[gpt-6-astra] routed response' stop=end_turn out=16
+stream: text_stream='[gpt-6.2-astra] routed response' stop=end_turn out=16
 count_tokens: input_tokens=60 (router estimate, no provider call)
 stop_sequences: text='[claude-opus-5-5] ' stop=stop_sequence stop_sequence='routed'
 tools: HTTP 400 invalid_request_error
-anthropic 2.6.0
+anthropic 2.11.0
 ```
 
 </details>

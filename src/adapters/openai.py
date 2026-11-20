@@ -26,8 +26,12 @@ class OpenAIAdapter(BaseProviderAdapter):
         """
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
-        # USD per 1K tokens (input, output); GPT-6 list prices as of 2026-11-06.
+        # USD per 1K tokens (input, output); GPT-6.x list prices as of 2026-11-19.
+        # GPT-6.2 Astra and Sol supersede GPT-6 Astra and GPT-6.1 Sol, which stay
+        # priced for existing callers.
         self._costs: dict[str, tuple[float, float]] = {
+            "gpt-6.2-astra": (0.008, 0.040),
+            "gpt-6.2-sol": (0.002, 0.010),
             "gpt-6-astra": (0.010, 0.050),
             "gpt-6.1-sol": (0.002, 0.010),
             "gpt-6.1-terra": (0.001, 0.005),
@@ -35,7 +39,7 @@ class OpenAIAdapter(BaseProviderAdapter):
             "gpt-5.5": (0.006, 0.018),
             "gpt-4.1-mini": (0.0002, 0.0008),
         }
-        # GPT-6 bills the whole request at 2x input / 1.5x output above 272K input tokens.
+        # GPT-6.x bills the whole request at 2x input / 1.5x output above 272K input tokens.
         self._long_prompt_pricing: dict[str, LongPromptPricing] = {
             model: LongPromptPricing(
                 threshold_tokens=GPT6_LONG_PROMPT_THRESHOLD_TOKENS,
