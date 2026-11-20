@@ -12,9 +12,9 @@ stream) plus a namespaced `nexus` routing block.
 ## Why
 
 - **OpenAI made Responses the front door.** The GPT-6 guide says "set `model`
-  in a Responses API request", and tool calling on GPT-6.1 Sol / GPT-6.1 Terra
-  / GPT-6 Astra requires Responses
-  ([latest-model guide](https://developers.openai.com/api/docs/guides/latest-model)).
+  in a Responses API request", and tool calling on GPT-6.2 Astra / GPT-6.2 Sol
+  (as on GPT-6.1 Terra) requires Responses
+  ([Using GPT-6.2](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.2-astra)).
   New SDK code increasingly calls `client.responses.create`, not
   `client.chat.completions.create`.
 - **Other gateways already bridge it.** The
@@ -121,7 +121,7 @@ from openai import OpenAI
 client = OpenAI(base_url="http://localhost:8000/v1", api_key="<your-nexus-key>")
 
 response = client.responses.create(
-    model="gpt-6-astra",  # a routing hint, see "Choosing a model"
+    model="gpt-6.2-astra",  # a routing hint, see "Choosing a model"
     instructions="You are a terse support agent.",
     input="Summarize our refund policy in one line.",
     extra_headers={"X-Router-Strategy": "cost-optimal"},
@@ -353,13 +353,13 @@ Otherwise the strategy decides, and `response.model` always reports the model
 that actually served the request.
 
 The default catalog ships the current provider line-ups (verified against the
-provider docs on 2026-11-12):
+provider docs on 2026-11-19):
 
 | Role in the catalog | Default model | Other current IDs with prices in the adapters |
 | --- | --- | --- |
-| OpenAI frontier / balanced | `gpt-6-astra` / `gpt-6-luna` | `gpt-6.1-sol`, `gpt-6.1-terra` ([models](https://developers.openai.com/api/docs/models)) |
+| OpenAI frontier / balanced / everyday | `gpt-6.2-astra` / `gpt-6-luna` / `gpt-6.2-sol` | `gpt-6.1-terra`; superseded `gpt-6-astra`, `gpt-6.1-sol` ([models](https://developers.openai.com/api/docs/models)) |
 | Anthropic safety / fast | `claude-opus-5-5` / `claude-haiku-5-5` | `claude-fable-5-2`, `claude-sonnet-5-5` ([models](https://platform.claude.com/docs/en/models/overview)) |
-| Google pro / flash | `gemini-4-argon` / `gemini-3.8-flash` | `gemini-4-carbon`, `gemini-4-hydrogen`, `gemini-3.5-flash-lite` ([models](https://aistudio.google.com/docs/models)) |
+| Google pro / flash / frontier (paid tier only) | `gemini-4-argon` / `gemini-3.8-flash` / `gemini-4-neon` | `gemini-4-carbon`, `gemini-4-hydrogen`, `gemini-3.5-flash-lite` ([models](https://aistudio.google.com/docs/models)) |
 | Kimi (Moonshot) | `kimi-k3.1-pro` | `kimi-k3.1-pro-highspeed`, `kimi-k3` ([pricing](https://platform.kimi.ai/docs/pricing/chat)) |
 
 Real behavior against the mock-provider server with the default `rule-based`
@@ -368,16 +368,19 @@ failover … recommend one with a phased rollout plan …`):
 
 | Requested `model` | `response.model` | `nexus.rationale` |
 | --- | --- | --- |
-| `gpt-6-astra` | `gpt-6-astra` | explicit compatible model request honored |
+| `gpt-6.2-astra` | `gpt-6.2-astra` | explicit compatible model request honored |
+| `gpt-6.2-sol` | `gpt-6.2-sol` | explicit compatible model request honored |
+| `gemini-4-neon` | `gemini-4-neon` | explicit compatible model request honored |
 | `claude-opus-5-5` | `claude-opus-5-5` | explicit compatible model request honored |
 | `kimi-k3.1-pro` | `kimi-k3.1-pro` | explicit compatible model request honored |
-| `gpt-6.1-sol` (not in the default catalog) | `gpt-6-luna` | general prompt routed to balanced low-cost model |
+| `gpt-6-astra` (superseded, not in the default catalog) | `gpt-6-luna` | general prompt routed to balanced low-cost model |
 
 Short prompts (for example "Is this a refund request?") are claimed by the
 `rule-based` "simple realtime prompt" rule before an explicit model is
 considered and go to `gemini-3.8-flash`. Always read `response.model` (and
 `response.model_extra["nexus"]["rationale"]`) to see what ran and why; add
-other current IDs such as `gpt-6.1-sol` to the catalog to make them pinnable.
+other current IDs such as `gpt-6.1-terra` or `claude-fable-5-2` to the catalog to
+make them pinnable.
 
 ## Nexus vs LiteLLM vs OpenRouter
 

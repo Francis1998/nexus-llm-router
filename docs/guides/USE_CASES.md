@@ -65,9 +65,9 @@ curl -s localhost:8000/v1/chat/completions -H 'content-type: application/json' \
 
 ```json
 {
-  "model": "gpt-6-astra",
+  "model": "gpt-6.2-astra",
   "strategy": "rule-based",
-  "rationale": "complex code prompt favors GPT-6 Astra quality",
+  "rationale": "complex code prompt favors GPT-6.2 Astra quality",
   "cost_usd": 0.000134
 }
 ```
@@ -89,7 +89,7 @@ curl -s localhost:8000/v1/spend | jq
     "openai": 0.000157
   },
   "by_model": {
-    "gpt-6-astra": 0.000134,
+    "gpt-6.2-astra": 0.000134,
     "gpt-6-luna": 0.000023
   }
 }
@@ -100,7 +100,7 @@ What to notice:
 - `cost-optimal` chose `gpt-6-luna`, the cheapest catalog model that clears the
   quality floor; its decision-time estimate uses the catalog list prices.
 - The default `rule-based` policy recognized a complex code prompt (code block,
-  debugging, step-by-step analysis) and chose `gpt-6-astra`.
+  debugging, step-by-step analysis) and chose `gpt-6.2-astra`.
 - Spend is attributed to `key_15b184c4c9b35a2f`, a non-reversible fingerprint of
   the API key; the raw `sk-demo-support` key is never stored or echoed.
 - Recorded `cost_usd` comes from the provider adapter. The mock adapter bills a

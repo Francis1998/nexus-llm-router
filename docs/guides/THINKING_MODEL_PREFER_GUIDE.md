@@ -2,7 +2,7 @@
 
 Use `thinking-model-prefer` to bias selection toward reasoning / thinking
 models when task complexity is at or above
-`NEXUS_THINKING_COMPLEXITY_THRESHOLD`, for GPT-6 Astra / Claude Opus 5.5 /
+`NEXUS_THINKING_COMPLEXITY_THRESHOLD`, for GPT-6.2 Astra / Claude Opus 5.5 /
 Gemini 4 Argon / Kimi K3.1 Pro.
 
 ![Thinking model prefer demo](../../assets/thinking-model-prefer.gif)
@@ -51,7 +51,7 @@ X-Router-Strategy: thinking-model-prefer
 {
   "metadata": {
     "complexity_score": 0.85,
-    "thinking_models": ["gpt-6-astra", "gemini-4-argon"]
+    "thinking_models": ["gpt-6.2-astra", "gemini-4-argon"]
   }
 }
 ```

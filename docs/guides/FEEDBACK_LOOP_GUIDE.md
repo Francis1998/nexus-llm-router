@@ -466,7 +466,7 @@ request ──> Observe ──> Decide ──> Act ──> RESPONDED ──> aud
 
 ## How this demo was recorded
 
-Recorded on 2026-11-12 with Python 3.11, httpx 0.28.1, and Pillow 13.0.0. The
+Recorded on 2026-11-19 with Python 3.12, httpx 0.28.1, and Pillow 13.0.0. The
 server used fresh state files so the session starts from zero feedback; model
 names are whatever this build's routing picked, and mock providers answer
 `[model] routed response`.
@@ -477,8 +477,8 @@ NEXUS_FEEDBACK_PATH=build/feedback-demo/feedback.sqlite3 \
 NEXUS_AUDIT_LOG_PATH=build/feedback-demo/audit-log.jsonl \
 NEXUS_SPEND_LEDGER_PATH=build/feedback-demo/spend-ledger.sqlite3 \
 NEXUS_IDEMPOTENCY_PATH=build/feedback-demo/idempotency.sqlite3 \
-PYTHONPATH=src python scripts/serve_mock.py --port 8765 &
-PYTHONPATH=src python scripts/feedback_loop_demo.py --base-url http://127.0.0.1:8765 \
+PYTHONPATH=src python scripts/serve_mock.py --port 8793 &
+PYTHONPATH=src python scripts/feedback_loop_demo.py --base-url http://127.0.0.1:8793 \
   --gif assets/demo/feedback-loop.gif
 ```
 
@@ -494,20 +494,20 @@ with the GIF helpers in `scripts/create_demo_gif.py`, which
 POST /v1/chat/completions   X-Router-Strategy: feedback-aware
   -> gpt-6-luna: cold start: 0/10 quality feedback samples for general prompts; rule-based: general prompt routed to balanced low-cost model
 # 2) 12 answers from three models, each rated by a scripted reviewer
-gpt-6-luna       request ids f6558ff2 42706287 e551ac88 edb9db42  ->  POST /v1/feedback [down down up down]  HTTP 200 200 200 200
-claude-opus-5-5  request ids b6be1c30 d366a2bc 2663e37b 5622e770  ->  POST /v1/feedback [up up up up]  HTTP 200 200 200 200
-gpt-6-astra      request ids a520efcb b2a99999 83d0d3f7 48d15381  ->  POST /v1/feedback [up down up down]  HTTP 200 200 200 200
+gpt-6-luna       request ids 91cc0f5b dfcd9301 bb67b314 318c73b3  ->  POST /v1/feedback [down down up down]  HTTP 200 200 200 200
+claude-opus-5-5  request ids 85136421 72ddc542 c38165b8 1cdae28e  ->  POST /v1/feedback [up up up up]  HTTP 200 200 200 200
+gpt-6.2-astra    request ids e25f1724 faff588c b90a47ad e07c59a9  ->  POST /v1/feedback [up down up down]  HTTP 200 200 200 200
 # 3) GET /v1/feedback/summary?group_by=model   kind=boolean, interval=wilson (95%), n=12
 key               n   positives  mean   95% CI
 claude-opus-5-5   4   4          1.00   [0.51, 1.00]
-gpt-6-astra       4   2          0.50   [0.15, 0.85]
+gpt-6.2-astra     4   2          0.50   [0.15, 0.85]
 gpt-6-luna        4   1          0.25   [0.05, 0.70]
 # 4) feedback-aware again: Thompson sampling, seeded by each request id
 POST /v1/chat/completions x6   X-Router-Strategy: feedback-aware
-  -> served claude-opus-5-5 x6
-  rationale: feedback-aware: Thompson sample chose claude-opus-5-5 (draw 0.97, posterior mean 0.83, n=4) over gpt-6-astra (draw 0.75, posterior mean 0.50, n=4); 12 quality samples for general prompts, seeded by request id
+  -> served claude-opus-5-5 x5, gpt-6.2-astra x1
+  rationale: feedback-aware: Thompson sample chose gpt-6.2-astra (draw 0.83, posterior mean 0.50, n=4) over claude-opus-5-5 (draw 0.83, posterior mean 0.83, n=4); 12 quality samples for general prompts, seeded by request id
 # 5) only the API key and tenant that made a request can rate it
-POST /v1/feedback  Authorization: Bearer sk-other-team  request f6558ff2  -> HTTP 404 request_not_found
+POST /v1/feedback  Authorization: Bearer sk-other-team  request 91cc0f5b  -> HTTP 404 request_not_found
 wrote assets/demo/feedback-loop.gif
 ```
 

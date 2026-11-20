@@ -46,7 +46,7 @@ NEXUS_AB_MODEL_B=claude-haiku-5-5
 NEXUS_AB_MODEL_A_WEIGHT=0.5
 ```
 
-Use `gpt-6-astra`, `claude-opus-5-5`, `gemini-4-argon`, or `kimi-k3.1-pro` for higher-quality evaluation arms when the experiment budget allows it.
+Use `gpt-6.2-astra`, `claude-opus-5-5`, `gemini-4-argon`, or `kimi-k3.1-pro` for higher-quality evaluation arms when the experiment budget allows it.
 
 ## Weighted-Blend Routing Settings
 
@@ -146,7 +146,7 @@ its share of live traffic.
 
 ```dotenv
 NEXUS_CANARY_STABLE_MODEL=gpt-6-luna
-NEXUS_CANARY_MODEL=gpt-6-astra
+NEXUS_CANARY_MODEL=gpt-6.2-astra
 NEXUS_CANARY_WEIGHT=0.1
 ```
 
@@ -165,7 +165,7 @@ same `NEXUS_CANARY_*` settings as `canary`.
 
 ```dotenv
 NEXUS_CANARY_STABLE_MODEL=gpt-6-luna
-NEXUS_CANARY_MODEL=gpt-6-astra
+NEXUS_CANARY_MODEL=gpt-6.2-astra
 NEXUS_CANARY_WEIGHT=0.1
 ```
 
@@ -742,7 +742,7 @@ See
 The `quality-weighted-sticky` strategy pins `session_id` via consistent hashing
 like `sticky-session`, but allocates hash-ring share proportional to each
 candidate's `quality_score`. Higher-quality models (for example Claude Opus
-5.5 / GPT-6 Astra) absorb more sticky sessions while Gemini / Kimi K3.1 arms
+5.5 / GPT-6.2 Astra) absorb more sticky sessions while Gemini / Kimi K3.1 arms
 still receive some. No extra `NEXUS_*` knobs — weights come from catalog
 quality priors. Distinct from `sticky-tenant-hash`.
 
@@ -766,7 +766,7 @@ be wasted. See
 ## Failover-Priority Routing
 
 The `failover-priority` strategy is LiteLLM-style ordered failover: it walks
-`NEXUS_FAILOVER_PRIORITY` (default GPT-6 Astra → Claude Opus 5.5 → Gemini 4 Argon →
+`NEXUS_FAILOVER_PRIORITY` (default GPT-6.2 Astra → Claude Opus 5.5 → Gemini 4 Argon →
 Kimi K3.1 Pro) and selects the first model whose provider circuit is closed. Unhealthy
 providers are skipped; when every preference is unhealthy it still routes to the
 first listed catalog model. The fallback chain preserves the remaining priority
@@ -774,7 +774,7 @@ order. See
 [docs/guides/FAILOVER_PRIORITY_GUIDE.md](docs/guides/FAILOVER_PRIORITY_GUIDE.md).
 
 ```dotenv
-NEXUS_FAILOVER_PRIORITY=["gpt-6-astra","claude-opus-5-5","gemini-4-argon","kimi-k3.1-pro"]
+NEXUS_FAILOVER_PRIORITY=["gpt-6.2-astra","claude-opus-5-5","gemini-4-argon","kimi-k3.1-pro"]
 ```
 
 ## Provider-Health Score Blend Routing
@@ -971,55 +971,75 @@ If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
 
 The default catalog lives in `src/router/config.py` and includes:
 
-- OpenAI: `gpt-6-astra` (frontier), `gpt-6-luna` (balanced, lowest cost)
+- OpenAI: `gpt-6.2-astra` (frontier), `gpt-6-luna` (balanced, lowest cost),
+  `gpt-6.2-sol` (everyday)
 - Anthropic: `claude-opus-5-5` (safety / medical / legal), `claude-haiku-5-5` (fast)
-- Google: `gemini-4-argon` (pro), `gemini-3.8-flash` (flash)
+- Google: `gemini-4-argon` (pro), `gemini-3.8-flash` (flash), `gemini-4-neon`
+  (frontier, paid tier only)
 - Moonshot: `kimi-k3.1-pro`
 
-Costs are provider list prices verified on 2026-11-12 (GPT-6, Claude 5.5, Gemini 4
-Argon / 3.8 Flash, Kimi K3.1) and context windows come from the provider model
-pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8
-Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the adapter price
-tables together when list prices change.
+Costs are provider list prices verified on 2026-11-19 (GPT-6.2 / GPT-6, Claude 5.5,
+Gemini 4 Argon / Neon / 3.8 Flash, Kimi K3.1) and context windows come from the
+provider model pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01
+and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the
+adapter price tables together when list prices change.
+
+GPT-6.2 Astra ($8 / $40 per 1M) supersedes GPT-6 Astra ($10 / $50) as the frontier
+role, and GPT-6.2 Sol ($2 / $10) supersedes GPT-6.1 Sol at the same price. Gemini 4
+Neon ($3 / $15) is frontier-level and sits between Hydrogen and Carbon. It is
+served on Google's paid tier only, so remove it from the catalog when
+`GOOGLE_API_KEY` is a free-tier key. GPT-6.2 Sol (quality prior 0.92) and Neon
+(0.94) follow the seven role models: they are routable and pinnable, but no
+`rule-based` rule picks them.
 
 Adapter price tables (`src/adapters/*.py`) also cover current models outside the
-default roles, so they are billed correctly once you add them to the catalog:
-`gpt-6.1-sol` ($2 / $10 per 1M), `gpt-6.1-terra` ($1 / $5), `claude-fable-5-2`
-($8 / $40), `claude-sonnet-5-5` ($2 / $10), `gemini-4-carbon` ($2 / $10, rising to
-$4 / $20 on 2026-12-01), `gemini-4-hydrogen` ($1.50 / $7.50),
-`gemini-3.5-flash-lite` ($0.30 / $2.50), `kimi-k3.1-pro-highspeed` ($4 / $20), and
-`kimi-k3` ($3 / $15). `claude-fable-5-1` ($10 / $50) is superseded by Fable 5.2 but
-still served and priced; `ModelDeprecationGuard` does not flag it. Gemini 4
-Hydrogen is Google's recommended upgrade from Gemini 3.8 Flash. The flash role
-stays on 3.8 Flash while Hydrogen costs twice as much; their prices converge on
-2027-01-01. Gemini 2.5 Pro is deprecated: from 2026-12-01 Google serves it with
-Gemini 3.8 Flash at 3.8 Flash rates.
+default catalog, so they are billed correctly once you add them to the catalog:
+`gpt-6.1-terra` ($1 / $5 per 1M), `claude-fable-5-2` ($8 / $40),
+`claude-sonnet-5-5` ($2 / $10), `gemini-4-carbon` ($2 / $10, rising to $4 / $20 on
+2026-12-01), `gemini-4-hydrogen` ($1.50 / $7.50), `gemini-3.5-flash-lite`
+($0.30 / $2.50), `kimi-k3.1-pro-highspeed` ($4 / $20), and `kimi-k3` ($3 / $15).
+`gpt-6-astra` ($10 / $50), `gpt-6.1-sol` ($2 / $10), and `claude-fable-5-1`
+($10 / $50) are superseded but still served and priced; `ModelDeprecationGuard`
+does not flag them. Gemini 4 Hydrogen is Google's recommended upgrade from Gemini
+3.8 Flash. The flash role stays on 3.8 Flash while Hydrogen costs twice as much;
+their prices converge on 2027-01-01. Gemini 2.5 Pro is deprecated: from 2026-12-01
+Google serves it with Gemini 3.8 Flash at 3.8 Flash rates.
 
 Provider limits that affect routing and spend:
 
-- GPT-6 models have a 1,050,000-token window but accept at most 922,000 input
-  tokens (`ModelCandidate.max_input_tokens`). `token-budget` and
-  `long-context-prefer` only treat a GPT-6 model as fitting when the prompt is
-  within that input limit.
+- GPT-6 and GPT-6.2 models have a 1,050,000-token window but accept at most
+  922,000 input tokens (`ModelCandidate.max_input_tokens`). `token-budget` and
+  `long-context-prefer` only treat a GPT-6.x model as fitting when the prompt is
+  within that input limit. GPT-6.2 models return at most 128,000 output tokens;
+  Gemini 4 Neon returns at most 65,536 by default.
 - Long-prompt pricing (`ModelCandidate.long_prompt_pricing` and the adapter cost
-  tables) bills the whole request at higher rates: GPT-6 at 2x input / 1.5x
+  tables) bills the whole request at higher rates: GPT-6.x at 2x input / 1.5x
   output above 272,000 input tokens, and Claude Haiku 5.5 at $0.50 / $2.50 per 1M
   above 100,000 prompt tokens. Budget guardrails and recorded spend use these
   rates.
+- Cost estimates use standard input and output rates only. Cached input (GPT-6.2
+  Astra $0.40, GPT-6.2 Sol $0.10, Gemini 4 Neon $0.15 per 1M; Neon supports
+  implicit caching only), cache writes (GPT-6.2 Astra $10, Sol $2.50 per 1M),
+  Batch (half price for GPT-6.2; $1.50 / $7.50 for Neon, also its Flex price), and
+  Neon's Priority tier ($5.40 / $27) are not modeled.
 
 ### Provider parameter compatibility
 
 The current models reject or ignore sampling parameters, so the adapters send
 only the fields below. A client's `temperature` is accepted by
-`/v1/chat/completions` and `/v1/responses` (and is part of the response-cache
-key), but it is never forwarded upstream. `tests/test_model_stack_refresh.py`
-pins these payloads for every current model.
+`/v1/chat/completions`, `/v1/responses`, and `/v1/messages` (and is part of the
+response-cache key), but it is never forwarded upstream, and neither is a
+client's `top_p`, `logprobs`, `top_logprobs`, `reasoning_effort` / `reasoning`, or
+`output_config.effort`. `tests/test_model_stack_refresh.py` pins these payloads
+for every current model, and `tests/test_gpt62_neon_request_shaping.py` sends
+those fields through all three APIs to GPT-6.2.
 
 | Provider | Provider rule for current models | Nexus sends |
 |---|---|---|
+| OpenAI GPT-6.2 Astra / Sol | reasoning effort `none` is rejected (use `low` instead of `none` or `minimal`); remove `temperature`, `top_p`, `logprobs`, `top_logprobs`; tool calling only through the Responses API; no Flex processing | `model`, `messages`, `max_completion_tokens` |
 | OpenAI GPT-6 | remove `temperature`, `top_p`, `logprobs`, `top_logprobs` unless reasoning effort is `none`; Astra and 6.1 Sol never support `none` | `model`, `messages`, `max_completion_tokens` (`max_tokens` only for legacy GPT-4.x / 3.5) |
 | Anthropic Claude 5.5 / Fable 5.2 / Fable 5.1 | non-default `temperature`, `top_p`, or `top_k` returns HTTP 400 on every request (any value from API version `2026-10-21`); use `output_config.effort` instead | `model`, `max_tokens`, `messages`, optional `system` |
-| Google Gemini 4 Carbon / Argon / Hydrogen, 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
+| Google Gemini 4 Carbon / Argon / Neon / Hydrogen, 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent); Neon thinks at `high` unless a thinking level is set (nexus sets none) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
 | Moonshot Kimi K3.x | `temperature` is fixed at 1.0 (other values error); `top_p`, `n`, and penalties are fixed | `model`, `messages`, `max_completion_tokens` |
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
@@ -1131,7 +1151,7 @@ NEXUS_AB_MODEL_B=claude-haiku-5-5
 NEXUS_AB_MODEL_A_WEIGHT=0.5
 ```
 
-Use `gpt-6-astra`, `claude-opus-5-5`, `gemini-4-argon`, or `kimi-k3.1-pro` for higher-quality evaluation arms when the experiment budget allows it.
+Use `gpt-6.2-astra`, `claude-opus-5-5`, `gemini-4-argon`, or `kimi-k3.1-pro` for higher-quality evaluation arms when the experiment budget allows it.
 
 ## Weighted-Blend Routing Settings
 
@@ -1231,7 +1251,7 @@ its share of live traffic.
 
 ```dotenv
 NEXUS_CANARY_STABLE_MODEL=gpt-6-luna
-NEXUS_CANARY_MODEL=gpt-6-astra
+NEXUS_CANARY_MODEL=gpt-6.2-astra
 NEXUS_CANARY_WEIGHT=0.1
 ```
 
@@ -1250,7 +1270,7 @@ same `NEXUS_CANARY_*` settings as `canary`.
 
 ```dotenv
 NEXUS_CANARY_STABLE_MODEL=gpt-6-luna
-NEXUS_CANARY_MODEL=gpt-6-astra
+NEXUS_CANARY_MODEL=gpt-6.2-astra
 NEXUS_CANARY_WEIGHT=0.1
 ```
 
@@ -1563,7 +1583,7 @@ be wasted. See
 ## Failover-Priority Routing
 
 The `failover-priority` strategy is LiteLLM-style ordered failover: it walks
-`NEXUS_FAILOVER_PRIORITY` (default GPT-6 Astra → Claude Opus 5.5 → Gemini 4 Argon →
+`NEXUS_FAILOVER_PRIORITY` (default GPT-6.2 Astra → Claude Opus 5.5 → Gemini 4 Argon →
 Kimi K3.1 Pro) and selects the first model whose provider circuit is closed. Unhealthy
 providers are skipped; when every preference is unhealthy it still routes to the
 first listed catalog model. The fallback chain preserves the remaining priority
@@ -1571,7 +1591,7 @@ order. See
 [docs/guides/FAILOVER_PRIORITY_GUIDE.md](docs/guides/FAILOVER_PRIORITY_GUIDE.md).
 
 ```dotenv
-NEXUS_FAILOVER_PRIORITY=["gpt-6-astra","claude-opus-5-5","gemini-4-argon","kimi-k3.1-pro"]
+NEXUS_FAILOVER_PRIORITY=["gpt-6.2-astra","claude-opus-5-5","gemini-4-argon","kimi-k3.1-pro"]
 ```
 
 ## Provider-Health Score Blend Routing
@@ -1755,55 +1775,75 @@ If the header is absent, Nexus uses `NEXUS_DEFAULT_STRATEGY`.
 
 The default catalog lives in `src/router/config.py` and includes:
 
-- OpenAI: `gpt-6-astra` (frontier), `gpt-6-luna` (balanced, lowest cost)
+- OpenAI: `gpt-6.2-astra` (frontier), `gpt-6-luna` (balanced, lowest cost),
+  `gpt-6.2-sol` (everyday)
 - Anthropic: `claude-opus-5-5` (safety / medical / legal), `claude-haiku-5-5` (fast)
-- Google: `gemini-4-argon` (pro), `gemini-3.8-flash` (flash)
+- Google: `gemini-4-argon` (pro), `gemini-3.8-flash` (flash), `gemini-4-neon`
+  (frontier, paid tier only)
 - Moonshot: `kimi-k3.1-pro`
 
-Costs are provider list prices verified on 2026-11-12 (GPT-6, Claude 5.5, Gemini 4
-Argon / 3.8 Flash, Kimi K3.1) and context windows come from the provider model
-pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01 and Gemini 3.8
-Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the adapter price
-tables together when list prices change.
+Costs are provider list prices verified on 2026-11-19 (GPT-6.2 / GPT-6, Claude 5.5,
+Gemini 4 Argon / Neon / 3.8 Flash, Kimi K3.1) and context windows come from the
+provider model pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01
+and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the
+adapter price tables together when list prices change.
+
+GPT-6.2 Astra ($8 / $40 per 1M) supersedes GPT-6 Astra ($10 / $50) as the frontier
+role, and GPT-6.2 Sol ($2 / $10) supersedes GPT-6.1 Sol at the same price. Gemini 4
+Neon ($3 / $15) is frontier-level and sits between Hydrogen and Carbon. It is
+served on Google's paid tier only, so remove it from the catalog when
+`GOOGLE_API_KEY` is a free-tier key. GPT-6.2 Sol (quality prior 0.92) and Neon
+(0.94) follow the seven role models: they are routable and pinnable, but no
+`rule-based` rule picks them.
 
 Adapter price tables (`src/adapters/*.py`) also cover current models outside the
-default roles, so they are billed correctly once you add them to the catalog:
-`gpt-6.1-sol` ($2 / $10 per 1M), `gpt-6.1-terra` ($1 / $5), `claude-fable-5-2`
-($8 / $40), `claude-sonnet-5-5` ($2 / $10), `gemini-4-carbon` ($2 / $10, rising to
-$4 / $20 on 2026-12-01), `gemini-4-hydrogen` ($1.50 / $7.50),
-`gemini-3.5-flash-lite` ($0.30 / $2.50), `kimi-k3.1-pro-highspeed` ($4 / $20), and
-`kimi-k3` ($3 / $15). `claude-fable-5-1` ($10 / $50) is superseded by Fable 5.2 but
-still served and priced; `ModelDeprecationGuard` does not flag it. Gemini 4
-Hydrogen is Google's recommended upgrade from Gemini 3.8 Flash. The flash role
-stays on 3.8 Flash while Hydrogen costs twice as much; their prices converge on
-2027-01-01. Gemini 2.5 Pro is deprecated: from 2026-12-01 Google serves it with
-Gemini 3.8 Flash at 3.8 Flash rates.
+default catalog, so they are billed correctly once you add them to the catalog:
+`gpt-6.1-terra` ($1 / $5 per 1M), `claude-fable-5-2` ($8 / $40),
+`claude-sonnet-5-5` ($2 / $10), `gemini-4-carbon` ($2 / $10, rising to $4 / $20 on
+2026-12-01), `gemini-4-hydrogen` ($1.50 / $7.50), `gemini-3.5-flash-lite`
+($0.30 / $2.50), `kimi-k3.1-pro-highspeed` ($4 / $20), and `kimi-k3` ($3 / $15).
+`gpt-6-astra` ($10 / $50), `gpt-6.1-sol` ($2 / $10), and `claude-fable-5-1`
+($10 / $50) are superseded but still served and priced; `ModelDeprecationGuard`
+does not flag them. Gemini 4 Hydrogen is Google's recommended upgrade from Gemini
+3.8 Flash. The flash role stays on 3.8 Flash while Hydrogen costs twice as much;
+their prices converge on 2027-01-01. Gemini 2.5 Pro is deprecated: from 2026-12-01
+Google serves it with Gemini 3.8 Flash at 3.8 Flash rates.
 
 Provider limits that affect routing and spend:
 
-- GPT-6 models have a 1,050,000-token window but accept at most 922,000 input
-  tokens (`ModelCandidate.max_input_tokens`). `token-budget` and
-  `long-context-prefer` only treat a GPT-6 model as fitting when the prompt is
-  within that input limit.
+- GPT-6 and GPT-6.2 models have a 1,050,000-token window but accept at most
+  922,000 input tokens (`ModelCandidate.max_input_tokens`). `token-budget` and
+  `long-context-prefer` only treat a GPT-6.x model as fitting when the prompt is
+  within that input limit. GPT-6.2 models return at most 128,000 output tokens;
+  Gemini 4 Neon returns at most 65,536 by default.
 - Long-prompt pricing (`ModelCandidate.long_prompt_pricing` and the adapter cost
-  tables) bills the whole request at higher rates: GPT-6 at 2x input / 1.5x
+  tables) bills the whole request at higher rates: GPT-6.x at 2x input / 1.5x
   output above 272,000 input tokens, and Claude Haiku 5.5 at $0.50 / $2.50 per 1M
   above 100,000 prompt tokens. Budget guardrails and recorded spend use these
   rates.
+- Cost estimates use standard input and output rates only. Cached input (GPT-6.2
+  Astra $0.40, GPT-6.2 Sol $0.10, Gemini 4 Neon $0.15 per 1M; Neon supports
+  implicit caching only), cache writes (GPT-6.2 Astra $10, Sol $2.50 per 1M),
+  Batch (half price for GPT-6.2; $1.50 / $7.50 for Neon, also its Flex price), and
+  Neon's Priority tier ($5.40 / $27) are not modeled.
 
 ### Provider parameter compatibility
 
 The current models reject or ignore sampling parameters, so the adapters send
 only the fields below. A client's `temperature` is accepted by
-`/v1/chat/completions` and `/v1/responses` (and is part of the response-cache
-key), but it is never forwarded upstream. `tests/test_model_stack_refresh.py`
-pins these payloads for every current model.
+`/v1/chat/completions`, `/v1/responses`, and `/v1/messages` (and is part of the
+response-cache key), but it is never forwarded upstream, and neither is a
+client's `top_p`, `logprobs`, `top_logprobs`, `reasoning_effort` / `reasoning`, or
+`output_config.effort`. `tests/test_model_stack_refresh.py` pins these payloads
+for every current model, and `tests/test_gpt62_neon_request_shaping.py` sends
+those fields through all three APIs to GPT-6.2.
 
 | Provider | Provider rule for current models | Nexus sends |
 |---|---|---|
+| OpenAI GPT-6.2 Astra / Sol | reasoning effort `none` is rejected (use `low` instead of `none` or `minimal`); remove `temperature`, `top_p`, `logprobs`, `top_logprobs`; tool calling only through the Responses API; no Flex processing | `model`, `messages`, `max_completion_tokens` |
 | OpenAI GPT-6 | remove `temperature`, `top_p`, `logprobs`, `top_logprobs` unless reasoning effort is `none`; Astra and 6.1 Sol never support `none` | `model`, `messages`, `max_completion_tokens` (`max_tokens` only for legacy GPT-4.x / 3.5) |
 | Anthropic Claude 5.5 / Fable 5.2 / Fable 5.1 | non-default `temperature`, `top_p`, or `top_k` returns HTTP 400 on every request (any value from API version `2026-10-21`); use `output_config.effort` instead | `model`, `max_tokens`, `messages`, optional `system` |
-| Google Gemini 4 Carbon / Argon / Hydrogen, 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
+| Google Gemini 4 Carbon / Argon / Neon / Hydrogen, 3.8 Flash | remove `temperature`, `topP`, `topK` (ignored if sent); Neon thinks at `high` unless a thinking level is set (nexus sets none) | `contents`, `generationConfig.maxOutputTokens`, optional `systemInstruction` |
 | Moonshot Kimi K3.x | `temperature` is fixed at 1.0 (other values error); `top_p`, `n`, and penalties are fixed | `model`, `messages`, `max_completion_tokens` |
 
 Each model has quality, cost, domain, and realtime-support priors. Replace or extend the catalog when onboarding provider-specific SKUs.
