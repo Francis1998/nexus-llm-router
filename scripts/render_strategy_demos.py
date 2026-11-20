@@ -317,7 +317,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         "long-context-prefer",
         {"min_context_tokens": 500000, "model_context_windows": {"gemini-4-argon": 1048576}},
     ),
-    capability("mcp-prefer", {"requires_mcp": True, "mcp_models": ["gpt-6-astra"]}),
+    capability("mcp-prefer", {"requires_mcp": True, "mcp_models": ["gpt-6.2-astra"]}),
     capability(
         "moderation-prefer",
         {"requires_moderation": True, "moderation_models": ["gpt-6-luna"]},
@@ -394,7 +394,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     ),
     capability(
         "reasoning-effort-prefer",
-        {"requires_reasoning_effort": True, "reasoning_effort_models": ["gpt-6-astra"]},
+        {"requires_reasoning_effort": True, "reasoning_effort_models": ["gpt-6.2-astra"]},
     ),
     capability(
         "realtime-api-prefer",
@@ -466,7 +466,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         with_signal=Probe(
             metadata={
                 "complexity_score": 0.85,
-                "thinking_models": ["gpt-6-astra", "gemini-4-argon"],
+                "thinking_models": ["gpt-6.2-astra", "gemini-4-argon"],
             }
         ),
         env={"NEXUS_THINKING_COMPLEXITY_THRESHOLD": "0.7"},

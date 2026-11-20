@@ -74,7 +74,7 @@ SYSTEMS = (
 REVIEWS = (
     ("gpt-6-luna", (False, False, True, False)),
     ("claude-opus-5-5", (True, True, True, True)),
-    ("gpt-6-astra", (True, False, True, False)),
+    ("gpt-6.2-astra", (True, False, True, False)),
 )
 FEEDBACK_AWARE_REQUESTS = 6
 # Printed widths of every summary-table column but the last.

@@ -14,7 +14,7 @@ def main() -> None:
     """Print the model picker view and one model's nexus metadata."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://localhost:8000/v1")
-    parser.add_argument("--model", default="gpt-6-astra")
+    parser.add_argument("--model", default="gpt-6.2-astra")
     args = parser.parse_args()
     client = OpenAI(base_url=args.base_url, api_key="local-dev")
 
