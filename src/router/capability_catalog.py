@@ -10,13 +10,32 @@ from router.model_ids import (
     GEMINI_FLASH_MODEL,
     MOONSHOT_BALANCED_MODEL,
     OPENAI_FRONTIER_MODEL,
+    OPENAI_SUPERSEDED_FRONTIER_ID,
 )
 
-# Seed capabilities for GPT-6.2 Astra / Claude Opus 5.5 / Gemini 3.8 Flash / Kimi K3.1 Pro.
+# Seed capabilities for GPT-6.2 Astra (and the superseded GPT-6 Astra) / Claude Opus 5.5 /
+# Gemini 3.8 Flash / Kimi K3.1 Pro.
 # Mirrors the static ``_KNOWN_MODEL_CAPABILITIES`` entries strategies use today,
 # but lives in a mutable catalog that can be refreshed without process restart.
 _STATIC_SEED: dict[str, frozenset[str]] = {
     OPENAI_FRONTIER_MODEL: frozenset(
+        {
+            "agents_api",
+            "background_mode",
+            "deep_research",
+            "json",
+            "long_context",
+            "mcp",
+            "memory_tool",
+            "parallel_tool_calls",
+            "streaming",
+            "tools",
+            "vision",
+            "webhook",
+        }
+    ),
+    # Superseded by GPT-6.2 Astra but still served; keep its entry for custom catalogs.
+    OPENAI_SUPERSEDED_FRONTIER_ID: frozenset(
         {
             "agents_api",
             "background_mode",
@@ -58,7 +77,8 @@ class ModelCapabilityCatalog:
 
     Strategies historically read a module-level ``_KNOWN_MODEL_CAPABILITIES``
     dict that cannot be refreshed without a restart. This catalog seeds from
-    known models (``gpt-6.2-astra``, ``claude-opus-5-5``, ``gemini-3.8-flash``,
+    known models (``gpt-6.2-astra``, the superseded ``gpt-6-astra``, ``claude-opus-5-5``,
+    ``gemini-3.8-flash``,
     ``kimi-k3.1-pro``), supports live ``upsert``, and can ``refresh_from_static``
     to restore the seed map.
     """

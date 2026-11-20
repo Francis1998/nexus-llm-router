@@ -9,6 +9,11 @@ cost tables stay aligned.
 OPENAI_FRONTIER_MODEL = "gpt-6.2-astra"
 OPENAI_BALANCED_MODEL = "gpt-6-luna"
 OPENAI_EVERYDAY_MODEL = "gpt-6.2-sol"
+# Superseded by GPT-6.2 Astra (2026-11-17) but still served by OpenAI. Not a catalog
+# role (``*_MODEL`` constants are the default catalog's roles); kept as its own
+# constant so capability and context-window entries survive role changes for
+# operators who pin it in a custom catalog.
+OPENAI_SUPERSEDED_FRONTIER_ID = "gpt-6-astra"
 ANTHROPIC_SAFETY_MODEL = "claude-opus-5-5"
 ANTHROPIC_FAST_MODEL = "claude-haiku-5-5"
 GEMINI_PRO_MODEL = "gemini-4-argon"

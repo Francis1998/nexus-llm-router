@@ -22,6 +22,7 @@ from router.model_ids import (
     OPENAI_BALANCED_MODEL,
     OPENAI_EVERYDAY_MODEL,
     OPENAI_FRONTIER_MODEL,
+    OPENAI_SUPERSEDED_FRONTIER_ID,
 )
 from router.schemas import (
     DomainTag,
@@ -10502,6 +10503,24 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
             "webhook",
         }
     ),
+    # GPT-6 Astra: superseded by GPT-6.2 Astra but still served, so operators can keep
+    # pinning it in a custom catalog with the capabilities it always had.
+    OPENAI_SUPERSEDED_FRONTIER_ID: frozenset(
+        {
+            "agents_api",
+            "background_mode",
+            "deep_research",
+            "json",
+            "long_context",
+            "mcp",
+            "memory_tool",
+            "parallel_tool_calls",
+            "streaming",
+            "tools",
+            "vision",
+            "webhook",
+        }
+    ),
     OPENAI_BALANCED_MODEL: frozenset(
         {"json", "logprobs", "long_context", "parallel_tool_calls", "streaming", "tools", "vision"}
     ),
@@ -10558,6 +10577,7 @@ def known_model_capabilities(model: str) -> frozenset[str]:
 
 _KNOWN_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     OPENAI_FRONTIER_MODEL: 1_050_000,
+    OPENAI_SUPERSEDED_FRONTIER_ID: 1_050_000,
     OPENAI_BALANCED_MODEL: 1_050_000,
     OPENAI_EVERYDAY_MODEL: 1_050_000,
     ANTHROPIC_SAFETY_MODEL: 1_000_000,
