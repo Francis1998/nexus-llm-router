@@ -16,9 +16,11 @@ from router.model_ids import (
     ANTHROPIC_FAST_MODEL,
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_FLASH_MODEL,
+    GEMINI_FRONTIER_MODEL,
     GEMINI_PRO_MODEL,
     MOONSHOT_BALANCED_MODEL,
     OPENAI_BALANCED_MODEL,
+    OPENAI_EVERYDAY_MODEL,
     OPENAI_FRONTIER_MODEL,
 )
 from router.schemas import (
@@ -126,7 +128,7 @@ class RuleBasedStrategy(RoutingStrategy):
             )
         if signals.domain_tag is DomainTag.CODE and signals.complexity_score >= 0.55:
             return self._decision(
-                OPENAI_FRONTIER_MODEL, "complex code prompt favors GPT-6 Astra quality"
+                OPENAI_FRONTIER_MODEL, "complex code prompt favors GPT-6.2 Astra quality"
             )
         if (
             signals.complexity_score <= 0.35
@@ -10482,8 +10484,8 @@ class ProviderSuccessFloorStrategy(RoutingStrategy):
 
 
 _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
-    # GPT-6 Astra: text + image input only, no Realtime API, and no logprobs
-    # (it cannot run with reasoning effort ``none``).
+    # GPT-6.2 Astra, like GPT-6 Astra: text + image input only, no Realtime API, and
+    # no logprobs (GPT-6.2 rejects reasoning effort ``none``, which logprobs need).
     OPENAI_FRONTIER_MODEL: frozenset(
         {
             "agents_api",
@@ -10502,6 +10504,19 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
     ),
     OPENAI_BALANCED_MODEL: frozenset(
         {"json", "logprobs", "long_context", "parallel_tool_calls", "streaming", "tools", "vision"}
+    ),
+    # GPT-6.2 Sol: the same rules as Astra (no audio, Realtime, or logprobs); tool
+    # calling goes through the Responses API.
+    OPENAI_EVERYDAY_MODEL: frozenset(
+        {
+            "background_mode",
+            "json",
+            "long_context",
+            "parallel_tool_calls",
+            "streaming",
+            "tools",
+            "vision",
+        }
     ),
     ANTHROPIC_SAFETY_MODEL: frozenset(
         {
@@ -10522,6 +10537,9 @@ _KNOWN_MODEL_CAPABILITIES: dict[str, frozenset[str]] = {
     GEMINI_FLASH_MODEL: frozenset(
         {"vision", "tools", "json", "streaming", "audio", "long_context"}
     ),
+    GEMINI_FRONTIER_MODEL: frozenset(
+        {"vision", "tools", "long_context", "json", "streaming", "audio"}
+    ),
     MOONSHOT_BALANCED_MODEL: frozenset({"tools", "long_context", "json", "streaming", "vision"}),
 }
 
@@ -10541,10 +10559,12 @@ def known_model_capabilities(model: str) -> frozenset[str]:
 _KNOWN_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     OPENAI_FRONTIER_MODEL: 1_050_000,
     OPENAI_BALANCED_MODEL: 1_050_000,
+    OPENAI_EVERYDAY_MODEL: 1_050_000,
     ANTHROPIC_SAFETY_MODEL: 1_000_000,
     ANTHROPIC_FAST_MODEL: 1_000_000,
     GEMINI_PRO_MODEL: 1_048_576,
     GEMINI_FLASH_MODEL: 1_048_576,
+    GEMINI_FRONTIER_MODEL: 1_048_576,
     MOONSHOT_BALANCED_MODEL: 1_048_576,
 }
 

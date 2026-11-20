@@ -13,7 +13,7 @@ and ``prompt-caching-prefer`` strategies: this module does not participate in
 engine.
 
 Closes the LiteLLM / OpenRouter gap where process-local sticky affinity after
-an observed cache hit is left to application glue, for GPT-6 Astra /
+an observed cache hit is left to application glue, for GPT-6.2 Astra /
 Claude Opus 5.5 / Gemini 4 Argon / Kimi K3.1 Pro traffic.
 """
 
@@ -69,7 +69,7 @@ class PromptCacheAffinityRouter:
         Args:
             prefix_fingerprint: Stable prefix digest (for example from
                 :func:`fingerprint`).
-            model_id: Model identifier to stick to (for example ``gpt-6.1-sol``).
+            model_id: Model identifier to stick to (for example ``gpt-6.2-sol``).
 
         Raises:
             ValueError: If either argument is empty.

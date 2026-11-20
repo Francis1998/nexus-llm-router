@@ -61,12 +61,13 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         """
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
-        # USD per 1K tokens (input, output) as of 2026-11-12. Gemini 4 Carbon and
+        # USD per 1K tokens (input, output) as of 2026-11-19. Gemini 4 Carbon and
         # Argon rise to (0.004, 0.020) on 2026-12-01; Gemini 3.8 Flash to
-        # (0.0015, 0.0075) on 2027-01-01.
+        # (0.0015, 0.0075) on 2027-01-01. Gemini 4 Neon is paid tier only.
         self._costs: dict[str, tuple[float, float]] = {
             "gemini-4-carbon": (0.002, 0.010),
             "gemini-4-argon": (0.002, 0.010),
+            "gemini-4-neon": (0.003, 0.015),
             "gemini-4-hydrogen": (0.0015, 0.0075),
             "gemini-3.8-flash": (0.00075, 0.00375),
             "gemini-3.5-flash-lite": (0.0003, 0.0025),

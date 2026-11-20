@@ -11,12 +11,14 @@ from router.model_ids import (
     ANTHROPIC_FAST_MODEL,
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_FLASH_MODEL,
+    GEMINI_FRONTIER_MODEL,
     GEMINI_PRO_MODEL,
     GPT6_LONG_PROMPT_THRESHOLD_TOKENS,
     GPT6_MAX_INPUT_TOKENS,
     HAIKU_5_5_LONG_PROMPT_THRESHOLD_TOKENS,
     MOONSHOT_BALANCED_MODEL,
     OPENAI_BALANCED_MODEL,
+    OPENAI_EVERYDAY_MODEL,
     OPENAI_FRONTIER_MODEL,
 )
 from router.schemas import DomainTag, LongPromptPricing, ModelCandidate, RoutingStrategyName
@@ -178,16 +180,17 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
     """Return the built-in model catalog with cost and quality priors.
 
     Costs are provider list prices per 1K tokens (input, output), re-verified
-    on 2026-11-12; context windows come from the provider model pages. Quality
-    scores are per-role routing priors. GPT-6 models accept at most 922K input
+    on 2026-11-19; context windows come from the provider model pages. Quality
+    scores are per-role routing priors. GPT-6.x models accept at most 922K input
     tokens of their 1.05M window and bill the whole request at 2x input / 1.5x
     output above 272K input tokens; Claude Haiku 5.5 bills $0.50 / $2.50 per 1M
     above 100K prompt tokens. Gemini 4 Argon list prices rise to $4 / $20 per 1M
     tokens on 2026-12-01 and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01;
     update this catalog and the adapter price tables, which bill completions,
-    when they change. The adapters also price current models outside these
-    roles (for example Claude Fable 5.2 and Gemini 4 Carbon / Hydrogen) for
-    operators who add them to the catalog.
+    when they change. Gemini 4 Neon is served on Google's paid tier only. The
+    adapters also price current models outside the catalog (for example Claude
+    Fable 5.2, Gemini 4 Carbon / Hydrogen, and the superseded GPT-6 Astra and
+    GPT-6.1 Sol) for operators who add them to the catalog.
 
     Returns:
         Mapping of model names to model candidates.
@@ -197,15 +200,15 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             model=OPENAI_FRONTIER_MODEL,
             provider="openai",
             quality_score=0.97,
-            input_cost_per_1k=0.010,
-            output_cost_per_1k=0.050,
+            input_cost_per_1k=0.008,
+            output_cost_per_1k=0.040,
             supports_domains={DomainTag.CODE, DomainTag.LEGAL, DomainTag.GENERAL},
             context_window=1_050_000,
             max_input_tokens=GPT6_MAX_INPUT_TOKENS,
             long_prompt_pricing=LongPromptPricing(
                 threshold_tokens=GPT6_LONG_PROMPT_THRESHOLD_TOKENS,
-                input_cost_per_1k=0.020,
-                output_cost_per_1k=0.075,
+                input_cost_per_1k=0.016,
+                output_cost_per_1k=0.060,
             ),
             supported_regions={"us", "global"},
         ),
@@ -290,6 +293,34 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             supports_domains={DomainTag.CODE, DomainTag.GENERAL},
             context_window=1_048_576,
             supported_regions={"cn", "global"},
+        ),
+        # Listed last so cost and quality ties keep resolving to the roles above.
+        OPENAI_EVERYDAY_MODEL: ModelCandidate(
+            model=OPENAI_EVERYDAY_MODEL,
+            provider="openai",
+            quality_score=0.92,
+            input_cost_per_1k=0.002,
+            output_cost_per_1k=0.010,
+            supports_domains={DomainTag.CODE, DomainTag.GENERAL},
+            context_window=1_050_000,
+            max_input_tokens=GPT6_MAX_INPUT_TOKENS,
+            long_prompt_pricing=LongPromptPricing(
+                threshold_tokens=GPT6_LONG_PROMPT_THRESHOLD_TOKENS,
+                input_cost_per_1k=0.004,
+                output_cost_per_1k=0.015,
+            ),
+            supported_regions={"us", "global"},
+        ),
+        GEMINI_FRONTIER_MODEL: ModelCandidate(
+            model=GEMINI_FRONTIER_MODEL,
+            provider="google",
+            quality_score=0.94,
+            input_cost_per_1k=0.003,
+            output_cost_per_1k=0.015,
+            supports_domains={DomainTag.CODE, DomainTag.GENERAL},
+            supports_realtime=False,
+            context_window=1_048_576,
+            supported_regions={"us", "eu", "global"},
         ),
     }
 

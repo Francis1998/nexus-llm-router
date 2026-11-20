@@ -20,7 +20,7 @@ from router.schemas import (
 )
 from router.strategies import FeedbackAwareStrategy, RuleBasedStrategy
 
-GENERAL_CANDIDATES = {"gpt-6-luna", "claude-opus-5-5", "gpt-6-astra"}
+GENERAL_CANDIDATES = {"gpt-6-luna", "claude-opus-5-5", "gpt-6.2-astra"}
 
 
 class Health:
@@ -116,7 +116,7 @@ def _strategy(
 PREFERS_OPUS = {
     "claude-opus-5-5": _arm(40, 0),
     "gpt-6-luna": _arm(0, 40),
-    "gpt-6-astra": _arm(20, 20),
+    "gpt-6.2-astra": _arm(20, 20),
 }
 
 
@@ -153,7 +153,7 @@ def test_same_request_id_replays_the_same_decision() -> None:
     evidence = {
         "claude-opus-5-5": _arm(3, 2),
         "gpt-6-luna": _arm(2, 3),
-        "gpt-6-astra": _arm(3, 3),
+        "gpt-6.2-astra": _arm(3, 3),
     }
 
     first = _strategy(StaticFeedback(evidence)).choose(_request("req-replay"), _signals())
@@ -177,12 +177,12 @@ def test_feedback_steers_routing_and_reports_posteriors() -> None:
     assert {decision.chosen_model for decision in decisions} == {"claude-opus-5-5"}
     decision = decisions[0]
     assert decision.rationale.startswith("feedback-aware: Thompson sample chose claude-opus-5-5 (")
-    assert "posterior mean 0.98, n=40) over gpt-6-astra (draw" in decision.rationale
+    assert "posterior mean 0.98, n=40) over gpt-6.2-astra (draw" in decision.rationale
     assert "posterior mean 0.50, n=40); 120 quality samples for general prompts" in (
         decision.rationale
     )
     # Fallbacks: remaining candidates by posterior mean, then the rest of the default attempts.
-    assert decision.fallback_chain == ["gpt-6-astra", "gpt-6-luna", "gemini-4-argon"]
+    assert decision.fallback_chain == ["gpt-6.2-astra", "gpt-6-luna", "gemini-4-argon"]
     default = RuleBasedStrategy(default_model_catalog()).choose(_request(), _signals())
     assert {decision.chosen_model, *decision.fallback_chain} == {
         default.chosen_model,
@@ -196,7 +196,7 @@ def test_open_circuits_are_never_chosen() -> None:
 
     chosen = {strategy.choose(_request(f"req-{n}"), _signals()).chosen_model for n in range(25)}
 
-    assert chosen == {"gpt-6-astra"}
+    assert chosen == {"gpt-6.2-astra"}
 
 
 def test_candidates_the_engine_would_refuse_are_skipped() -> None:
@@ -214,7 +214,7 @@ def test_candidates_the_engine_would_refuse_are_skipped() -> None:
     assert decision.chosen_model == "gpt-6-luna"
     assert "with no alternative candidate; 6 quality samples" in decision.rationale
     assert over_budget.subjects == {"user-7"}
-    assert chosen == {"gpt-6-astra"}
+    assert chosen == {"gpt-6.2-astra"}
 
 
 def test_feedback_never_widens_the_default_candidates() -> None:
@@ -249,7 +249,7 @@ def test_feedback_never_widens_the_default_candidates() -> None:
 
 def test_fallbacks_that_do_not_serve_the_domain_are_not_promoted() -> None:
     """Medical batch prompts: only claude-opus-5-5 and gemini-4-argon serve the domain."""
-    evidence = {"gpt-6-astra": _arm(60, 0), "gemini-4-argon": _arm(40, 0)}
+    evidence = {"gpt-6.2-astra": _arm(60, 0), "gemini-4-argon": _arm(40, 0)}
     evidence["claude-opus-5-5"] = _arm(0, 40)
     strategy = _strategy(StaticFeedback(evidence))
     medical_batch = _signals(DomainTag.MEDICAL, LatencyRequirement.BATCH)

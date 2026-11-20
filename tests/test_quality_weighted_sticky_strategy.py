@@ -3,7 +3,7 @@
 from collections import Counter
 
 from router.config import RouterSettings, default_model_catalog
-from router.model_ids import ANTHROPIC_SAFETY_MODEL
+from router.model_ids import ANTHROPIC_SAFETY_MODEL, MOONSHOT_BALANCED_MODEL
 from router.schemas import (
     ChatMessage,
     DomainTag,
@@ -79,10 +79,16 @@ def test_quality_weighted_sticky_distributes_distinct_sessions() -> None:
 def test_quality_weighted_sticky_biases_toward_higher_quality() -> None:
     """Higher-quality models should win a larger share than uniform sticky.
 
-    Claude Sonnet 4.6 leads catalog quality and should appear at least as often
-    as under uniform sticky-session hashing across many session ids.
+    On a ring with the highest and lowest catalog quality priors (Claude Opus 5.5
+    at 0.98, Kimi K3.1 Pro at 0.76), Opus owns 98/174 of the weighted ring instead
+    of half, so it should appear at least as often as under uniform sticky-session
+    hashing. Two models keep that gap well above the sampling noise of 400 hashed
+    session ids; across the whole nine-model catalog it is about one point.
     """
-    catalog = default_model_catalog()
+    full_catalog = default_model_catalog()
+    catalog = {
+        model: full_catalog[model] for model in (ANTHROPIC_SAFETY_MODEL, MOONSHOT_BALANCED_MODEL)
+    }
     weighted = QualityWeightedStickyStrategy(catalog)
     uniform = StickySessionStrategy(catalog)
 

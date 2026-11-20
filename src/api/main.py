@@ -417,7 +417,7 @@ async def retrieve_model(model_id: str) -> ModelObject | JSONResponse:
     """Return one catalog model, or an OpenAI-style 404 for unknown ids.
 
     Args:
-        model_id: Model identifier such as ``gpt-6-astra``.
+        model_id: Model identifier such as ``gpt-6.2-astra``.
 
     Returns:
         The ``model`` object, or a ``model_not_found`` error envelope.

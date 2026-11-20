@@ -10,6 +10,7 @@ from router.engine import NexusRouter
 from router.model_ids import (
     ANTHROPIC_SAFETY_MODEL,
     GEMINI_FLASH_MODEL,
+    GEMINI_FRONTIER_MODEL,
     GEMINI_PRO_MODEL,
     MOONSHOT_BALANCED_MODEL,
     OPENAI_BALANCED_MODEL,
@@ -147,9 +148,13 @@ def test_token_budget_fallback_chain_only_contains_fitting_models() -> None:
 
     decision = strategy.choose(request, signals)
 
-    # Opus 5.5 (1M window) and GPT-6 (922K max input) cannot accept the prompt.
+    # Opus 5.5 (1M window) and GPT-6.x (922K max input) cannot accept the prompt.
     assert decision.chosen_model == GEMINI_PRO_MODEL
-    assert decision.fallback_chain == [GEMINI_FLASH_MODEL, MOONSHOT_BALANCED_MODEL]
+    assert decision.fallback_chain == [
+        GEMINI_FRONTIER_MODEL,
+        GEMINI_FLASH_MODEL,
+        MOONSHOT_BALANCED_MODEL,
+    ]
 
 
 def test_token_budget_no_fit_fallback_reserves_completion_tokens() -> None:
@@ -161,7 +166,7 @@ def test_token_budget_no_fit_fallback_reserves_completion_tokens() -> None:
     decision = strategy.choose(request, signals)
 
     # 921,000 + 128,000 = 1,049,000 tokens overflow Gemini's 1,048,576-token window
-    # but fit GPT-6 Astra (1,050,000-token window, 922,000 max input).
+    # but fit GPT-6.2 Astra (1,050,000-token window, 922,000 max input).
     assert decision.chosen_model == OPENAI_FRONTIER_MODEL
     assert "no model fitting" in decision.rationale
 

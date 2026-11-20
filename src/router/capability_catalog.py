@@ -12,7 +12,7 @@ from router.model_ids import (
     OPENAI_FRONTIER_MODEL,
 )
 
-# Seed capabilities for GPT-6 Astra / Claude Opus 5.5 / Gemini 3.8 Flash / Kimi K3.1 Pro.
+# Seed capabilities for GPT-6.2 Astra / Claude Opus 5.5 / Gemini 3.8 Flash / Kimi K3.1 Pro.
 # Mirrors the static ``_KNOWN_MODEL_CAPABILITIES`` entries strategies use today,
 # but lives in a mutable catalog that can be refreshed without process restart.
 _STATIC_SEED: dict[str, frozenset[str]] = {
@@ -58,7 +58,7 @@ class ModelCapabilityCatalog:
 
     Strategies historically read a module-level ``_KNOWN_MODEL_CAPABILITIES``
     dict that cannot be refreshed without a restart. This catalog seeds from
-    known models (``gpt-6-astra``, ``claude-opus-5-5``, ``gemini-3.8-flash``,
+    known models (``gpt-6.2-astra``, ``claude-opus-5-5``, ``gemini-3.8-flash``,
     ``kimi-k3.1-pro``), supports live ``upsert``, and can ``refresh_from_static``
     to restore the seed map.
     """
@@ -96,7 +96,7 @@ class ModelCapabilityCatalog:
         """Insert or replace the capability set for ``model``.
 
         Args:
-            model: Model identifier (for example ``gpt-6-astra``).
+            model: Model identifier (for example ``gpt-6.2-astra``).
             capabilities: Capability names to store as a frozenset.
         """
         if not model:

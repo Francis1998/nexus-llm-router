@@ -13,7 +13,7 @@ def test_seed_aliases_warn_to_frontier_replacements() -> None:
     gpt = guard.check("gpt-4o")
     assert isinstance(gpt, DeprecationVerdict)
     assert gpt.is_deprecated is True
-    assert gpt.replacement == "gpt-6.1-sol"
+    assert gpt.replacement == "gpt-6.2-sol"
     assert gpt.severity == "warn"
     assert gpt.reason is not None
 
@@ -32,14 +32,17 @@ def test_seed_aliases_warn_to_frontier_replacements() -> None:
 
 
 def test_current_frontier_ids_are_not_deprecated() -> None:
-    """Current GPT-6 / Claude 5.5 / Gemini 4 / Kimi K3.1 IDs pass clean."""
+    """Current GPT-6.2 / Claude 5.5 / Gemini 4 / Kimi K3.1 IDs and superseded GPT-6 IDs pass."""
     guard = ModelDeprecationGuard()
     for model_id in (
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
         "gpt-6-astra",
         "gpt-6.1-sol",
         "claude-opus-5-5",
         "claude-sonnet-5-5",
         "gemini-4-argon",
+        "gemini-4-neon",
         "gemini-3.8-flash",
         "kimi-k3.1-pro",
     ):

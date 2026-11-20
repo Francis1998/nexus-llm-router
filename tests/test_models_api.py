@@ -86,12 +86,12 @@ def test_models_expose_nexus_pricing_limits_and_capabilities(client: ClientFacto
     assert astra["context_window"] == 1_050_000
     assert astra["max_input_tokens"] == 922_000
     assert astra["pricing"] == {
-        "input_per_1m_tokens": 10.0,
-        "output_per_1m_tokens": 50.0,
+        "input_per_1m_tokens": 8.0,
+        "output_per_1m_tokens": 40.0,
         "long_prompt": {
             "threshold_tokens": 272_000,
-            "input_per_1m_tokens": 20.0,
-            "output_per_1m_tokens": 75.0,
+            "input_per_1m_tokens": 16.0,
+            "output_per_1m_tokens": 60.0,
         },
     }
     assert "vision" in astra["capabilities"] and "audio" not in astra["capabilities"]
@@ -107,6 +107,39 @@ def test_models_expose_nexus_pricing_limits_and_capabilities(client: ClientFacto
     opus = models[ANTHROPIC_SAFETY_MODEL]["nexus"]
     assert opus["pricing"]["long_prompt"] is None
     assert opus["max_input_tokens"] is None
+
+
+def test_models_list_the_2026_11_19_releases(client: ClientFactory) -> None:
+    """GPT-6.2 Astra / Sol and Gemini 4 Neon are listed (and pinnable) with list prices."""
+    models = _by_id(client().get("/v1/models").json())
+
+    assert {"gpt-6.2-astra", "gpt-6.2-sol", "gemini-4-neon"} <= models.keys()
+    # Superseded but still served: priced by the adapter, no longer a catalog default.
+    assert {"gpt-6-astra", "gpt-6.1-sol"}.isdisjoint(models)
+    sol = models["gpt-6.2-sol"]["nexus"]
+    assert sol["provider"] == "openai"
+    assert (sol["context_window"], sol["max_input_tokens"]) == (1_050_000, 922_000)
+    assert sol["pricing"] == {
+        "input_per_1m_tokens": 2.0,
+        "output_per_1m_tokens": 10.0,
+        "long_prompt": {
+            "threshold_tokens": 272_000,
+            "input_per_1m_tokens": 4.0,
+            "output_per_1m_tokens": 15.0,
+        },
+    }
+    assert {"tools", "vision", "json"} <= set(sol["capabilities"])
+    assert {"logprobs", "audio"}.isdisjoint(sol["capabilities"])
+    neon = models["gemini-4-neon"]["nexus"]
+    assert neon["provider"] == "google"
+    assert (neon["context_window"], neon["max_input_tokens"]) == (1_048_576, None)
+    assert neon["pricing"] == {
+        "input_per_1m_tokens": 3.0,
+        "output_per_1m_tokens": 15.0,
+        "long_prompt": None,
+    }
+    assert {"audio", "tools", "vision", "json", "long_context"} <= set(neon["capabilities"])
+    assert neon["supports_realtime"] is False
 
 
 def test_retrieve_model_matches_list_entry(client: ClientFactory) -> None:
