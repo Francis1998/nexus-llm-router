@@ -1,9 +1,11 @@
-"""Deprecated model ID → replacement guard (warn or block)."""
+"""Deprecated model ID → replacement guard (warn, or block from a retirement date)."""
 
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from typing import Literal
 
 DeprecationSeverity = Literal["warn", "block"]
@@ -11,13 +13,19 @@ DeprecationSeverity = Literal["warn", "block"]
 
 @dataclass(frozen=True, slots=True)
 class DeprecationVerdict:
-    """Outcome of checking a model ID against the deprecation map."""
+    """Outcome of checking a model ID against the deprecation map.
+
+    ``retires_on`` is the provider's retirement date when the entry has one.
+    From that date on (UTC) ``severity`` is ``"block"``, because requests to a
+    retired model fail at the provider.
+    """
 
     model_id: str
     is_deprecated: bool
     replacement: str | None
     severity: DeprecationSeverity | None
     reason: str | None
+    retires_on: date | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,14 +35,59 @@ class _DeprecationEntry:
     replacement: str
     severity: DeprecationSeverity
     reason: str
+    retires_on: date | None = None
 
 
-# Small curated seed of legacy aliases → current SKUs (November 2026 line-ups).
-# Distinct from ``router.model_ids`` catalog sync — this is a safety guard for
-# callers still sending retired IDs, not a capability catalog refresh. Superseded
-# models that their provider still serves (gpt-6-astra → gpt-6.2-astra,
-# gpt-6.1-sol → gpt-6.2-sol, claude-fable-5-1 → claude-fable-5-2) are not
-# deprecated, so they are deliberately absent.
+def _utc_today() -> date:
+    """Return the current calendar date in UTC."""
+    return datetime.now(UTC).date()
+
+
+def _claude_entry(
+    model: str, *, deprecated_on: date, retires_on: date, replacement: str
+) -> _DeprecationEntry:
+    """Return an Anthropic deprecation that warns until it retires, then blocks."""
+    return _DeprecationEntry(
+        replacement=replacement,
+        severity="warn",
+        reason=(
+            f"Anthropic deprecated {model} on {deprecated_on.isoformat()}; its Claude API "
+            f"retirement date is {retires_on.isoformat()}, and requests to a retired model "
+            f"fail; migrate to {replacement}"
+        ),
+        retires_on=retires_on,
+    )
+
+
+# Small curated seed of legacy aliases → current SKUs (November 2026 line-ups,
+# lifecycle verified 2026-11-24). Distinct from ``router.model_ids`` catalog
+# sync — this is a safety guard for callers still sending retired IDs, not a
+# capability catalog refresh. Superseded models that their provider still serves
+# (gpt-6-astra → gpt-6.2-astra, gpt-6.1-sol → gpt-6.2-sol, claude-fable-5-1 →
+# claude-fable-5-2) are not deprecated, so they are deliberately absent.
+#
+# Entries with a ``retires_on`` date warn until that date and block from it.
+# Claude dates are the Claude API's (Anthropic-operated platforms); partner
+# platforms such as Amazon Bedrock set their own schedules. Source:
+# https://platform.claude.com/docs/en/about-claude/model-deprecations
+_CLAUDE_SONNET_3_5 = _claude_entry(
+    "Claude Sonnet 3.5",
+    deprecated_on=date(2025, 8, 13),
+    retires_on=date(2025, 10, 28),
+    replacement="claude-sonnet-5-5",
+)
+_CLAUDE_SONNET_4_5 = _claude_entry(
+    "Claude Sonnet 4.5",
+    deprecated_on=date(2026, 9, 30),
+    retires_on=date(2026, 11, 30),
+    replacement="claude-sonnet-5-5",
+)
+_CLAUDE_OPUS_4_5 = _claude_entry(
+    "Claude Opus 4.5",
+    deprecated_on=date(2026, 11, 23),
+    retires_on=date(2027, 1, 22),
+    replacement="claude-opus-5-5",
+)
 _KIMI_K2_RETIREMENT = (
     "Kimi K2 series is closed to new users since 2026-10-31 and retires by the end of December 2026"
 )
@@ -49,16 +102,12 @@ _DEFAULT_DEPRECATIONS: dict[str, _DeprecationEntry] = {
         severity="warn",
         reason="gpt-4o-mini is deprecated; prefer gpt-6-luna",
     ),
-    "claude-3-5-sonnet": _DeprecationEntry(
-        replacement="claude-sonnet-5-5",
-        severity="warn",
-        reason="claude-3-5-sonnet is deprecated; prefer claude-sonnet-5-5",
-    ),
-    "claude-3-5-sonnet-20241022": _DeprecationEntry(
-        replacement="claude-sonnet-5-5",
-        severity="warn",
-        reason="claude-3-5-sonnet dated alias is deprecated; prefer claude-sonnet-5-5",
-    ),
+    "claude-3-5-sonnet": _CLAUDE_SONNET_3_5,
+    "claude-3-5-sonnet-20241022": _CLAUDE_SONNET_3_5,
+    "claude-sonnet-4-5": _CLAUDE_SONNET_4_5,
+    "claude-sonnet-4-5-20250929": _CLAUDE_SONNET_4_5,
+    "claude-opus-4-5": _CLAUDE_OPUS_4_5,
+    "claude-opus-4-5-20251101": _CLAUDE_OPUS_4_5,
     "gemini-1.5-pro": _DeprecationEntry(
         replacement="gemini-4-argon",
         severity="warn",
@@ -107,6 +156,8 @@ class ModelDeprecationGuard:
     Nexus gateways serving GPT-6 / Claude 5.5 / Gemini 4 / Kimi K3.1:
     callers ``check(model_id)`` before dispatch and either log a warning,
     rewrite to ``replacement``, or reject when ``severity == "block"``.
+    Entries with a retirement date (``retires_on``) warn before that date and
+    block on and after it, read from an injectable UTC-date clock.
 
     Distinct from ``router.model_ids`` / ``ProviderModelListSync`` catalog
     refresh — those keep known-good IDs in sync; this guard handles *retired*
@@ -118,20 +169,27 @@ class ModelDeprecationGuard:
         *,
         seed: dict[str, tuple[str, DeprecationSeverity, str]] | None = None,
         include_defaults: bool = True,
+        today: Callable[[], date] | None = None,
     ) -> None:
         """Initialize the guard with optional seed overrides.
 
         Args:
             seed: Optional ``model_id → (replacement, severity, reason)`` map
-                merged on top of (or instead of) the built-in defaults.
+                merged on top of (or instead of) the built-in defaults. Seed
+                entries have no retirement date; use ``register()`` for one.
             include_defaults: When ``True`` (default), start from the curated
                 built-in deprecation map; when ``False``, start empty.
+            today: Injectable clock returning the current date, compared with
+                retirement dates in UTC (defaults to today's UTC date). An
+                aware ``datetime`` is converted to UTC first; a naive one is
+                taken as UTC.
 
         Raises:
             ValueError: If a seed entry has an empty id/replacement or invalid
                 severity.
         """
         self._lock = threading.Lock()
+        self._today = today or _utc_today
         self._entries: dict[str, _DeprecationEntry] = {}
         if include_defaults:
             self._entries.update(_DEFAULT_DEPRECATIONS)
@@ -160,6 +218,22 @@ class ModelDeprecationGuard:
         if not reason:
             raise ValueError("reason must be non-empty")
 
+    @staticmethod
+    def _validate_retires_on(retires_on: object) -> None:
+        # ``datetime`` subclasses ``date`` but cannot be compared with one.
+        if retires_on is not None and (
+            isinstance(retires_on, datetime) or not isinstance(retires_on, date)
+        ):
+            raise ValueError("retires_on must be a datetime.date, not a datetime")
+
+    def _current_date(self) -> date:
+        current = self._today()
+        if isinstance(current, datetime):
+            if current.tzinfo is not None:
+                current = current.astimezone(UTC)
+            return current.date()
+        return current
+
     def check(self, model_id: str) -> DeprecationVerdict:
         """Return a deprecation verdict for ``model_id``.
 
@@ -168,7 +242,8 @@ class ModelDeprecationGuard:
 
         Returns:
             ``DeprecationVerdict`` — ``is_deprecated`` is ``False`` when the ID
-            is unknown to the guard (not an error).
+            is unknown to the guard (not an error). ``severity`` is ``"block"``
+            on and after the entry's ``retires_on`` date.
 
         Raises:
             ValueError: If ``model_id`` is empty.
@@ -185,12 +260,16 @@ class ModelDeprecationGuard:
                 severity=None,
                 reason=None,
             )
+        severity = entry.severity
+        if entry.retires_on is not None and self._current_date() >= entry.retires_on:
+            severity = "block"
         return DeprecationVerdict(
             model_id=model_id,
             is_deprecated=True,
             replacement=entry.replacement,
-            severity=entry.severity,
+            severity=severity,
             reason=entry.reason,
+            retires_on=entry.retires_on,
         )
 
     def register(
@@ -200,6 +279,7 @@ class ModelDeprecationGuard:
         *,
         severity: DeprecationSeverity = "warn",
         reason: str | None = None,
+        retires_on: date | None = None,
     ) -> None:
         """Register or overwrite a deprecation mapping.
 
@@ -208,17 +288,29 @@ class ModelDeprecationGuard:
             replacement: Preferred replacement model ID.
             severity: ``warn`` (advisory) or ``block`` (reject).
             reason: Human-readable explanation (auto-generated when omitted).
+            retires_on: Optional provider retirement date; from that date on
+                (UTC) the entry blocks even when ``severity`` is ``warn``.
 
         Raises:
             ValueError: If inputs are invalid.
         """
-        detail = reason or f"{model_id} is deprecated; prefer {replacement}"
+        self._validate_retires_on(retires_on)
+        if reason:
+            detail = reason
+        elif retires_on is not None:
+            detail = (
+                f"{model_id} is deprecated (retirement date {retires_on.isoformat()}); "
+                f"prefer {replacement}"
+            )
+        else:
+            detail = f"{model_id} is deprecated; prefer {replacement}"
         self._validate(model_id, replacement, severity, detail)
         with self._lock:
             self._entries[model_id] = _DeprecationEntry(
                 replacement=replacement,
                 severity=severity,
                 reason=detail,
+                retires_on=retires_on,
             )
 
     def unregister(self, model_id: str) -> bool:
