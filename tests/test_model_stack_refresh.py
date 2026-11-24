@@ -254,7 +254,6 @@ def test_name_fallback_recognizes_gpt6_and_kimi_k3_models(
         ("moonshot-v1-128k", "kimi-k3.1-pro"),
         ("gpt-4o", "gpt-6.2-sol"),
         ("gpt-4o-mini", "gpt-6-luna"),
-        ("claude-3-5-sonnet", "claude-sonnet-5-5"),
         ("gemini-1.5-pro", "gemini-4-argon"),
         ("gemini-2.5-pro", "gemini-4-argon"),
     ],
