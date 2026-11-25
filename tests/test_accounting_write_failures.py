@@ -58,6 +58,12 @@ STREAM_ENDINGS = {
     "/v1/responses": "response.completed",
     "/v1/messages": "message_stop",
 }
+# Last frame of a stream that failed after output began.
+STREAM_FAILURE_ENDINGS = {
+    "/v1/chat/completions": "[DONE]",
+    "/v1/responses": "response.failed",
+    "/v1/messages": "error",
+}
 # Chat error frame, Responses failure event, and Messages error event.
 FAILURE_FRAMES = ('{"error"', "response.failed", "error")
 
@@ -136,6 +142,16 @@ def locked_ledger(monkeypatch: pytest.MonkeyPatch) -> None:
         raise sqlite3.OperationalError("database is locked")
 
     monkeypatch.setattr(SpendLedger, "record", locked)
+
+
+@pytest.fixture
+def rejecting_audit_sink(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the audit log fail with an error that is not an I/O error (a gateway bug)."""
+
+    def rejecting_sink(self: AuditLog, record: AuditRecord) -> None:
+        raise RuntimeError("audit sink rejected the record")
+
+    monkeypatch.setattr(AuditLog, "append", rejecting_sink)
 
 
 def _frames(body: str) -> list[str]:
@@ -217,22 +233,39 @@ def test_stream_ends_normally_when_the_spend_ledger_write_fails(
     assert app.provider_calls == 1
 
 
+@pytest.mark.parametrize("path", list(REQUESTS))
+@pytest.mark.usefixtures("rejecting_audit_sink")
 def test_unexpected_accounting_error_is_never_retried_on_a_fallback(
-    gateway: GatewayFactory, monkeypatch: pytest.MonkeyPatch
+    gateway: GatewayFactory, path: str
 ) -> None:
     """Whatever fails after the provider answered, the request is dispatched exactly once."""
-
-    def rejecting_sink(self: AuditLog, record: AuditRecord) -> None:
-        raise RuntimeError("audit sink rejected the record")
-
-    monkeypatch.setattr(AuditLog, "append", rejecting_sink)
     app = gateway()
     errors_before = _provider_errors()
 
-    response = app.post("/v1/chat/completions")
+    response = app.post(path)
 
     assert (response.status_code, app.provider_calls, _provider_errors() - errors_before) == (
         500,
         1,
         0,
     )
+    # The surface's own error envelope, not a bare "Internal Server Error".
+    assert "nexus failed to record it" in response.text
+
+
+@pytest.mark.parametrize("path", list(STREAM_FAILURE_ENDINGS))
+@pytest.mark.usefixtures("rejecting_audit_sink")
+def test_unexpected_accounting_error_ends_streams_with_their_error_event(
+    gateway: GatewayFactory, path: str
+) -> None:
+    """A started stream reports the failure in-band instead of dropping the connection."""
+    app = gateway()
+    errors_before = _provider_errors()
+
+    response = app.post(path, stream=True)
+
+    frames = _frames(response.text)
+    failures = [frame for frame in frames if frame.startswith(FAILURE_FRAMES)]
+    assert (len(failures), app.provider_calls, _provider_errors() - errors_before) == (1, 1, 0)
+    assert "nexus failed to record it" in response.text
+    assert frames[-1] == STREAM_FAILURE_ENDINGS[path]
