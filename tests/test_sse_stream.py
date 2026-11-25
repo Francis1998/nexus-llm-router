@@ -14,9 +14,9 @@ from adapters.mock import MockProviderAdapter
 from adapters.registry import AdapterRegistry
 from api.main import app, get_adapter_registry, get_router, get_settings
 from router.config import RouterSettings, load_settings
-from router.engine import NexusRouter, RoutingFailedError
+from router.engine import NexusRouter
 from router.model_ids import GEMINI_FLASH_MODEL
-from router.schemas import ChatMessage, RouterRequest
+from router.schemas import ChatMessage, RouterRequest, RouterResponse
 
 
 def _install_mock_router() -> NexusRouter:
@@ -149,10 +149,10 @@ def test_stream_fails_instead_of_splicing_a_fallback_after_output(
     assert frames[-1] == "[DONE]"
 
 
-async def test_stream_post_output_failure_after_responded_state_raises_routing_error(
+async def test_stream_finishes_when_the_audit_log_cannot_be_written(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A failure while finalizing a streamed answer surfaces as RoutingFailedError."""
+    """A read-only audit log after the last chunk neither fails the stream nor blames google."""
     settings = RouterSettings(
         audit_log_path=str(tmp_path / "audit-log.jsonl"),
         spend_ledger_path=str(tmp_path / "spend-ledger.sqlite3"),
@@ -168,8 +168,11 @@ async def test_stream_post_output_failure_after_responded_state_raises_routing_e
     monkeypatch.setattr(router._audit_log, "append", _broken_audit_log)
     request = RouterRequest(request_id="stream-audit", messages=[ChatMessage(content="hi")])
 
-    chunks: list[str] = []
-    with pytest.raises(RoutingFailedError, match="after streaming output began"):
-        async for _, chunk in router.complete_stream(request):
-            chunks.append(chunk)
+    completed: list[RouterResponse] = []
+    chunks = [
+        chunk async for _, chunk in router.complete_stream(request, on_complete=completed.append)
+    ]
+
     assert "".join(chunks) == f"[{GEMINI_FLASH_MODEL}] routed response"
+    assert [response.model_used for response in completed] == [GEMINI_FLASH_MODEL]
+    assert router._circuit_breakers._states["google"].consecutive_failures == 0
