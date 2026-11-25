@@ -112,6 +112,16 @@ class BudgetRefusedError(RoutingFailedError, BudgetExceededError):
     """
 
 
+class ResponseRecordingError(RoutingFailedError):
+    """Raised when recording a request that a provider already answered failed.
+
+    Spend-ledger and audit-log I/O errors are only logged, so this is a gateway
+    bug. The provider answered and billed the request, so it is never retried on
+    a fallback or counted against the provider; as a ``RoutingFailedError`` it
+    still ends a started stream with the surface's error event.
+    """
+
+
 class NexusRouter:
     """Production routing engine implementing Observe, Decide, and Act."""
 
@@ -381,6 +391,8 @@ class NexusRouter:
         Raises:
             ProviderRejectedRequestError: If a provider rejects the request itself
                 (HTTP 400, 413, or 422); no fallback is attempted.
+            ResponseRecordingError: If a provider answered but recording the
+                request failed unexpectedly; no fallback is attempted.
             RoutingFailedError: If all provider attempts fail.
         """
         state_machine = RoutingStateMachine()
@@ -503,18 +515,21 @@ class NexusRouter:
                 # The provider answered (and billed): an error from here on is the
                 # gateway's, so it must never dispatch a fallback or count against
                 # this provider.
-                return self._respond(
-                    request=request,
-                    provider_response=self._apply_catalog_price(model_name, provider_response),
-                    strategy=strategy,
-                    rationale=self._rationale(decision.rationale, model_name, attempt_index),
-                    state_machine=state_machine,
-                    started_at=started_at,
-                    provider=candidate.provider,
-                    prompt_tokens_estimate=signals.prompt_tokens_estimate,
-                    attempt_started_at=attempt_started_at,
-                    domain=signals.domain_tag,
-                )
+                try:
+                    return self._respond(
+                        request=request,
+                        provider_response=self._apply_catalog_price(model_name, provider_response),
+                        strategy=strategy,
+                        rationale=self._rationale(decision.rationale, model_name, attempt_index),
+                        state_machine=state_machine,
+                        started_at=started_at,
+                        provider=candidate.provider,
+                        prompt_tokens_estimate=signals.prompt_tokens_estimate,
+                        attempt_started_at=attempt_started_at,
+                        domain=signals.domain_tag,
+                    )
+                except Exception as error:
+                    raise self._recording_failure(request, candidate.provider, error) from error
 
         raise self._routing_failure(attempt_errors)
 
@@ -540,6 +555,8 @@ class NexusRouter:
         Raises:
             ProviderRejectedRequestError: If a provider rejects the request itself
                 (HTTP 400, 413, or 422); no fallback is attempted.
+            ResponseRecordingError: If the stream finished but recording the
+                request failed unexpectedly; no fallback is attempted.
             RoutingFailedError: If all provider attempts fail, or if a provider
                 fails after it already streamed text (falling back then would
                 splice a second answer onto the partial one).
@@ -691,18 +708,21 @@ class NexusRouter:
             else:
                 # The stream finished: as in ``complete``, an error from here on is
                 # the gateway's, never this provider's.
-                router_response = self._respond(
-                    request=request,
-                    provider_response=self._apply_catalog_price(model_name, provider_response),
-                    strategy=strategy,
-                    rationale=self._rationale(decision.rationale, model_name, attempt_index),
-                    state_machine=state_machine,
-                    started_at=started_at,
-                    provider=candidate.provider,
-                    prompt_tokens_estimate=signals.prompt_tokens_estimate,
-                    attempt_started_at=attempt_started_at,
-                    domain=signals.domain_tag,
-                )
+                try:
+                    router_response = self._respond(
+                        request=request,
+                        provider_response=self._apply_catalog_price(model_name, provider_response),
+                        strategy=strategy,
+                        rationale=self._rationale(decision.rationale, model_name, attempt_index),
+                        state_machine=state_machine,
+                        started_at=started_at,
+                        provider=candidate.provider,
+                        prompt_tokens_estimate=signals.prompt_tokens_estimate,
+                        attempt_started_at=attempt_started_at,
+                        domain=signals.domain_tag,
+                    )
+                except Exception as error:
+                    raise self._recording_failure(request, candidate.provider, error) from error
                 if on_complete is not None:
                     on_complete(router_response)
                 return
@@ -965,6 +985,25 @@ class NexusRouter:
             self._logger.warning(
                 "feedback_index_failed", request_id=record.request_id, error=str(error)
             )
+
+    def _recording_failure(
+        self, request: RouterRequest, provider: str, error: Exception
+    ) -> ResponseRecordingError:
+        """Log an unexpected error recording an answered request; return the error to raise.
+
+        The client-facing message names the request but not the internal error,
+        which only goes to the gateway log.
+        """
+        self._logger.error(
+            "response_recording_failed",
+            request_id=request.request_id,
+            provider=provider,
+            error=repr(error),
+        )
+        return ResponseRecordingError(
+            f"provider {provider} answered the request, but nexus failed to record it "
+            f"(request id {request.request_id}); see the gateway logs"
+        )
 
     def _client_rejection(
         self,

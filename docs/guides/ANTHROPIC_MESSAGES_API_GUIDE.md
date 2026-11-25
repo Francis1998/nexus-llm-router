@@ -380,7 +380,7 @@ matching Anthropic `type`:
 | 413 | `request_too_large` | A provider rejected the request as too large (HTTP 413) | `ContentTooLargeError` |
 | 422 | `invalid_request_error` | A provider rejected the request as unprocessable (HTTP 422) | `UnprocessableEntityError` |
 | 429 | `rate_limit_error` | Per-key router rate limit or `X-Tenant-Id` bucket exhausted | `RateLimitError` |
-| 500 | `api_error` | Internal gateway error, for example a corrupt response-cache entry or no candidate model with a price (`model ... has no price`) | `InternalServerError` |
+| 500 | `api_error` | Internal gateway error, for example a corrupt response-cache entry, no candidate model with a price (`model ... has no price`), or a request a provider answered that nexus failed to record (`... nexus failed to record it ...`; not retried on another provider) | `InternalServerError` |
 | 503 | `overloaded_error` | An affordable, priced candidate failed at its provider or had an open circuit, and no other attempt succeeded | `ServiceUnavailableError` |
 
 A provider's rejection of the request itself (HTTP 400, 413, or 422) keeps the

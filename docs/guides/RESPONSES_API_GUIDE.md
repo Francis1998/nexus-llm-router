@@ -197,7 +197,8 @@ Failure semantics:
   "failed"`, the partial text in an `incomplete` output item, and
   `response.error = {code, message, type}` where `code` is
   `rate_limit_exceeded` or `server_error` and `type` is the nexus category
-  (`rate_limit_error`, `budget_exceeded`, `routing_failed`).
+  (`rate_limit_error`, `budget_exceeded`, `routing_failed`, or `server_error`
+  when nexus failed to record a finished answer).
 
 ## Truncation (`max_output_tokens`)
 
@@ -303,6 +304,7 @@ typed exceptions (`BadRequestError`, `RateLimitError`, …).
 | 402 | `budget_exceeded` | `budget_exceeded` | The budget guardrail refused every candidate model: the user's recorded spend plus each candidate's estimated cost exceeds `NEXUS_BUDGET_CAP_USD`. Retrying cannot succeed until the budget allows it. |
 | 400 / 413 / 422 | `invalid_request_error` | `provider_rejected_request` | The routed provider rejected the request itself (for example a prompt longer than its context window). Nexus returns the provider's status without trying fallbacks or counting it against the provider's circuit breaker. |
 | 500 | `server_error` | `model_price_unknown` | No candidate model has a price (no adapter price and $0 catalog prices), so nexus refused to dispatch spend it could not record or budget. This is a gateway configuration error; see [How completions are priced](../../CONFIGURATION.md#how-completions-are-priced). |
+| 500 | `server_error` | `response_recording_failed` | A provider answered, but nexus failed to record the request (a gateway bug; spend-ledger and audit-log I/O errors are only logged, see [SAFETY.md](../../SAFETY.md#accounting-write-failures-are-not-provider-failures)). The request is not retried on another provider; the message carries its request id. |
 | 503 | `routing_failed` | `routing_failed` | An affordable, priced candidate failed at its provider or had an open circuit, and every other attempt in the fallback chain failed or was skipped. A retry may succeed. |
 
 Other routes keep their existing error formats (`/v1/chat/completions` still

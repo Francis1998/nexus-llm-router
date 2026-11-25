@@ -115,12 +115,16 @@ own work, so a failure there:
   `audit_log_write_failed` (request id), or `feedback_index_failed`. Alert on
   these warnings: the durable ledger or audit log is missing those requests.
 
-Any other error after the answer fails the request (HTTP 500) once, without a
-fallback or a provider failure. Before this, a locked ledger or a full audit
-volume sent the answered request to every fallback model (each one billed
-again), counted a failure against every provider that had answered, and
-returned HTTP 500; a fully streamed answer ended with an error that blamed the
-provider.
+Any other error after the answer is a gateway bug: Nexus logs
+`response_recording_failed` (request id, provider, error) and fails the request
+once, without a fallback or a provider failure, with HTTP 500 `server_error`
+(code `response_recording_failed`; `api_error` on `/v1/messages`) or, when a
+stream has already started, the surface's error event (a chat error frame,
+`response.failed`, or an Anthropic `error` event). Before this, a locked ledger
+or a full audit volume sent the answered request to every fallback model (each
+one billed again), counted a failure against every provider that had answered,
+and returned HTTP 500; a fully streamed answer ended with an error that blamed
+the provider.
 
 ## Request feedback
 
