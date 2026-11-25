@@ -72,6 +72,12 @@ guard.register("legacy-y", "gpt-6.2-sol", retires_on=date(2027, 3, 1))
 assert guard.check("legacy-y").retires_on == date(2027, 3, 1)  # warn, then block
 ```
 
+To preview the verdicts on another date (the demo GIF above records this):
+
+```bash
+PYTHONPATH=src python scripts/model_deprecation_demo.py --today 2026-11-30 claude-sonnet-4-5 claude-opus-4-5
+```
+
 ## Seed map (curated, small)
 
 Lifecycle verified 2026-11-24.
