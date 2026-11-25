@@ -2,7 +2,7 @@
 
 Warn-or-block mapping from retired model aliases to current replacements for
 GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 traffic. Entries with a
-provider retirement date warn until that date and block from it.
+provider retirement date block from that date on.
 
 ![Model deprecation guard demo](../../assets/demo/model-deprecation-guard.gif)
 
@@ -34,10 +34,12 @@ requests start failing, so dated entries escalate to `block` on that day.
 3. When `is_deprecated` and `severity == "warn"`, log / rewrite to `replacement`.
 4. When `severity == "block"`, reject before provider dispatch. `reason` names
    the replacement, so it can go straight into the error message.
-5. An entry with `retires_on` reports `warn` before that date and `block` on
-   and after it, whatever its own severity. The date comes from the
-   `today` clock (default: the current UTC date). Pass `today=` to pin it in
-   tests or to preview an upcoming retirement.
+5. An entry with `retires_on` reports `block` on and after that date,
+   whatever its own severity. Before it, the entry keeps its own severity:
+   `warn` for every built-in entry, while an entry registered with
+   `severity="block"` blocks immediately. The date comes from the `today`
+   clock (default: the current UTC date). Pass `today=` to pin it in tests or
+   to preview an upcoming retirement.
 6. Extend at runtime with `register()` (optionally with `retires_on=`) /
    `unregister()`.
 

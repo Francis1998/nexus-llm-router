@@ -66,7 +66,7 @@ def _claude_entry(
 # (gpt-6-astra → gpt-6.2-astra, gpt-6.1-sol → gpt-6.2-sol, claude-fable-5-1 →
 # claude-fable-5-2) are not deprecated, so they are deliberately absent.
 #
-# Entries with a ``retires_on`` date warn until that date and block from it.
+# The dated entries below warn until their retirement date and block from it.
 # Claude dates are the Claude API's (Anthropic-operated platforms); partner
 # platforms such as Amazon Bedrock set their own schedules. Source:
 # https://platform.claude.com/docs/en/about-claude/model-deprecations
@@ -156,8 +156,9 @@ class ModelDeprecationGuard:
     Nexus gateways serving GPT-6 / Claude 5.5 / Gemini 4 / Kimi K3.1:
     callers ``check(model_id)`` before dispatch and either log a warning,
     rewrite to ``replacement``, or reject when ``severity == "block"``.
-    Entries with a retirement date (``retires_on``) warn before that date and
-    block on and after it, read from an injectable UTC-date clock.
+    Entries with a retirement date (``retires_on``) block on and after that
+    date whatever their own severity, read from an injectable UTC-date clock;
+    before it they keep their own severity.
 
     Distinct from ``router.model_ids`` / ``ProviderModelListSync`` catalog
     refresh — those keep known-good IDs in sync; this guard handles *retired*
