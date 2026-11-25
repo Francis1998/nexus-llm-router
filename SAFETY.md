@@ -98,6 +98,30 @@ A provider that rejects *every* request with 400 (Anthropic, for example,
 reports an exhausted credit balance that way) therefore no longer fails over
 automatically; alert on `provider_request_rejected` log volume per provider.
 
+### Accounting write failures are not provider failures
+
+Once a provider has answered, it has also billed the request. Recording the
+request afterwards (spend ledger, audit log, feedback index) is the gateway's
+own work, so a failure there:
+
+- never sends the request to another candidate, and never records a
+  circuit-breaker failure, success-rate or scoreboard sample, or
+  `provider_error_rate` increment against the provider that answered;
+- never fails the request when the write hits an I/O error (SQLite
+  `database is locked`, a full or read-only disk). The caller gets the answer
+  and the in-memory budget guardrail still counts its spend. Nexus logs
+  `spend_ledger_write_failed` (request id, spend subject, provider, model,
+  cost, and token counts, enough to restore the missing `/v1/spend` row),
+  `audit_log_write_failed` (request id), or `feedback_index_failed`. Alert on
+  these warnings: the durable ledger or audit log is missing those requests.
+
+Any other error after the answer fails the request (HTTP 500) once, without a
+fallback or a provider failure. Before this, a locked ledger or a full audit
+volume sent the answered request to every fallback model (each one billed
+again), counted a failure against every provider that had answered, and
+returned HTTP 500; a fully streamed answer ended with an error that blamed the
+provider.
+
 ## Request feedback
 
 `POST /v1/feedback` lets callers rate completed requests, and the
