@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-2161%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-2166%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -168,12 +168,13 @@ Each request moves `RECEIVED → CLASSIFIED → ROUTED → DISPATCHED → RESPON
 
 ## Current Model Stack
 
-Verified on 2026-11-19 against the provider docs:
+Verified on 2026-11-24 against the provider docs:
 [OpenAI models](https://developers.openai.com/api/docs/models) (including
 [GPT-6.2 Astra](https://developers.openai.com/api/docs/models/gpt-6.2-astra),
 [GPT-6.2 Sol](https://developers.openai.com/api/docs/models/gpt-6.2-sol), and the
 [Using GPT-6.2 guide](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.2-astra)),
-[Anthropic models](https://platform.claude.com/docs/en/models/overview),
+[Anthropic models](https://platform.claude.com/docs/en/models/overview) and
+[model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations),
 [Google models](https://aistudio.google.com/docs/models) (including
 [Gemini 4 Neon](https://aistudio.google.com/docs/models/gemini-4-neon)) and
 [pricing](https://aistudio.google.com/docs/pricing), and
@@ -215,6 +216,23 @@ to it; see [How completions are priced](CONFIGURATION.md#how-completions-are-pri
 | `kimi-k3.1-pro-highspeed` | $4 / $20 | 1,048,576 | |
 | `kimi-k3` | $3 / $15 | 1,048,576 | |
 
+What changed on 2026-11-24 (lifecycle only; the catalog and prices are unchanged):
+
+- Anthropic deprecated `claude-opus-4-5` (`claude-opus-4-5-20251101`) on
+  2026-11-23; it retires from the Claude API on 2027-01-22 (replacement
+  `claude-opus-5-5`). `claude-sonnet-4-5` (`claude-sonnet-4-5-20250929`,
+  deprecated 2026-09-30) retires on 2026-11-30 (replacement
+  `claude-sonnet-5-5`), and requests to it fail after that. Neither is in the
+  catalog or the price tables. `ModelDeprecationGuard` now warns on all four IDs
+  and blocks each one from its retirement date (UTC), and blocks
+  `claude-3-5-sonnet`, retired on 2025-10-28; see the
+  [Model deprecation guard guide](docs/guides/MODEL_DEPRECATION_GUARD_GUIDE.md).
+- OpenAI's Healthcare model configurations (`gpt-6.2-astra-healthcare`,
+  `gpt-6.2-sol-healthcare`, `gpt-6-astra-healthcare`, `gpt-6.1-sol-healthcare`,
+  released 2026-11-24) run only on the Responses API, with a clinical harness
+  and a medical-source search index. Nexus does not route them: they are not in
+  the catalog or the price tables, and the OpenAI adapter calls Chat Completions.
+
 What changed on 2026-11-19:
 
 - **GPT-6.2 Astra** (OpenAI, 2026-11-17) is the OpenAI frontier role. It supersedes
@@ -240,8 +258,8 @@ What changed on 2026-11-19:
 - Cost estimates use standard input and output rates. Nexus does not model cached
   input (GPT-6.2 Astra $0.40, GPT-6.2 Sol $0.10, and Gemini 4 Neon $0.15 per 1M,
   Neon through implicit caching only), cache writes (GPT-6.2 Astra $10, Sol $2.50
-  per 1M), Batch (half price for GPT-6.2; $1.50 / $7.50 for Neon, also its Flex
-  price), or Neon's Priority tier ($5.40 / $27).
+  per 1M for 30 minutes; $20 and $5 for 12 hours), Batch (half price for GPT-6.2;
+  $1.50 / $7.50 for Neon, also its Flex price), or Neon's Priority tier ($5.40 / $27).
 
 The other roles are unchanged:
 

@@ -978,7 +978,7 @@ The default catalog lives in `src/router/config.py` and includes:
   (frontier, paid tier only)
 - Moonshot: `kimi-k3.1-pro`
 
-Costs are provider list prices verified on 2026-11-19 (GPT-6.2 / GPT-6, Claude 5.5,
+Costs are provider list prices verified on 2026-11-24 (GPT-6.2 / GPT-6, Claude 5.5,
 Gemini 4 Argon / Neon / 3.8 Flash, Kimi K3.1) and context windows come from the
 provider model pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01
 and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the
@@ -1004,6 +1004,16 @@ does not flag them. Gemini 4 Hydrogen is Google's recommended upgrade from Gemin
 3.8 Flash. The flash role stays on 3.8 Flash while Hydrogen costs twice as much;
 their prices converge on 2027-01-01. Gemini 2.5 Pro is deprecated: from 2026-12-01
 Google serves it with Gemini 3.8 Flash at 3.8 Flash rates.
+
+Anthropic retires `claude-sonnet-4-5` (deprecated 2026-09-30) from the Claude API
+on 2026-11-30 and `claude-opus-4-5` (deprecated 2026-11-23) on 2027-01-22, after
+which requests to them fail. Neither is in the catalog or the adapter price
+tables; `ModelDeprecationGuard` warns on both (and their dated IDs) until those
+dates and blocks them from then on (see the
+[Model deprecation guard guide](docs/guides/MODEL_DEPRECATION_GUARD_GUIDE.md)).
+OpenAI's Healthcare model configurations (`gpt-6.2-sol-healthcare` and three
+others, released 2026-11-24) run only on the Responses API, so nexus does not
+route them: the OpenAI adapter calls Chat Completions.
 
 Provider limits that affect routing and spend:
 
@@ -1782,7 +1792,7 @@ The default catalog lives in `src/router/config.py` and includes:
   (frontier, paid tier only)
 - Moonshot: `kimi-k3.1-pro`
 
-Costs are provider list prices verified on 2026-11-19 (GPT-6.2 / GPT-6, Claude 5.5,
+Costs are provider list prices verified on 2026-11-24 (GPT-6.2 / GPT-6, Claude 5.5,
 Gemini 4 Argon / Neon / 3.8 Flash, Kimi K3.1) and context windows come from the
 provider model pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01
 and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the
@@ -1808,6 +1818,16 @@ does not flag them. Gemini 4 Hydrogen is Google's recommended upgrade from Gemin
 3.8 Flash. The flash role stays on 3.8 Flash while Hydrogen costs twice as much;
 their prices converge on 2027-01-01. Gemini 2.5 Pro is deprecated: from 2026-12-01
 Google serves it with Gemini 3.8 Flash at 3.8 Flash rates.
+
+Anthropic retires `claude-sonnet-4-5` (deprecated 2026-09-30) from the Claude API
+on 2026-11-30 and `claude-opus-4-5` (deprecated 2026-11-23) on 2027-01-22, after
+which requests to them fail. Neither is in the catalog or the adapter price
+tables; `ModelDeprecationGuard` warns on both (and their dated IDs) until those
+dates and blocks them from then on (see the
+[Model deprecation guard guide](docs/guides/MODEL_DEPRECATION_GUARD_GUIDE.md)).
+OpenAI's Healthcare model configurations (`gpt-6.2-sol-healthcare` and three
+others, released 2026-11-24) run only on the Responses API, so nexus does not
+route them: the OpenAI adapter calls Chat Completions.
 
 Provider limits that affect routing and spend:
 
