@@ -143,6 +143,18 @@ fingerprints, and client-chosen metric names beyond 32 per process share the
 
 `PromptInjectionGateway` can allow, redact, or block high-risk prompt patterns before routing. Advisory control complementary to routing shed strategies.
 
+## Model deprecation guard
+
+`ModelDeprecationGuard` (`src/safety/model_deprecation.py`) maps retired model IDs
+to current replacements. A deprecated model that still answers gets `warn`; from
+its retirement date (UTC), when requests to it fail at the provider, it gets
+`block`. The verdict's `reason` names the replacement and `retires_on` carries the
+date. Lifecycle verified 2026-11-24: `claude-sonnet-4-5` blocks from 2026-11-30
+and `claude-opus-4-5` from 2027-01-22 (with their dated IDs), and
+`claude-3-5-sonnet`, retired on 2025-10-28, blocks now. It is a library check:
+nexus does not call it on the request path. See the
+[Model deprecation guard guide](docs/guides/MODEL_DEPRECATION_GUARD_GUIDE.md).
+
 ## Request fingerprint deduper
 
 `RequestFingerprintDeduper` hashes `model + messages + temperature + tenant` into a
