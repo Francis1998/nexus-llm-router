@@ -126,6 +126,8 @@ answer and its `request_id` are only replayed to the caller allowed to rate it.
 
 `AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, final state, the caller's API key fingerprint (`api_key_id`) and `X-Tenant-Id` (`tenant_id`), and the analyzer's `domain`.
 
+The audit, spend-ledger, and feedback-index writes run after the provider answered, outside the attempt loop's failure handling: an I/O error there logs a warning (`audit_log_write_failed`, `spend_ledger_write_failed`, `feedback_index_failed`) and still returns the answer, and no error after the answer triggers a fallback or counts against the provider (see [SAFETY.md](SAFETY.md#accounting-write-failures-are-not-provider-failures)).
+
 ## Feedback Loop
 
 Feedback sits after `RESPONDED` and feeds the next requests' `Decide` phase:
