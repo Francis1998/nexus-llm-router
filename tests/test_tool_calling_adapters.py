@@ -403,11 +403,8 @@ async def test_gemini_function_calls_get_stable_ids_and_carry_thought_signatures
     assert first.tool_calls == again.tool_calls
     assert {call.id for call in first.tool_calls}.isdisjoint(call.id for call in other.tool_calls)
     assert decode_thought_signature(first.tool_calls[0].id) == SIGNATURE
+    assert first.tool_calls[0].id.endswith(f"__thought__{SIGNATURE}")
     assert decode_thought_signature(first.tool_calls[1].id) is None
-    assert all(
-        set(call.id) <= set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
-        for call in first.tool_calls
-    )
 
 
 async def test_gemini_replays_signatures_and_names_function_responses() -> None:
@@ -603,10 +600,9 @@ def test_provider_safe_ids_are_stable_and_pass_safe_ids_through() -> None:
     assert unsafe.startswith("call_") and len(unsafe) == 29
 
 
-def test_thought_signatures_round_trip_through_url_safe_ids() -> None:
-    """Standard-base64 signatures survive the id encoding byte for byte."""
+def test_thought_signatures_round_trip_through_ids() -> None:
+    """Signatures survive the id encoding byte for byte; plain ids carry none."""
     encoded = encode_thought_signature("call_x", SIGNATURE)
-    assert "+" not in encoded and "/" not in encoded and "=" not in encoded
     assert decode_thought_signature(encoded) == SIGNATURE
     assert encode_thought_signature("call_x", None) == "call_x"
     assert decode_thought_signature("call_x") is None

@@ -9,7 +9,6 @@ model's calls to the client and the client's results to the model.
 from __future__ import annotations
 
 import base64
-import binascii
 import hashlib
 import json
 import re
@@ -95,12 +94,13 @@ def request_seed(payload: object) -> str:
 
 
 def encode_thought_signature(tool_call_id: str, signature: object) -> str:
-    """Embed a Gemini thought signature in a tool call id (``<id>__thought__<b64url>``).
+    """Embed a Gemini thought signature in a tool call id (``<id>__thought__<signature>``).
 
     Gemini 3 and later reject a replayed function call without the signature
     the model attached to it, and OpenAI clients only echo ``id``, ``type``,
-    and ``function`` back. The signature is re-encoded as unpadded URL-safe
-    base64 so the id stays within ``[A-Za-z0-9_-]``.
+    and ``function`` back. The signature is appended verbatim (standard base64,
+    as Gemini returns it), which is LiteLLM's format, so a conversation can
+    continue through either gateway.
 
     Args:
         tool_call_id: Base id of the call.
@@ -111,31 +111,29 @@ def encode_thought_signature(tool_call_id: str, signature: object) -> str:
     """
     if not isinstance(signature, str) or not signature:
         return tool_call_id
-    try:
-        raw = base64.b64decode(signature, validate=True)
-    except (binascii.Error, ValueError):
-        return f"{tool_call_id}{THOUGHT_SIGNATURE_SEPARATOR}{signature}"
-    encoded = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
-    return f"{tool_call_id}{THOUGHT_SIGNATURE_SEPARATOR}{encoded}"
+    return f"{tool_call_id}{THOUGHT_SIGNATURE_SEPARATOR}{signature}"
 
 
 def decode_thought_signature(tool_call_id: str) -> str | None:
     """Return the Gemini thought signature embedded by :func:`encode_thought_signature`.
 
+    Like LiteLLM, only a suffix that is strict standard base64 counts as a
+    signature.
+
     Args:
         tool_call_id: Tool call id echoed by the client.
 
     Returns:
-        The signature as standard base64, or ``None`` when the id carries none.
+        The signature, or ``None`` when the id carries none.
     """
     _, separator, embedded = tool_call_id.partition(THOUGHT_SIGNATURE_SEPARATOR)
     if not separator or not embedded:
         return None
     try:
-        raw = base64.urlsafe_b64decode(embedded + "=" * (-len(embedded) % 4))
-    except (binascii.Error, ValueError):
+        base64.b64decode(embedded, validate=True)
+    except ValueError:
         return None
-    return base64.b64encode(raw).decode("ascii")
+    return embedded
 
 
 def tool_finish_reason(

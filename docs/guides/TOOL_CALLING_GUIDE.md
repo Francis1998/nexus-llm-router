@@ -57,7 +57,7 @@ Popular gateways already normalize this; nexus did not:
 | --- | --- | --- | --- | --- | --- |
 | One OpenAI-shaped tool API across providers | yes | yes ([Anthropic](https://github.com/Portkey-AI/gateway/blob/main/src/providers/anthropic/chatComplete.ts), [Gemini](https://github.com/Portkey-AI/gateway/blob/main/src/providers/google/chatComplete.ts) transforms) | yes | no (text only) | yes |
 | Knows which models can call tools | `litellm.supports_function_calling(model)` | - | routes tool requests only to providers that support tools | capability flags existed but nothing enforced them | capability-catalog gate before dispatch; 400 `tool_calling_unsupported` when no routed model qualifies |
-| Gemini thought signatures across turns | embedded in the tool-call id (`__thought__`, [source](https://github.com/BerriAI/litellm/blob/main/litellm/litellm_core_utils/prompt_templates/factory.py)) | `function.thought_signature` field | - | - | embedded in the tool-call id with the same `__thought__` separator |
+| Gemini thought signatures across turns | embedded in the tool-call id (`__thought__`, [source](https://github.com/BerriAI/litellm/blob/main/litellm/litellm_core_utils/prompt_templates/factory.py)) | `function.thought_signature` field | - | - | embedded in the tool-call id in LiteLLM's `<id>__thought__<signature>` format, so conversations can move between the two gateways |
 | Streaming tool calls | native | native | native | - | OpenAI `delta.tool_calls` chunks from a non-streamed provider call |
 | Executes tools for you | no | no | its Agent SDK runs client tools | - | no, never |
 
@@ -423,8 +423,9 @@ Tool-free requests stay on `POST /v1/chat/completions` unchanged.
 - **Thought signatures.** Gemini 3 and later attach a `thoughtSignature` to
   function calls and reject a replayed call without it. OpenAI clients only echo
   `id`, `type`, and `function`, so nexus embeds the signature in the id as
-  `<id>__thought__<url-safe base64>`, the same separator LiteLLM uses, and
-  restores it on the next turn. When none of a replayed assistant turn's calls
+  `<id>__thought__<signature>` (verbatim standard base64, as Gemini returns
+  it), LiteLLM's format, and restores it on the next turn; ids minted by
+  either gateway work in the other. When none of a replayed assistant turn's calls
   carries a signature (for example calls Claude made earlier in the
   conversation), its first call gets Gemini's documented
   `skip_thought_signature_validator` placeholder.
