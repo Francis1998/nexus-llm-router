@@ -340,12 +340,19 @@ class _Caller:
         it must stay with the caller allowed to rate that request (and, for
         ``feedback-aware``, the caller whose feedback chose the model). A virtual
         key's model allowlist is part of it, so narrowing the allowlist never
-        replays an answer from a model the key may no longer use.
+        replays an answer from a model the key may no longer use. JSON keeps the
+        fields apart whatever the client-chosen tenant and end-user ids contain.
         """
-        namespace = f"{self.api_key_id}|{self.tenant_id or ''}|{self.principal}"
-        if self.key_limits is not None and self.key_limits.allowed_models is not None:
-            namespace += "|models=" + ",".join(sorted(self.key_limits.allowed_models))
-        return namespace
+        limits = self.key_limits
+        allowed = None if limits is None or limits.allowed_models is None else limits.allowed_models
+        return json.dumps(
+            [
+                self.api_key_id,
+                self.tenant_id or "",
+                self.principal,
+                None if allowed is None else sorted(allowed),
+            ]
+        )
 
     @property
     def idempotency_tenant(self) -> str:
@@ -440,12 +447,16 @@ def _admit_caller(
 def _key_access(request: Request, *, model: str | None = None) -> keys_api.KeyAccess | None:
     """Authenticate a request that never spends, in ``virtual_keys`` mode only.
 
-    No budget, RPM, or tenant rate limit applies. Returns ``None`` in ``open`` mode.
+    A tenant-bound key still refuses an ``X-Tenant-Id`` naming another tenant;
+    no budget, RPM, or tenant rate limit applies. Returns ``None`` in ``open`` mode.
     """
     if not _virtual_keys_enforced():
         return None
     return get_key_gate().admit(
-        request.headers.get("authorization"), request.headers.get("x-api-key"), model=model
+        request.headers.get("authorization"),
+        request.headers.get("x-api-key"),
+        model=model,
+        tenant_id=request.headers.get("x-tenant-id"),
     )
 
 
