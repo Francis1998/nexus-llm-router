@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from datetime import datetime
 
-from router.schemas import ChatMessage, ProviderResponse
+from router.schemas import ChatMessage, ProviderResponse, ToolConfig
 
 
 class ProviderError(RuntimeError):
@@ -26,13 +26,40 @@ class ProviderError(RuntimeError):
 
 
 class BaseProviderAdapter(ABC):
-    """Provider adapter contract for model completion backends."""
+    """Provider adapter contract for model completion backends.
+
+    ``tool_config`` is passed only for requests that offer tools (as a keyword
+    argument), so adapters written before tool calling keep serving tool-free
+    requests. Adapters translate it, assistant ``tool_calls``, and ``tool``
+    results to their provider's function-calling format and report the model's
+    calls in ``ProviderResponse.tool_calls``. Adapters never execute tools.
+    """
 
     provider_name: str
 
+    async def _complete_once(
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        max_tokens: int,
+        tool_config: ToolConfig | None,
+    ) -> ProviderResponse:
+        """Call :meth:`complete`, passing ``tool_config`` only when the request has tools.
+
+        ``stream`` implementations that wrap ``complete`` use this so subclasses
+        overriding ``complete`` without ``tool_config`` keep working.
+        """
+        if tool_config is None:
+            return await self.complete(model, messages, max_tokens)
+        return await self.complete(model, messages, max_tokens, tool_config=tool_config)
+
     @abstractmethod
     async def complete(
-        self, model: str, messages: list[ChatMessage], max_tokens: int
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        max_tokens: int,
+        tool_config: ToolConfig | None = None,
     ) -> ProviderResponse:
         """Return a non-streaming completion.
 
@@ -40,6 +67,7 @@ class BaseProviderAdapter(ABC):
             model: Provider model name.
             messages: Chat messages.
             max_tokens: Maximum completion tokens.
+            tool_config: Tools offered to the model, when the request has any.
 
         Returns:
             Normalized provider response.
@@ -47,7 +75,11 @@ class BaseProviderAdapter(ABC):
 
     @abstractmethod
     def stream(
-        self, model: str, messages: list[ChatMessage], max_tokens: int
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        max_tokens: int,
+        tool_config: ToolConfig | None = None,
     ) -> AsyncIterator[str | ProviderResponse]:
         """Stream completion chunks.
 
@@ -55,11 +87,13 @@ class BaseProviderAdapter(ABC):
             model: Provider model name.
             messages: Chat messages.
             max_tokens: Maximum completion tokens.
+            tool_config: Tools offered to the model, when the request has any.
 
         Yields:
             Text chunks from the provider, optionally followed by one final
             ``ProviderResponse`` carrying provider-reported usage, cost, and stop
             reason. Streams that end without it are accounted from estimates.
+            Tool calls arrive only in that final ``ProviderResponse``.
         """
 
     @abstractmethod
