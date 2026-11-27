@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -666,3 +667,91 @@ def test_x_api_key_and_authorization_must_agree(gateway: Callable[..., Gateway])
     assert response.status_code == 401
     both = _bearer(first) | {"x-api-key": first}
     assert gw.client.post("/v1/responses", json=RESPONSES, headers=both).status_code == 200
+
+
+# --- Review round 1 regressions ------------------------------------------------------
+
+
+class _FailingInserts:
+    """SQLite connection proxy whose INSERTs fail like a locked or full ledger."""
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._connection = connection
+
+    def __enter__(self) -> _FailingInserts:
+        self._connection.__enter__()
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self._connection.__exit__(*exc_info)  # type: ignore[arg-type]
+
+    def execute(self, sql: str, *args: Any) -> sqlite3.Cursor:  # noqa: ANN401
+        if sql.lstrip().upper().startswith("INSERT"):
+            raise sqlite3.OperationalError("database is locked")
+        return self._connection.execute(sql, *args)
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+
+def test_unrecorded_spend_blocks_the_key_until_it_is_settled(
+    gateway: Callable[..., Gateway], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A spend-ledger write failure keeps the answer but stops further spend on stale totals."""
+    gw = gateway()
+    key = gw.create_key(max_budget_usd=1.0)
+    headers = _bearer(key["key"])
+    ledger = main.get_router()._spend_ledger
+    connect = ledger._connect
+    monkeypatch.setattr(ledger, "_connect", lambda: _FailingInserts(connect()))
+
+    answered = gw.client.post("/v1/responses", json=RESPONSES, headers=headers)
+    assert answered.status_code == 200, answered.text
+    blocked = gw.client.post("/v1/responses", json=RESPONSES, headers=headers)
+    assert blocked.status_code == 503, blocked.text
+    assert _error(blocked) == ("server_error", "spend_unsettled")
+    assert len(gw.calls) == 1
+    assert gw.client.get("/v1/models", headers=headers).status_code == 200
+
+    monkeypatch.setattr(ledger, "_connect", connect)
+    settled = gw.client.post("/v1/responses", json=RESPONSES, headers=headers)
+    assert settled.status_code == 200, settled.text
+    assert gw.ledger.key_spend(key["id"])[1] == 2
+
+
+def test_end_user_ids_cannot_spell_another_cache_namespace(
+    gateway: Callable[..., Gateway], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crafted ``user`` never makes a restricted key replay an answer from a disallowed model."""
+    gw = gateway()
+    cache = ResponseCache(enabled=True)
+    monkeypatch.setattr(main, "get_response_cache", lambda: cache)
+    key = gw.create_key()
+    headers = _bearer(key["key"])
+    crafted = gw.client.post(
+        "/v1/chat/completions", json=CHAT | {"user": "alice|models=gpt-6.2-sol"}, headers=headers
+    ).json()
+    assert crafted["model"] != "gpt-6.2-sol"
+    restrict = {"models": ["gpt-6.2-sol"]}
+    assert gw.client.patch(f"/v1/keys/{key['id']}", json=restrict, headers=MASTER).is_success
+    restricted = gw.client.post(
+        "/v1/chat/completions", json=CHAT | {"user": "alice"}, headers=headers
+    ).json()
+    assert restricted["model"] == "gpt-6.2-sol"
+    assert restricted["router"]["request_id"] != crafted["router"]["request_id"]
+
+
+UNMETERED = ["count-tokens", "models", "model", "spend", "feedback-summary"]
+
+
+@pytest.mark.parametrize("endpoint", UNMETERED)
+def test_tenant_bound_keys_reject_another_tenant_on_every_endpoint(
+    gateway: Callable[..., Gateway], endpoint: str
+) -> None:
+    """Endpoints that never spend still refuse an ``X-Tenant-Id`` naming another tenant."""
+    gw = gateway()
+    headers = _bearer(gw.create_key(tenant="acme")["key"])
+    assert _call(gw, endpoint, headers | {"X-Tenant-Id": "acme"}).status_code == 200
+    mismatch = _call(gw, endpoint, headers | {"X-Tenant-Id": "globex"})
+    assert mismatch.status_code == 403, mismatch.text
+    assert "X-Tenant-Id does not match" in mismatch.json()["error"]["message"]
