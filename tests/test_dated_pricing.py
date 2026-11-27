@@ -26,13 +26,20 @@ import api.main as main
 import router.config as config
 from adapters.anthropic import AnthropicAdapter
 from adapters.google import GoogleGeminiAdapter
+from adapters.mock import MockProviderAdapter
 from adapters.moonshot import MoonshotAdapter
 from adapters.openai import OpenAIAdapter
 from adapters.registry import AdapterRegistry
 from cache.response_cache import ResponseCache
 from router.config import RouterSettings, default_model_catalog
 from router.engine import NexusRouter
-from router.schemas import ChatMessage, DomainTag, ModelCandidate
+from router.schemas import (
+    ChatMessage,
+    DomainTag,
+    ModelCandidate,
+    RouterRequest,
+    RoutingStrategyName,
+)
 from safety.gateway_guards import GatewayGuardService
 from safety.idempotency import IdempotencyStore
 from safety.spend_ledger import SpendLedger
@@ -354,3 +361,40 @@ def test_a_naive_clock_is_rejected(gateway: Callable[..., _Gateway]) -> None:
     """Prices are compared with UTC instants, so the clock must be timezone-aware."""
     with pytest.raises(ValueError, match="timezone-aware"):
         gateway(ARGON, clock=lambda: datetime(2026, 12, 1))
+
+
+async def test_a_running_router_ranks_models_at_the_price_in_effect(tmp_path: Path) -> None:
+    """Cost-aware routing on a running router follows a change once it takes effect.
+
+    Argon ($2 / $10 per 1M) undercuts Neon ($3 / $15) until 2026-12-01 and costs
+    more ($4 / $20) from then on, so ``cost-optimal`` switches to Neon.
+    """
+    now = [LAST_SECOND_OF_NOV_30]
+    catalog = {
+        model: default_model_catalog()[model].model_copy(update={"supports_realtime": True})
+        for model in (ARGON, NEON)
+    }
+    settings = RouterSettings(
+        audit_log_path=str(tmp_path / "audit-log.jsonl"),
+        spend_ledger_path=str(tmp_path / "spend-ledger.sqlite3"),
+        feedback_path=str(tmp_path / "feedback.sqlite3"),
+        ab_model_a=ARGON,
+        ab_model_b=NEON,
+        canary_stable_model=ARGON,
+        canary_model=NEON,
+        failover_priority=[ARGON, NEON],
+    )
+    registry = AdapterRegistry({"google": MockProviderAdapter("google")})
+    router = NexusRouter(settings, registry, model_catalog=catalog, clock=lambda: now[0])
+
+    async def cost_optimal_pick(request_id: str) -> str:
+        request = RouterRequest(
+            request_id=request_id,
+            messages=[ChatMessage(role="user", content="Draft a reply.")],
+            strategy=RoutingStrategyName.COST_OPTIMAL,
+        )
+        return (await router.complete(request)).model_used
+
+    assert await cost_optimal_pick("before") == ARGON
+    now[0] = DEC_1
+    assert await cost_optimal_pick("after") == NEON
