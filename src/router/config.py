@@ -1,9 +1,11 @@
 """Runtime configuration for Nexus LLM Router."""
 
+from collections.abc import Callable, Mapping
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from router.feedback import DEFAULT_FEEDBACK_WINDOW_SECONDS, METRIC_PATTERN
@@ -184,10 +186,13 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
     scores are per-role routing priors. GPT-6.x models accept at most 922K input
     tokens of their 1.05M window and bill the whole request at 2x input / 1.5x
     output above 272K input tokens; Claude Haiku 5.5 bills $0.50 / $2.50 per 1M
-    above 100K prompt tokens. Gemini 4 Argon list prices rise to $4 / $20 per 1M
-    tokens on 2026-12-01 and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01;
-    update this catalog and the adapter price tables, which bill completions,
-    when they change. Gemini 4 Neon is served on Google's paid tier only. The
+    above 100K prompt tokens. These are the static prices: announced changes are
+    ``PRICE_SCHEDULE`` entries, which the router applies from their effective
+    instant (``catalog_at``). Gemini 4 Argon rises to $4 / $20 per 1M tokens on
+    2026-12-01 and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01 that way.
+    Update this catalog and the adapter price tables, which bill completions,
+    together when a price changes without a schedule entry. Gemini 4 Neon is
+    served on Google's paid tier only. The
     adapters also price current models outside the catalog (for example Claude
     Fable 5.2, Gemini 4 Carbon / Hydrogen, and the superseded GPT-6 Astra and
     GPT-6.1 Sol) for operators who add them to the catalog.
@@ -323,6 +328,135 @@ def default_model_catalog() -> dict[str, ModelCandidate]:
             supported_regions={"us", "eu", "global"},
         ),
     }
+
+
+Clock = Callable[[], datetime]
+
+
+def utc_now() -> datetime:
+    """Return the current time in UTC, the default clock for dated list prices."""
+    return datetime.now(UTC)
+
+
+class ScheduledPrice(BaseModel):
+    """An announced list-price change for one model.
+
+    From ``effective_from`` on, the rates replace the model's standard
+    (input, output) rates in the adapter price tables and in every catalog the
+    router serves. Long-prompt tiers are not scheduled. Rates are USD per 1K
+    tokens, like ``ModelCandidate``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    model: str
+    effective_from: AwareDatetime
+    input_cost_per_1k: float = Field(gt=0.0)
+    output_cost_per_1k: float = Field(gt=0.0)
+
+    @field_validator("effective_from")
+    @classmethod
+    def _to_utc(cls, value: datetime) -> datetime:
+        return value.astimezone(UTC)
+
+
+# Announced list-price changes: the one source of truth for dated prices, used by
+# adapter billing, the budget estimate, routing, and ``GET /v1/models``. Google's
+# pricing page (verified 2026-11-27) gives dates only, so each change applies
+# from 00:00 UTC on its date.
+PRICE_SCHEDULE: tuple[ScheduledPrice, ...] = (
+    ScheduledPrice(
+        model="gemini-4-carbon",
+        effective_from=datetime(2026, 12, 1, tzinfo=UTC),
+        input_cost_per_1k=0.004,
+        output_cost_per_1k=0.020,
+    ),
+    ScheduledPrice(
+        model="gemini-4-argon",
+        effective_from=datetime(2026, 12, 1, tzinfo=UTC),
+        input_cost_per_1k=0.004,
+        output_cost_per_1k=0.020,
+    ),
+    ScheduledPrice(
+        model="gemini-3.8-flash",
+        effective_from=datetime(2027, 1, 1, tzinfo=UTC),
+        input_cost_per_1k=0.0015,
+        output_cost_per_1k=0.0075,
+    ),
+)
+
+
+def has_scheduled_price(model: str) -> bool:
+    """Return whether ``PRICE_SCHEDULE`` lists a change for ``model``."""
+    return any(change.model == model for change in PRICE_SCHEDULE)
+
+
+def scheduled_rates(model: str, at: datetime) -> tuple[float, float] | None:
+    """Return the per-1K (input, output) rates scheduled for ``model`` at ``at``.
+
+    Args:
+        model: Provider model id.
+        at: Timezone-aware instant.
+
+    Returns:
+        The rates of the latest change in effect at ``at`` (``effective_from``
+        at or before it), or ``None`` when none is, so the static price applies.
+
+    Raises:
+        ValueError: If ``at`` is naive.
+    """
+    if at.utcoffset() is None:
+        raise ValueError("price instants must be timezone-aware, for example datetime.now(UTC)")
+    in_effect = [
+        change
+        for change in PRICE_SCHEDULE
+        if change.model == model and change.effective_from <= at
+    ]
+    if not in_effect:
+        return None
+    latest = max(in_effect, key=lambda change: change.effective_from)
+    return latest.input_cost_per_1k, latest.output_cost_per_1k
+
+
+def list_rates(
+    model: str, static_rates: tuple[float, float], at: datetime | None = None
+) -> tuple[float, float]:
+    """Return ``model``'s per-1K (input, output) list rates at ``at``.
+
+    Args:
+        model: Provider model id.
+        static_rates: The rates from an adapter's static price table.
+        at: Instant to price; defaults to now (``utc_now``).
+
+    Returns:
+        The scheduled rates in effect at ``at``, otherwise ``static_rates``.
+    """
+    rates = scheduled_rates(model, utc_now() if at is None else at)
+    return static_rates if rates is None else rates
+
+
+def catalog_at(catalog: Mapping[str, ModelCandidate], at: datetime) -> dict[str, ModelCandidate]:
+    """Return ``catalog`` with the list prices in effect at ``at``.
+
+    Args:
+        catalog: Model candidates at their static prices, keyed by model id.
+        at: Timezone-aware instant.
+
+    Returns:
+        A new mapping: rows with a scheduled change in effect carry its rates;
+        every other row is the same object.
+    """
+    priced: dict[str, ModelCandidate] = {}
+    for model, candidate in catalog.items():
+        rates = scheduled_rates(model, at)
+        if rates is None:
+            priced[model] = candidate
+        else:
+            input_rate, output_rate = rates
+            priced[model] = candidate.model_copy(
+                update={"input_cost_per_1k": input_rate, "output_cost_per_1k": output_rate}
+            )
+    return priced
 
 
 @lru_cache(maxsize=1)

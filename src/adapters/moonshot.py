@@ -1,11 +1,13 @@
 """Moonshot Kimi OpenAI-compatible provider adapter."""
 
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
 from adapters.http_utils import finish_reason, json_object, message_text, nested_int
+from router.config import list_rates
 from router.schemas import ChatMessage, ProviderResponse
 
 
@@ -89,9 +91,11 @@ class MoonshotAdapter(BaseProviderAdapter):
         """Return whether the Moonshot price table lists ``model``."""
         return model in self._costs
 
-    def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        """Estimate Moonshot completion cost."""
-        input_cost, output_cost = self._costs.get(model, (0.0, 0.0))
+    def estimate_cost(
+        self, model: str, input_tokens: int, output_tokens: int, *, at: datetime | None = None
+    ) -> float:
+        """Estimate Moonshot completion cost at the list prices in effect at ``at``."""
+        input_cost, output_cost = list_rates(model, self._costs.get(model, (0.0, 0.0)), at)
         return (input_tokens / 1000.0) * input_cost + (output_tokens / 1000.0) * output_cost
 
     async def health_check(self) -> bool:

@@ -1,6 +1,6 @@
 # nexus-llm-router
 
-![Tests](https://img.shields.io/badge/tests-2171%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-2179%20passing-brightgreen) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![CI](https://github.com/Francis1998/nexus-llm-router/actions/workflows/ci.yml/badge.svg)
 
 > Intelligent multi-LLM routing middleware with task-aware model selection, cost optimization, fallback safety, and a drop-in OpenAI-compatible API.
 
@@ -119,7 +119,7 @@ Mock providers answer `[<model>] routed response`; routing, budgets, rate limits
 | Routing | 125 strategies chosen per request with `X-Router-Strategy` (default `rule-based`), from cost-optimal and latency-aware to token-budget, long-context, A/B, canary, and feedback-aware routing | [Routing Strategies](#routing-strategies), [CONFIGURATION.md](CONFIGURATION.md) |
 | Feedback loop | `POST /v1/feedback` rates a completed request by its `request_id` (tenant-scoped, idempotent), `GET /v1/feedback/summary` reports Wilson and normal-approximation intervals per model, strategy, domain, or provider, and `feedback-aware` routes by Thompson sampling with a seeded, replayable draw | [Feedback loop guide](docs/guides/FEEDBACK_LOOP_GUIDE.md) |
 | Reliability | per-provider circuit breakers, health-ranked fallback chains, and no fallback splicing once a stream has started | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md), [Fallback scoreboard guide](docs/guides/FALLBACK_SCOREBOARD_GUIDE.md) |
-| Cost control | provider list prices (including long-prompt tiers), pre-dispatch budget caps, a durable spend ledger, and Prometheus cost metrics | [Built-in model catalog](CONFIGURATION.md#built-in-model-catalog) |
+| Cost control | provider list prices (including long-prompt tiers and announced price changes, applied on their date), pre-dispatch budget caps, a durable spend ledger, and Prometheus cost metrics | [Built-in model catalog](CONFIGURATION.md#built-in-model-catalog) |
 | Gateway guards | API keys reduced to non-reversible fingerprints, per-key and per-tenant (`X-Tenant-Id`) rate limits, `Idempotency-Key` replay, and an exact-match response cache | [Gateway guards guide](docs/guides/GATEWAY_GUARDS_GUIDE.md), [Response cache guide](docs/guides/RESPONSE_CACHE_GUIDE.md) |
 | Safety and compliance | domain-aware routing (`rule-based` sends medical and legal prompts to Claude Opus 5.5 first, with cross-provider fallback), optional PII scrubbing, a prompt-injection gateway, a model deprecation guard, and a durable audit log of successful completions | [SAFETY.md](SAFETY.md), [SECURITY.md](SECURITY.md) |
 | Observability | Prometheus metrics, Grafana via Docker Compose, OpenTelemetry spans, and structured logs | [ARCHITECTURE.md](ARCHITECTURE.md) |

@@ -115,13 +115,14 @@ class _Gateway:
     router: NexusRouter
     audit_path: Path
 
-    def chat(self, *, max_tokens: int = 1_000) -> httpx.Response:
+    def chat(self, *, max_tokens: int = 1_000, stream: bool = False) -> httpx.Response:
         return self.client.post(
             "/v1/chat/completions",
             json={
                 "messages": [{"role": "user", "content": "Draft a reply."}],
                 "max_tokens": max_tokens,
                 "user": "alice",
+                "stream": stream,
             },
             headers={"X-Router-Strategy": "failover-priority"},
         )
@@ -146,7 +147,12 @@ class _Gateway:
 def gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., _Gateway]:
     """Build a gateway over the default catalog plus Carbon that routes only ``model``."""
 
-    def build(model: str, *, budget_cap_usd: float = 25.0) -> _Gateway:
+    def build(
+        model: str,
+        *,
+        budget_cap_usd: float = 25.0,
+        clock: Callable[[], datetime] | None = None,
+    ) -> _Gateway:
         settings = RouterSettings(
             audit_log_path=str(tmp_path / "audit-log.jsonl"),
             spend_ledger_path=str(tmp_path / "spend-ledger.sqlite3"),
@@ -157,7 +163,7 @@ def gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., _G
         )
         catalog = default_model_catalog() | {CARBON: _carbon_row()}
         registry = AdapterRegistry({"google": GoogleGeminiAdapter("test-key", 5.0)})
-        router = NexusRouter(settings, registry, model_catalog=catalog)
+        router = NexusRouter(settings, registry, model_catalog=catalog, clock=clock)
         guards = GatewayGuardService(
             idempotency_store=IdempotencyStore(settings.idempotency_path),
             tenant_rate_limiter=TenantRateLimiter(capacity=60, refill_per_second=1.0),
@@ -318,3 +324,33 @@ def test_models_without_a_scheduled_change_keep_their_prices(
     ]
     for adapter, model, cost_of_1k_in_1k_out in adapters_and_prices:
         assert adapter.estimate_cost(model, 1_000, 1_000) == pytest.approx(cost_of_1k_in_1k_out)
+
+
+@pytest.mark.parametrize("stream", [False, True], ids=["complete", "stream"])
+def test_a_request_routed_before_a_change_keeps_its_price(
+    gateway: Callable[..., _Gateway], monkeypatch: pytest.MonkeyPatch, stream: bool
+) -> None:
+    """A request's price is fixed when it is routed, even if it completes after the change.
+
+    The router routes at 23:59:59 UTC; the Gemini adapter prices the answer when
+    it arrives, after midnight. The request bills the old price; the next one,
+    routed at midnight, bills the new price.
+    """
+    _price_at(monkeypatch, DEC_1)
+    routed_at = [LAST_SECOND_OF_NOV_30]
+    gw = gateway(ARGON, clock=lambda: routed_at[0])
+
+    assert gw.chat(stream=stream).status_code == 200
+    routed_at[0] = DEC_1
+    assert gw.chat(stream=stream).status_code == 200
+
+    expected = [pytest.approx(_cost(2.0, 10.0)), pytest.approx(_cost(4.0, 20.0))]
+    assert gw.audit_costs() == expected
+    spend = gw.client.get("/v1/spend").json()
+    assert spend["by_model"] == {ARGON: pytest.approx(_cost(2.0, 10.0) + _cost(4.0, 20.0))}
+
+
+def test_a_naive_clock_is_rejected(gateway: Callable[..., _Gateway]) -> None:
+    """Prices are compared with UTC instants, so the clock must be timezone-aware."""
+    with pytest.raises(ValueError, match="timezone-aware"):
+        gateway(ARGON, clock=lambda: datetime(2026, 12, 1))

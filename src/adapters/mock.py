@@ -1,6 +1,7 @@
 """Deterministic provider adapter for tests and demos."""
 
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 from adapters.base import BaseProviderAdapter, ProviderError
 from router.schemas import ChatMessage, ProviderResponse
@@ -52,8 +53,10 @@ class MockProviderAdapter(BaseProviderAdapter):
             yield f"{word}{suffix}"
         yield response
 
-    def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        """Estimate mock completion cost."""
+    def estimate_cost(
+        self, model: str, input_tokens: int, output_tokens: int, *, at: datetime | None = None
+    ) -> float:
+        """Estimate mock completion cost: one flat rate for every model and instant."""
         return ((input_tokens + output_tokens) / 1000.0) * 0.001
 
     async def health_check(self) -> bool:

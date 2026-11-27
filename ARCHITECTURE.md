@@ -59,7 +59,10 @@ Strategies return `RoutingDecision`, which includes selected model, provider, st
 Concrete adapters live in `src/adapters/`. A completion's `cost_usd` comes from
 the adapter's price table; for a catalog model the table lacks (`has_price()` is
 `False`) the engine bills the catalog price instead, and a model priced nowhere
-is never dispatched.
+is never dispatched. Announced price changes (`PRICE_SCHEDULE` in
+`src/router/config.py`) apply to both from their UTC `effective_from`;
+`estimate_cost(..., at=...)` prices an instant, and the engine fixes each
+request's prices once, when it routes the request.
 
 ### Response normalization contract
 
