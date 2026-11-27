@@ -138,7 +138,8 @@ Authorization / x-api-key
           (HMAC-SHA-256 lookup)                                        -> 401
        2. tenant binding vs X-Tenant-Id                                 -> 403
        3. explicit catalog model vs the key's allowlist                 -> 403
-       4. metered endpoints: window spend from the spend ledger         -> 402
+       4. metered endpoints: retry a failed ledger write of the key      -> 503
+          then window spend from the router's spend ledger              -> 402
        5. metered endpoints: per-key RPM token bucket                   -> 429
        -> api_key_id = vk_..., KeyLimits(allowed_models, remaining_budget_usd)
   -> X-Tenant-Id hard rate limit -> Idempotency-Key -> response cache
