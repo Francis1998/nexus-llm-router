@@ -22,6 +22,7 @@ class SpendRecord:
     input_tokens: int
     output_tokens: int
     recorded_at: float
+    api_key_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +87,21 @@ class SpendLedger:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_spend_provider ON spend_events(provider)"
             )
+            columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(spend_events)")
+            }
+            if "api_key_id" not in columns:
+                # Ledgers created before per-key attribution: their rows keep NULL.
+                try:
+                    connection.execute("ALTER TABLE spend_events ADD COLUMN api_key_id TEXT")
+                except sqlite3.OperationalError as error:
+                    # Another process added the column first.
+                    if "duplicate column" not in str(error):
+                        raise
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_spend_api_key "
+                "ON spend_events(api_key_id, recorded_at)"
+            )
             connection.commit()
 
     def record(
@@ -99,6 +115,7 @@ class SpendLedger:
         input_tokens: int = 0,
         output_tokens: int = 0,
         recorded_at: float | None = None,
+        api_key_id: str | None = None,
     ) -> SpendRecord:
         """Persist a spend event and return the stored record.
 
@@ -111,6 +128,8 @@ class SpendLedger:
             input_tokens: Prompt tokens.
             output_tokens: Completion tokens.
             recorded_at: Optional unix timestamp; defaults to now.
+            api_key_id: Gateway API key the request was made with (a virtual
+                key id or a key fingerprint, never the secret).
 
         Returns:
             The durable spend record.
@@ -125,14 +144,15 @@ class SpendLedger:
             input_tokens=int(input_tokens),
             output_tokens=int(output_tokens),
             recorded_at=stamp,
+            api_key_id=api_key_id,
         )
         with self._lock, self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO spend_events (
                     request_id, tenant, provider, model, cost_usd,
-                    input_tokens, output_tokens, recorded_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    input_tokens, output_tokens, recorded_at, api_key_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.request_id,
@@ -143,6 +163,7 @@ class SpendLedger:
                     record.input_tokens,
                     record.output_tokens,
                     record.recorded_at,
+                    record.api_key_id,
                 ),
             )
             connection.commit()
@@ -156,6 +177,7 @@ class SpendLedger:
         model: str | None = None,
         since: float | None = None,
         until: float | None = None,
+        api_key_id: str | None = None,
     ) -> SpendSummary:
         """Aggregate spend with optional filters.
 
@@ -167,6 +189,7 @@ class SpendLedger:
                 ``recorded_at >= since``).
             until: Optional unix timestamp upper bound (exclusive:
                 ``recorded_at < until``).
+            api_key_id: Optional gateway API key filter.
 
         Returns:
             Aggregated spend summary.
@@ -188,6 +211,9 @@ class SpendLedger:
         if until is not None:
             clauses.append("recorded_at < ?")
             params.append(float(until))
+        if api_key_id:
+            clauses.append("api_key_id = ?")
+            params.append(api_key_id)
         # WHERE fragments are fixed allowlisted clauses only; values are bound
         # via ``params`` (no user-controlled SQL identifiers).
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
@@ -232,3 +258,21 @@ class SpendLedger:
             by_provider=by_provider,
             by_model=by_model,
         )
+
+    def key_spend(self, api_key_id: str, *, since: float | None = None) -> tuple[float, int]:
+        """Return ``(total USD, request count)`` recorded for one API key.
+
+        Args:
+            api_key_id: Gateway API key id (for example a virtual key id).
+            since: Optional unix timestamp lower bound (inclusive).
+
+        Returns:
+            Spend and number of ledger rows for the key since ``since``.
+        """
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0), COUNT(*) FROM spend_events "
+                "WHERE api_key_id = ? AND recorded_at >= ?",
+                (api_key_id, float("-inf") if since is None else float(since)),
+            ).fetchone()
+        return float(row[0]), int(row[1])

@@ -35,6 +35,7 @@ from router.schemas import (
     ProviderResponse,
     RouterRequest,
     RouterResponse,
+    RoutingDecision,
 )
 from router.state import RequestState, RoutingStateMachine
 from router.strategies import (
@@ -77,6 +78,8 @@ from safety.spend_ledger import SpendLedger
 # prompt too large for the model). They are the caller's fault, unlike 401/403/404
 # (gateway credentials or model id), 408/409 (transient), 429 (quota), and 5xx.
 _CLIENT_ERROR_STATUS_CODES = frozenset({400, 413, 422})
+# Same tolerance as ``BudgetGuardrail``: float sums can land a hair above a budget.
+_KEY_BUDGET_EPSILON_USD = 1e-9
 
 
 class RoutingFailedError(RuntimeError):
@@ -118,6 +121,10 @@ class BudgetRefusedError(RoutingFailedError, BudgetExceededError):
     until the budget allows it. It is a ``BudgetExceededError`` for the API's
     402 mapping and a ``RoutingFailedError`` for callers catching that.
     """
+
+
+class NoEligibleModelError(RoutingFailedError):
+    """Raised when none of the request's API-key models is in the routable catalog."""
 
 
 class ResponseRecordingError(RoutingFailedError):
@@ -420,7 +427,7 @@ class NexusRouter:
         state_machine.transition(RequestState.CLASSIFIED)
         strategy = self._strategies[strategy_name]
         priced_at, catalog = self._price_catalog()
-        decision = strategy.choose(request, signals)
+        decision = self._restrict_to_key_models(request, strategy.choose(request, signals))
         state_machine.transition(RequestState.ROUTED)
         self._logger.info(
             "routing_decision",
@@ -447,6 +454,7 @@ class NexusRouter:
                     signals.prompt_tokens_estimate, request.max_tokens
                 )
                 self._budget_guardrail.assert_can_spend(request.user_id, estimated_cost)
+                self._assert_key_budget(request, model_name, estimated_cost)
                 self._circuit_breakers.assert_available(candidate.provider)
             except (BudgetExceededError, CircuitOpenError, UnpricedModelError) as guardrail_error:
                 attempt_errors.append(guardrail_error)
@@ -589,7 +597,7 @@ class NexusRouter:
         state_machine.transition(RequestState.CLASSIFIED)
         strategy = self._strategies[strategy_name]
         priced_at, catalog = self._price_catalog()
-        decision = strategy.choose(request, signals)
+        decision = self._restrict_to_key_models(request, strategy.choose(request, signals))
         state_machine.transition(RequestState.ROUTED)
         self._logger.info(
             "routing_decision",
@@ -611,6 +619,7 @@ class NexusRouter:
                     signals.prompt_tokens_estimate, request.max_tokens
                 )
                 self._budget_guardrail.assert_can_spend(request.user_id, estimated_cost)
+                self._assert_key_budget(request, model_name, estimated_cost)
                 self._circuit_breakers.assert_available(candidate.provider)
             except (BudgetExceededError, CircuitOpenError, UnpricedModelError) as guardrail_error:
                 attempt_errors.append(guardrail_error)
@@ -998,6 +1007,7 @@ class NexusRouter:
                 cost_usd=provider_response.cost_usd,
                 input_tokens=provider_response.input_tokens,
                 output_tokens=provider_response.output_tokens,
+                api_key_id=request.api_key_id,
             )
         except (sqlite3.Error, OSError) as error:
             self._logger.warning(
@@ -1102,6 +1112,85 @@ class NexusRouter:
             f"provider {provider} rejected the request (HTTP {status_code}): {exception}",
             status_code=status_code,
         )
+
+    def _restrict_to_key_models(
+        self, request: RouterRequest, decision: RoutingDecision
+    ) -> RoutingDecision:
+        """Keep a decision on the models the request's API key may use.
+
+        Strategies rank the whole catalog. When the key has a model allowlist,
+        disallowed models leave the chosen model and fallback chain; the key's
+        other catalog models, best quality prior first, take their places, so
+        the request keeps as many attempts as before and never reaches a
+        disallowed model.
+
+        Args:
+            request: Router request carrying the key's limits.
+            decision: The strategy's decision.
+
+        Returns:
+            The decision to dispatch.
+
+        Raises:
+            NoEligibleModelError: When none of the key's models is in the catalog.
+        """
+        limits = request.key_limits
+        if limits is None or limits.allowed_models is None:
+            return decision
+        allowed = limits.allowed_models
+        ranked = [decision.chosen_model, *decision.fallback_chain]
+        kept = [model for model in ranked if model in allowed]
+        if len(kept) == len(ranked):
+            return decision
+        spare = sorted(
+            (model for model in self._model_catalog if model in allowed and model not in kept),
+            key=lambda model: self._model_catalog[model].quality_score,
+            reverse=True,
+        )
+        chain = [*kept, *spare][: len(ranked)]
+        if not chain:
+            raise NoEligibleModelError(
+                "none of the models this API key may use is in the gateway's model catalog"
+            )
+        chosen = chain[0]
+        rationale = decision.rationale
+        if chosen != decision.chosen_model:
+            rationale = (
+                f"{rationale}; {decision.chosen_model} is not allowed for this API key, "
+                f"so routed to {chosen}"
+            )
+        return decision.model_copy(
+            update={
+                "chosen_model": chosen,
+                "provider": self._model_catalog[chosen].provider,
+                "fallback_chain": chain[1:],
+                "rationale": rationale,
+            }
+        )
+
+    @staticmethod
+    def _assert_key_budget(request: RouterRequest, model_name: str, estimated_cost: float) -> None:
+        """Refuse a candidate whose estimated cost exceeds the API key's remaining budget.
+
+        Args:
+            request: Router request carrying the key's limits.
+            model_name: Candidate model.
+            estimated_cost: The candidate's estimated cost for the request.
+
+        Raises:
+            BudgetExceededError: When the estimate does not fit; like the budget
+                guardrail's refusal, it skips the candidate before dispatch.
+        """
+        limits = request.key_limits
+        if limits is None or limits.remaining_budget_usd is None:
+            return
+        remaining = limits.remaining_budget_usd
+        if estimated_cost > remaining + _KEY_BUDGET_EPSILON_USD:
+            raise BudgetExceededError(
+                f"API key budget exceeded for {request.api_key_id}: {model_name} is estimated "
+                f"at ${estimated_cost:.6f} and ${max(remaining, 0.0):.6f} is left in the "
+                "budget window"
+            )
 
     def _order_attempts(self, chosen_model: str, fallback_chain: Sequence[str]) -> list[str]:
         """Keep the strategy primary model, reorder fallbacks by provider health.
