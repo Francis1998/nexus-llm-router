@@ -357,6 +357,34 @@ def test_a_request_routed_before_a_change_keeps_its_price(
     assert spend["by_model"] == {ARGON: pytest.approx(_cost(2.0, 10.0) + _cost(4.0, 20.0))}
 
 
+@pytest.mark.parametrize("stream", [False, True])
+def test_tool_calling_requests_bill_the_price_they_were_routed_at(
+    gateway: Callable[..., _Gateway], monkeypatch: pytest.MonkeyPatch, stream: bool
+) -> None:
+    """Tool requests (streamed ones make one non-streaming call) keep the routed price."""
+    _price_at(monkeypatch, DEC_1)
+    routed_at = [LAST_SECOND_OF_NOV_30]
+    gw = gateway(ARGON, clock=lambda: routed_at[0])
+    tool = {
+        "type": "function",
+        "function": {"name": "lookup_order", "parameters": {"type": "object", "properties": {}}},
+    }
+    body = {
+        "messages": [{"role": "user", "content": "Draft a reply."}],
+        "max_tokens": 1_000,
+        "user": "alice",
+        "stream": stream,
+        "tools": [tool],
+    }
+    headers = {"X-Router-Strategy": "failover-priority"}
+
+    assert gw.client.post("/v1/chat/completions", json=body, headers=headers).status_code == 200
+    routed_at[0] = DEC_1
+    assert gw.client.post("/v1/chat/completions", json=body, headers=headers).status_code == 200
+
+    assert gw.audit_costs() == [pytest.approx(_cost(2.0, 10.0)), pytest.approx(_cost(4.0, 20.0))]
+
+
 def test_a_naive_clock_is_rejected(gateway: Callable[..., _Gateway]) -> None:
     """Prices are compared with UTC instants, so the clock must be timezone-aware."""
     with pytest.raises(ValueError, match="timezone-aware"):
