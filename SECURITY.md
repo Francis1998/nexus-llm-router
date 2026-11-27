@@ -48,6 +48,14 @@ derives a deterministic, non-reversible fingerprint instead
 Only the fingerprint appears in HTTP 429/503 error details, `GET /v1/spend`
 `by_tenant` keys, the SQLite spend ledger and idempotency store, and logs.
 
+With `NEXUS_AUTH_MODE=virtual_keys` the identity is the issued key's id
+(`vk_...`, or `master` for the master key) instead of a fingerprint, every
+endpoint accepts `Authorization: Bearer` or `x-api-key` (both must agree), and
+unknown keys are refused with a 401 that never echoes them. Issued secrets are
+stored only as HMAC-SHA-256 digests under `NEXUS_KEY_HASH_PEPPER`; see
+[SAFETY.md](SAFETY.md#virtual-keys) and
+[docs/guides/VIRTUAL_KEYS_GUIDE.md](docs/guides/VIRTUAL_KEYS_GUIDE.md#security-notes).
+
 ### Upgrading from builds before this fix
 
 Earlier builds used the raw header (for example `Bearer sk-...`) as the

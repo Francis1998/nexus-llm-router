@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
@@ -147,3 +148,30 @@ def test_spend_api_post_and_get(tmp_path: Path, monkeypatch: MonkeyPatch) -> Non
     get = client.get("/v1/spend", params={"tenant": "demo"})
     assert get.status_code == 200
     assert get.json()["total_cost_usd"] == 0.42
+
+
+def test_ledgers_without_api_key_ids_gain_the_column_in_place(tmp_path: Path) -> None:
+    """Older ledgers keep their rows (``api_key_id`` NULL) and record keys from then on."""
+    import sqlite3
+
+    db_path = tmp_path / "old-ledger.sqlite3"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "CREATE TABLE spend_events (id INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT "
+            "NOT NULL, tenant TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, "
+            "cost_usd REAL NOT NULL, input_tokens INTEGER NOT NULL, output_tokens INTEGER "
+            "NOT NULL, recorded_at REAL NOT NULL)"
+        )
+        connection.execute(
+            "INSERT INTO spend_events VALUES (NULL, 'old', 'acme', 'openai', 'gpt-6.2-sol', "
+            "0.5, 10, 20, 1.0)"
+        )
+    ledger = SpendLedger(db_path)
+    ledger.record(
+        request_id="new", tenant="acme", provider="openai", model="gpt-6.2-sol",
+        cost_usd=0.25, api_key_id="vk_team",
+    )
+    assert ledger.summary().total_cost_usd == pytest.approx(0.75)
+    assert ledger.summary(api_key_id="vk_team").total_cost_usd == pytest.approx(0.25)
+    assert ledger.key_spend("vk_team") == (pytest.approx(0.25), 1)
+    assert SpendLedger(db_path).key_spend("vk_team", since=2.0) == (pytest.approx(0.25), 1)

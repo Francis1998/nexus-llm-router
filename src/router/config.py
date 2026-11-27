@@ -3,9 +3,17 @@
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal, Self
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from router.feedback import DEFAULT_FEEDBACK_WINDOW_SECONDS, METRIC_PATTERN
@@ -25,6 +33,10 @@ from router.model_ids import (
 )
 from router.schemas import DomainTag, LongPromptPricing, ModelCandidate, RoutingStrategyName
 
+# Admin and hashing secrets shorter than this are refused (``openssl rand -hex 32`` gives 64).
+MASTER_KEY_MIN_LENGTH = 16
+KEY_HASH_PEPPER_MIN_LENGTH = 16
+
 
 class ProviderSettings(BaseSettings):
     """Provider API settings loaded from environment variables."""
@@ -42,7 +54,10 @@ class ProviderSettings(BaseSettings):
 class RouterSettings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="NEXUS_", extra="ignore")
+    # The master key and hashing pepper are secrets: keep rejected values out of errors.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_prefix="NEXUS_", extra="ignore", hide_input_in_errors=True
+    )
 
     app_name: str = "nexus-llm-router"
     environment: str = "development"
@@ -176,6 +191,21 @@ class RouterSettings(BaseSettings):
     feedback_metric: Annotated[str, Field(pattern=METRIC_PATTERN)] = "quality"
     feedback_min_samples: Annotated[int, Field(ge=1)] = 20
     feedback_window_seconds: Annotated[float, Field(gt=0.0)] = DEFAULT_FEEDBACK_WINDOW_SECONDS
+    # ``open`` keeps today's behaviour: any Authorization value is fingerprinted and
+    # served. ``virtual_keys`` admits only the master key and keys it issued.
+    auth_mode: Literal["open", "virtual_keys"] = "open"
+    master_key: Annotated[SecretStr | None, Field(min_length=MASTER_KEY_MIN_LENGTH)] = None
+    virtual_keys_path: str = "migrations/virtual-keys.sqlite3"
+    key_hash_pepper: Annotated[SecretStr | None, Field(min_length=KEY_HASH_PEPPER_MIN_LENGTH)] = (
+        None
+    )
+
+    @model_validator(mode="after")
+    def _require_master_key_for_virtual_keys(self) -> Self:
+        """Refuse ``virtual_keys`` mode without an admin master key."""
+        if self.auth_mode == "virtual_keys" and self.master_key is None:
+            raise ValueError("NEXUS_MASTER_KEY is required when NEXUS_AUTH_MODE=virtual_keys")
+        return self
 
 
 def default_model_catalog() -> dict[str, ModelCandidate]:

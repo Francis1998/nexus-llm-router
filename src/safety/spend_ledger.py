@@ -22,6 +22,7 @@ class SpendRecord:
     input_tokens: int
     output_tokens: int
     recorded_at: float
+    api_key_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,10 @@ class SpendLedger:
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        # Records whose write failed with ``retain_on_failure``, oldest first. Their
+        # own lock keeps admission checks from waiting on a slow ledger write.
+        self._unsettled: list[SpendRecord] = []
+        self._unsettled_lock = threading.Lock()
         self._initialize()
 
     @property
@@ -86,6 +91,21 @@ class SpendLedger:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_spend_provider ON spend_events(provider)"
             )
+            columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(spend_events)")
+            }
+            if "api_key_id" not in columns:
+                # Ledgers created before per-key attribution: their rows keep NULL.
+                try:
+                    connection.execute("ALTER TABLE spend_events ADD COLUMN api_key_id TEXT")
+                except sqlite3.OperationalError as error:
+                    # Another process added the column first.
+                    if "duplicate column" not in str(error):
+                        raise
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_spend_api_key "
+                "ON spend_events(api_key_id, recorded_at)"
+            )
             connection.commit()
 
     def record(
@@ -99,6 +119,8 @@ class SpendLedger:
         input_tokens: int = 0,
         output_tokens: int = 0,
         recorded_at: float | None = None,
+        api_key_id: str | None = None,
+        retain_on_failure: bool = False,
     ) -> SpendRecord:
         """Persist a spend event and return the stored record.
 
@@ -111,9 +133,17 @@ class SpendLedger:
             input_tokens: Prompt tokens.
             output_tokens: Completion tokens.
             recorded_at: Optional unix timestamp; defaults to now.
+            api_key_id: Gateway API key the request was made with (a virtual
+                key id or a key fingerprint, never the secret).
+            retain_on_failure: Keep the record in memory when the write fails,
+                so :meth:`has_unsettled` reports it and :meth:`settle` retries it.
 
         Returns:
             The durable spend record.
+
+        Raises:
+            sqlite3.Error: When the write fails.
+            OSError: When the database file cannot be written.
         """
         stamp = time.time() if recorded_at is None else float(recorded_at)
         record = SpendRecord(
@@ -125,14 +155,51 @@ class SpendLedger:
             input_tokens=int(input_tokens),
             output_tokens=int(output_tokens),
             recorded_at=stamp,
+            api_key_id=api_key_id,
         )
+        try:
+            self._insert(record)
+        except (sqlite3.Error, OSError):
+            if retain_on_failure:
+                with self._unsettled_lock:
+                    self._unsettled.append(record)
+            raise
+        return record
+
+    def has_unsettled(self, api_key_id: str) -> bool:
+        """Return whether a retained record of ``api_key_id`` is not in the ledger yet.
+
+        Args:
+            api_key_id: Gateway API key id.
+
+        Returns:
+            ``True`` while a failed write of the key is waiting for :meth:`settle`.
+        """
+        with self._unsettled_lock:
+            return any(record.api_key_id == api_key_id for record in self._unsettled)
+
+    def settle(self) -> None:
+        """Retry writing every retained record; records that fail again stay retained."""
+        with self._unsettled_lock:
+            pending, self._unsettled = self._unsettled, []
+        failed: list[SpendRecord] = []
+        for record in pending:
+            try:
+                self._insert(record)
+            except (sqlite3.Error, OSError):
+                failed.append(record)
+        if failed:
+            with self._unsettled_lock:
+                self._unsettled = failed + self._unsettled
+
+    def _insert(self, record: SpendRecord) -> None:
         with self._lock, self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO spend_events (
                     request_id, tenant, provider, model, cost_usd,
-                    input_tokens, output_tokens, recorded_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    input_tokens, output_tokens, recorded_at, api_key_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.request_id,
@@ -143,10 +210,10 @@ class SpendLedger:
                     record.input_tokens,
                     record.output_tokens,
                     record.recorded_at,
+                    record.api_key_id,
                 ),
             )
             connection.commit()
-        return record
 
     def summary(
         self,
@@ -156,6 +223,7 @@ class SpendLedger:
         model: str | None = None,
         since: float | None = None,
         until: float | None = None,
+        api_key_id: str | None = None,
     ) -> SpendSummary:
         """Aggregate spend with optional filters.
 
@@ -167,6 +235,7 @@ class SpendLedger:
                 ``recorded_at >= since``).
             until: Optional unix timestamp upper bound (exclusive:
                 ``recorded_at < until``).
+            api_key_id: Optional gateway API key filter.
 
         Returns:
             Aggregated spend summary.
@@ -188,6 +257,9 @@ class SpendLedger:
         if until is not None:
             clauses.append("recorded_at < ?")
             params.append(float(until))
+        if api_key_id:
+            clauses.append("api_key_id = ?")
+            params.append(api_key_id)
         # WHERE fragments are fixed allowlisted clauses only; values are bound
         # via ``params`` (no user-controlled SQL identifiers).
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
@@ -232,3 +304,22 @@ class SpendLedger:
             by_provider=by_provider,
             by_model=by_model,
         )
+
+    def key_spend(self, api_key_id: str, *, since: float | None = None) -> tuple[float, int]:
+        """Return ``(total USD, request count)`` recorded for one API key.
+
+        Args:
+            api_key_id: Gateway API key id (for example a virtual key id).
+            since: Optional unix timestamp lower bound (inclusive).
+
+        Returns:
+            Spend and number of ledger rows for the key since ``since``.
+        """
+        # A read on its own connection: budget checks never queue behind writes.
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0), COUNT(*) FROM spend_events "
+                "WHERE api_key_id = ? AND recorded_at >= ?",
+                (api_key_id, float("-inf") if since is None else float(since)),
+            ).fetchone()
+        return float(row[0]), int(row[1])

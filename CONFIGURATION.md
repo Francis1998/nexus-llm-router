@@ -2709,9 +2709,36 @@ non-streaming completions. See
 
 
 
-## Virtual keys
+## Virtual Keys
 
-Optional SQLite virtual key store path can be configured for tenant auth/budget checks. See `docs/guides/VIRTUAL_KEYS_GUIDE.md`.
+`NEXUS_AUTH_MODE` selects how model endpoints admit callers. `open` (the
+default) keeps the historical behaviour: any `Authorization` value is reduced
+to a fingerprint and served. `virtual_keys` admits only the master key and the
+keys it issued through `/v1/keys`, enforcing each key's budget window, model
+allowlist, RPM limit, expiry, tenant binding, and blocked/revoked state on
+every model endpoint.
+
+```dotenv
+NEXUS_AUTH_MODE=virtual_keys
+NEXUS_MASTER_KEY=<openssl rand -hex 32>
+NEXUS_VIRTUAL_KEYS_PATH=migrations/virtual-keys.sqlite3
+NEXUS_KEY_HASH_PEPPER=<openssl rand -hex 32>
+```
+
+`NEXUS_MASTER_KEY` (at least 16 characters) is the admin credential for
+`/v1/keys*`; it is required in `virtual_keys` mode (the app refuses to start
+without it) and optional in `open` mode, where setting it enables the admin API
+so keys can be issued before enforcement is turned on. It is compared in
+constant time and never logged. `NEXUS_VIRTUAL_KEYS_PATH` is the SQLite key
+store (hashes, display prefixes, and limits; never secrets); every worker must
+share it and `NEXUS_SPEND_LEDGER_PATH`, whose `api_key_id` column holds each
+key's spend. `NEXUS_KEY_HASH_PEPPER` (at least 16 characters) keys the
+HMAC-SHA-256 of every issued key; without it nexus uses a public constant and
+logs `virtual_keys_unpeppered` at startup, and changing it invalidates every
+issued key. Budget windows (`budget_duration`) are fixed UTC windows: `Nm` /
+`Nh` / `Nd` aligned to the Unix epoch, `Nw` starting on Mondays, `Nmo` on the
+first of a month. See
+[docs/guides/VIRTUAL_KEYS_GUIDE.md](docs/guides/VIRTUAL_KEYS_GUIDE.md).
 
 
 ## Prompt injection gateway

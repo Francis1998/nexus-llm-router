@@ -82,6 +82,23 @@ curl -s "http://localhost:8000/v1/feedback/summary?group_by=model" -H "Authoriza
 Send `X-Router-Strategy: feedback-aware` to route by that feedback once enough
 has been collected; see [docs/guides/FEEDBACK_LOOP_GUIDE.md](docs/guides/FEEDBACK_LOOP_GUIDE.md).
 
+Give each team its own key, budget, and model list (virtual keys). Restart with
+a master key and enforcement on, issue a key, and call with it:
+
+```bash
+export NEXUS_MASTER_KEY=$(openssl rand -hex 32) NEXUS_KEY_HASH_PEPPER=$(openssl rand -hex 32)
+NEXUS_AUTH_MODE=virtual_keys PYTHONPATH=src python scripts/serve_mock.py --port 8000 &
+curl -s http://localhost:8000/v1/keys \
+  -H "Authorization: Bearer $NEXUS_MASTER_KEY" -H "Content-Type: application/json" \
+  -d '{"alias":"search-team","models":["gpt-6.2-sol"],"max_budget_usd":5,"budget_duration":"1d","rpm_limit":60}'
+# copy "key" from the response (it is shown only once), then:
+curl -s http://localhost:8000/v1/key/info -H "Authorization: Bearer <key>"
+```
+
+Requests without an issued key now get 401, models outside the key's list 403,
+an exhausted daily budget 402, and a revoked key (`DELETE /v1/keys/<id>`) 401;
+see [docs/guides/VIRTUAL_KEYS_GUIDE.md](docs/guides/VIRTUAL_KEYS_GUIDE.md).
+
 ## 4. Run the Offline Demo
 
 The demo uses mock providers and prints model choice plus rationale traces.

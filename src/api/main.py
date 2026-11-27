@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
@@ -9,7 +10,7 @@ from time import time
 from typing import Annotated, Literal
 from uuid import uuid4
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.exception_handlers import (
     http_exception_handler,
     request_validation_exception_handler,
@@ -21,6 +22,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from adapters.registry import AdapterRegistry, build_adapter_registry
 from api import anthropic_messages
 from api import feedback as feedback_api
+from api import keys as keys_api
 from api.anthropic_messages import COUNT_TOKENS_PATH, MESSAGES_PATH
 from api.errors import (
     ROUTING_ERRORS,
@@ -30,6 +32,17 @@ from api.errors import (
     routing_error,
 )
 from api.feedback import FEEDBACK_PATH, FEEDBACK_SUMMARY_PATH
+from api.keys import (
+    KEY_INFO_PATH,
+    KEY_PATH,
+    KEY_REVOKE_PATH,
+    KEY_ROTATE_PATH,
+    KEYS_PATH,
+    KeyAdmin,
+    KeyCreateRequest,
+    KeyGate,
+    KeyUpdateRequest,
+)
 from api.models import model_object
 from api.responses import (
     RESPONSES_PATH,
@@ -71,7 +84,13 @@ from router.analyzer import estimate_prompt_tokens
 from router.config import RouterSettings, load_settings
 from router.engine import NexusRouter, RoutingFailedError
 from router.feedback import METRIC_PATTERN, FeedbackKindConflictError, FeedbackScope, FeedbackStore
-from router.schemas import ChatMessage, RouterRequest, RouterResponse, RoutingStrategyName
+from router.schemas import (
+    ChatMessage,
+    KeyLimits,
+    RouterRequest,
+    RouterResponse,
+    RoutingStrategyName,
+)
 from safety.budget import BudgetExceededError
 from safety.gateway_guards import GatewayGuardService
 from safety.idempotency import (
@@ -88,9 +107,25 @@ from safety.key_fingerprint import (
 from safety.rate_limiter import RateLimitExceededError
 from safety.spend_ledger import SpendLedger
 from safety.tenant_rate_limiter import TenantRateLimiter, TenantRateLimitExceededError
+from safety.virtual_keys import KeyRateLimiter, VirtualKeyStore
+
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Validate settings at startup so a misconfigured gateway fails before serving."""
+    settings = get_settings()
+    if settings.auth_mode == "virtual_keys":
+        get_virtual_key_store()
+        if settings.key_hash_pepper is None:
+            _logger.warning(
+                "virtual_keys_unpeppered",
+                hint="set NEXUS_KEY_HASH_PEPPER so a copy of the key store cannot verify keys",
+            )
+    yield
+
 
 configure_logging()
-app = FastAPI(title="Nexus LLM Router", version="0.1.0")
+app = FastAPI(title="Nexus LLM Router", version="0.1.0", lifespan=_lifespan)
 configure_tracing(app, "nexus-llm-router")
 _logger = get_logger(__name__)
 # Feedback metric names are client-chosen; cap the Prometheus label values.
@@ -189,6 +224,68 @@ def get_tenant_rate_limiter() -> TenantRateLimiter:
 
 
 @lru_cache(maxsize=1)
+def get_virtual_key_store() -> VirtualKeyStore:
+    """Return the durable virtual-key store.
+
+    Returns:
+        Virtual key store at ``NEXUS_VIRTUAL_KEYS_PATH``.
+    """
+    settings = get_settings()
+    pepper = settings.key_hash_pepper
+    return VirtualKeyStore(
+        settings.virtual_keys_path,
+        pepper=None if pepper is None else pepper.get_secret_value(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_key_rate_limiter() -> KeyRateLimiter:
+    """Return the per-virtual-key RPM limiter.
+
+    Returns:
+        Key rate limiter instance.
+    """
+    return KeyRateLimiter()
+
+
+def get_key_gate() -> KeyGate:
+    """Return the gate that authenticates credentials against the virtual-key store.
+
+    The gate reads the router's own spend ledger, which also holds the virtual-key
+    spend whose write failed until it is settled.
+
+    Returns:
+        Key gate over the current settings, store, ledger, and catalog.
+    """
+    router = get_router()
+    return KeyGate(
+        settings=get_settings(),
+        store=get_virtual_key_store(),
+        ledger=router.spend_ledger,
+        catalog=router.model_catalog,
+        rate_limiter=get_key_rate_limiter(),
+    )
+
+
+def get_key_admin() -> KeyAdmin:
+    """Return the key admin service behind ``/v1/keys``.
+
+    Returns:
+        Key admin service.
+    """
+    return KeyAdmin(
+        store=get_virtual_key_store(),
+        ledger=get_spend_ledger(),
+        catalog=get_router().model_catalog,
+    )
+
+
+def _virtual_keys_enforced() -> bool:
+    """Return whether model endpoints admit only the master key and issued keys."""
+    return get_settings().auth_mode == "virtual_keys"
+
+
+@lru_cache(maxsize=1)
 def get_gateway_guards() -> GatewayGuardService:
     """Return the composed gateway guard service.
 
@@ -232,6 +329,7 @@ class _Caller:
     api_key_id: str
     end_user: str | None
     tenant_id: str | None
+    key_limits: KeyLimits | None = None
 
     @property
     def principal(self) -> str:
@@ -244,9 +342,21 @@ class _Caller:
 
         A cache hit replays the original ``request_id`` and routing decision, so
         it must stay with the caller allowed to rate that request (and, for
-        ``feedback-aware``, the caller whose feedback chose the model).
+        ``feedback-aware``, the caller whose feedback chose the model). A virtual
+        key's model allowlist is part of it, so narrowing the allowlist never
+        replays an answer from a model the key may no longer use. JSON keeps the
+        fields apart whatever the client-chosen tenant and end-user ids contain.
         """
-        return f"{self.api_key_id}|{self.tenant_id or ''}|{self.principal}"
+        limits = self.key_limits
+        allowed = None if limits is None or limits.allowed_models is None else limits.allowed_models
+        return json.dumps(
+            [
+                self.api_key_id,
+                self.tenant_id or "",
+                self.principal,
+                None if allowed is None else sorted(allowed),
+            ]
+        )
 
     @property
     def idempotency_tenant(self) -> str:
@@ -281,18 +391,49 @@ def _admit_caller(
     tenant_id: str | None,
     end_user: str | None,
     *,
-    api_key_id: str | None = None,
+    x_api_key: bool = False,
+    model: str | None = None,
+    metered: bool = False,
 ) -> _Caller:
-    """Fingerprint the API key and enforce the optional hard tenant rate limit.
+    """Identify the API key and enforce the optional hard tenant rate limit.
 
-    ``api_key_id`` replaces the ``Authorization`` fingerprint for endpoints that
-    also accept another credential header (``x-api-key`` on ``/v1/messages``).
+    In ``open`` mode the key is only fingerprinted. In ``virtual_keys`` mode it
+    must be the master key or an active virtual key (sent as ``Authorization``
+    or ``x-api-key``), whose id identifies the caller and whose limits travel
+    with the request (see ``KeyGate.admit``).
+
+    Args:
+        request: FastAPI request object.
+        tenant_id: ``X-Tenant-Id`` header value.
+        end_user: End-user id from the body, if any.
+        x_api_key: Whether ``open`` mode also fingerprints ``x-api-key``
+            (``/v1/messages*``, ``/v1/feedback*``).
+        model: Model the request names (checked against the key's allowlist).
+        metered: Whether the request may spend (budget and RPM limits apply).
+
+    Returns:
+        The admitted caller.
     """
-    # Never use the raw Authorization header as an identifier: it would leak the
-    # secret into error details, the spend ledger, and idempotency/cache tenants.
-    if api_key_id is None:
+    key_limits: KeyLimits | None = None
+    if _virtual_keys_enforced():
+        access = get_key_gate().admit(
+            request.headers.get("authorization"),
+            request.headers.get("x-api-key"),
+            model=model,
+            tenant_id=tenant_id,
+            metered=metered,
+        )
+        api_key_id, key_limits = access.api_key_id, access.limits
+        tenant_id = access.tenant(tenant_id)
+    elif x_api_key:
+        api_key_id = _anthropic_api_key_id(request)
+    else:
+        # Never use the raw Authorization header as an identifier: it would leak the
+        # secret into error details, the spend ledger, and idempotency/cache tenants.
         api_key_id = fingerprint_api_key(request.headers.get("authorization"))
-    caller = _Caller(api_key_id=api_key_id, end_user=end_user, tenant_id=tenant_id)
+    caller = _Caller(
+        api_key_id=api_key_id, end_user=end_user, tenant_id=tenant_id, key_limits=key_limits
+    )
     # Hard tenant limit only when X-Tenant-Id is present (backward compatible).
     if tenant_id:
         try:
@@ -305,6 +446,22 @@ def _admit_caller(
                 code="rate_limit_exceeded",
             ) from exception
     return caller
+
+
+def _key_access(request: Request, *, model: str | None = None) -> keys_api.KeyAccess | None:
+    """Authenticate a request that never spends, in ``virtual_keys`` mode only.
+
+    A tenant-bound key still refuses an ``X-Tenant-Id`` naming another tenant;
+    no budget, RPM, or tenant rate limit applies. Returns ``None`` in ``open`` mode.
+    """
+    if not _virtual_keys_enforced():
+        return None
+    return get_key_gate().admit(
+        request.headers.get("authorization"),
+        request.headers.get("x-api-key"),
+        model=model,
+        tenant_id=request.headers.get("x-tenant-id"),
+    )
 
 
 def _anthropic_api_key_id(request: Request) -> str:
@@ -395,40 +552,61 @@ async def _provider_model_health(router: NexusRouter) -> dict[str, ModelHealth]:
     return health
 
 
-@app.get("/v1/models")
-async def list_models() -> ModelList:
+@app.get("/v1/models", response_model=ModelList)
+async def list_models(request: Request) -> ModelList | JSONResponse:
     """List routable catalog models in the OpenAI format, with nexus metadata.
 
+    In ``virtual_keys`` mode the caller needs a valid key, and a key with a
+    model allowlist sees only the models it may use.
+
+    Args:
+        request: FastAPI request object.
+
     Returns:
-        OpenAI ``list`` of ``model`` objects in catalog order.
+        OpenAI ``list`` of ``model`` objects in catalog order, or an OpenAI-style error.
     """
+    try:
+        access = _key_access(request)
+    except GatewayError as error:
+        return _openai_error(error)
+    allowed = None if access is None else access.allowed_models
     router = get_router()
     health = await _provider_model_health(router)
     return ModelList(
         data=[
             model_object(candidate, health[candidate.provider])
             for candidate in router.model_catalog.values()
+            if allowed is None or candidate.model in allowed
         ]
     )
 
 
 @app.get("/v1/models/{model_id}", response_model=None)
-async def retrieve_model(model_id: str) -> ModelObject | JSONResponse:
+async def retrieve_model(model_id: str, request: Request) -> ModelObject | JSONResponse:
     """Return one catalog model, or an OpenAI-style 404 for unknown ids.
+
+    In ``virtual_keys`` mode a model outside the calling key's allowlist is a
+    404 as well.
 
     Args:
         model_id: Model identifier such as ``gpt-6.2-astra``.
+        request: FastAPI request object.
 
     Returns:
         The ``model`` object, or a ``model_not_found`` error envelope.
     """
+    try:
+        access = _key_access(request)
+    except GatewayError as denied:
+        return _openai_error(denied)
+    allowed = None if access is None else access.allowed_models
     router = get_router()
     candidate = router.model_catalog.get(model_id)
-    if candidate is None:
-        error = GatewayError(
-            404, f"The model '{model_id}' does not exist", param="model", code="model_not_found"
-        )
-        return JSONResponse(status_code=404, content=error.to_openai_body())
+    if candidate is None or (allowed is not None and model_id not in allowed):
+        message = f"The model '{model_id}' does not exist"
+        if candidate is not None:
+            message += " or you do not have access to it"
+        return _openai_error(GatewayError(404, message, param="model", code="model_not_found"))
     health = await _provider_model_health(router)
     return model_object(candidate, health[candidate.provider])
 
@@ -460,7 +638,9 @@ async def chat_completions(
         return JSONResponse(status_code=invalid.status_code, content=invalid.to_openai_body())
     try:
         strategy = _parse_strategy(x_router_strategy)
-        caller = _admit_caller(request, x_tenant_id, payload.user)
+        caller = _admit_caller(
+            request, x_tenant_id, payload.user, model=payload.model, metered=True
+        )
     except GatewayError as exception:
         raise HTTPException(exception.status_code, detail=exception.message) from exception
     guards = get_gateway_guards()
@@ -490,6 +670,7 @@ async def chat_completions(
             request_id=uuid4().hex,
             messages=payload.messages,
             api_key_id=caller.api_key_id,
+            key_limits=caller.key_limits,
             tenant_id=caller.tenant_id,
             user_id=caller.principal,
             session_id=payload.user or "default",
@@ -521,11 +702,11 @@ async def chat_completions(
 async def request_validation_error_handler(
     request: Request, exception: RequestValidationError
 ) -> JSONResponse:
-    """Return API-style errors for ``/v1/responses``, ``/v1/messages*``, and ``/v1/feedback*``.
+    """Return API-style errors for the Responses, Messages, feedback, and key APIs.
 
-    ``/v1/responses`` gets an OpenAI-envelope 400, ``/v1/messages*`` the
-    Anthropic one, and ``/v1/feedback*`` an OpenAI-envelope 422; every other
-    route keeps FastAPI's 422s.
+    ``/v1/responses`` and ``/v1/keys*`` get an OpenAI-envelope 400,
+    ``/v1/messages*`` the Anthropic one, and ``/v1/feedback*`` an
+    OpenAI-envelope 422; every other route keeps FastAPI's 422s.
 
     Args:
         request: FastAPI request object.
@@ -541,10 +722,37 @@ async def request_validation_error_handler(
     if feedback_api.is_feedback_path(path):
         error = feedback_api.validation_error(exception.errors())
         return JSONResponse(status_code=error.status_code, content=error.to_openai_body())
+    if keys_api.is_keys_path(path):
+        if path != KEY_INFO_PATH:
+            # A body that is not JSON fails before route dependencies run, so
+            # authenticate here too: unauthenticated callers only ever see a 401 / 403.
+            try:
+                _require_master_key(request)
+            except GatewayError as denied:
+                return _openai_error(denied)
+        return _openai_error(keys_api.validation_error(exception.errors()))
     if path != RESPONSES_PATH:
         return await request_validation_exception_handler(request, exception)
     error = validation_error(exception.errors())
     return JSONResponse(status_code=error.status_code, content=error.to_openai_body())
+
+
+@app.exception_handler(GatewayError)
+async def gateway_error_handler(request: Request, exception: GatewayError) -> JSONResponse:
+    """Render a ``GatewayError`` raised by a route dependency (the key checks).
+
+    Args:
+        request: FastAPI request object.
+        exception: The error.
+
+    Returns:
+        An Anthropic envelope below ``/v1/messages``, an OpenAI envelope elsewhere.
+    """
+    if anthropic_messages.is_messages_path(request.url.path):
+        return JSONResponse(
+            status_code=exception.status_code, content=exception.to_anthropic_body()
+        )
+    return _openai_error(exception)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -607,7 +815,7 @@ async def _create_response(
     messages = to_router_messages(payload)
     strategy = _parse_strategy(x_router_strategy)
     end_user = payload.safety_identifier or payload.user
-    caller = _admit_caller(request, x_tenant_id, end_user)
+    caller = _admit_caller(request, x_tenant_id, end_user, model=payload.model, metered=True)
     guards = get_gateway_guards()
     reservation: IdempotencyReservation | None = None
     if idempotency_key and not payload.stream:
@@ -644,6 +852,7 @@ async def _route_response(
         request_id=uuid4().hex,
         messages=messages,
         api_key_id=caller.api_key_id,
+        key_limits=caller.key_limits,
         tenant_id=caller.tenant_id,
         user_id=caller.principal,
         session_id=end_user or "default",
@@ -762,7 +971,7 @@ async def _create_message(
     strategy = _parse_strategy(x_router_strategy)
     end_user = payload.metadata.user_id if payload.metadata else None
     caller = _admit_caller(
-        request, x_tenant_id, end_user, api_key_id=_anthropic_api_key_id(request)
+        request, x_tenant_id, end_user, x_api_key=True, model=payload.model, metered=True
     )
     guards = get_gateway_guards()
     reservation: IdempotencyReservation | None = None
@@ -797,6 +1006,7 @@ async def _route_message(
         request_id=uuid4().hex,
         messages=messages,
         api_key_id=caller.api_key_id,
+        key_limits=caller.key_limits,
         tenant_id=caller.tenant_id,
         user_id=caller.principal,
         session_id=caller.end_user or "default",
@@ -855,7 +1065,8 @@ async def count_message_tokens(
     try:
         anthropic_messages.reject_unsupported(payload)
         messages = anthropic_messages.to_router_messages(payload)
-        _anthropic_api_key_id(request)
+        if _key_access(request, model=payload.model) is None:
+            _anthropic_api_key_id(request)
     except GatewayError as exception:
         return JSONResponse(
             status_code=exception.status_code, content=exception.to_anthropic_body()
@@ -929,21 +1140,33 @@ def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:
 
 @app.get("/v1/spend", response_model=SpendSummaryResponse)
 def get_spend(
+    request: Request,
     tenant: str | None = None,
     provider: str | None = None,
     model: str | None = None,
-) -> SpendSummaryResponse:
+) -> SpendSummaryResponse | JSONResponse:
     """Return aggregated spend from the durable ledger.
 
+    In ``virtual_keys`` mode the caller needs a valid key: the master key sees
+    every request, a virtual key only the requests made with it.
+
     Args:
+        request: FastAPI request object.
         tenant: Optional tenant filter.
         provider: Optional provider filter.
         model: Optional model filter.
 
     Returns:
-        Spend summary payload.
+        Spend summary payload, or an OpenAI-style error.
     """
-    summary = get_spend_ledger().summary(tenant=tenant, provider=provider, model=model)
+    try:
+        access = _key_access(request)
+    except GatewayError as error:
+        return _openai_error(error)
+    api_key_id = None if access is None or access.is_master else access.api_key_id
+    summary = get_spend_ledger().summary(
+        tenant=tenant, provider=provider, model=model, api_key_id=api_key_id
+    )
     return SpendSummaryResponse(
         total_cost_usd=summary.total_cost_usd,
         request_count=summary.request_count,
@@ -953,9 +1176,28 @@ def get_spend(
     )
 
 
-@app.post("/v1/spend", response_model=SpendSummaryResponse)
+def _require_master_key(request: Request) -> None:
+    """Admit only the master key; raise the 401 / 403 ``GatewayError`` otherwise."""
+    get_key_gate().authorize_admin(
+        request.headers.get("authorization"), request.headers.get("x-api-key")
+    )
+
+
+def _require_master_key_when_enforced(request: Request) -> None:
+    """Admit only the master key in ``virtual_keys`` mode; admit everyone in ``open`` mode."""
+    if _virtual_keys_enforced():
+        _require_master_key(request)
+
+
+@app.post(
+    "/v1/spend",
+    response_model=SpendSummaryResponse,
+    dependencies=[Depends(_require_master_key_when_enforced)],
+)
 def post_spend(payload: SpendRecordRequest) -> SpendSummaryResponse:
     """Record a spend event (portfolio / demo ingestion) and return summary.
+
+    In ``virtual_keys`` mode only the master key may write ledger rows.
 
     Args:
         payload: Spend event to persist.
@@ -995,7 +1237,7 @@ def _feedback_scope(request: Request, x_tenant_id: str | None) -> FeedbackScope:
     for requests made through ``/v1/chat/completions``, ``/v1/responses``, and
     ``/v1/messages`` alike.
     """
-    caller = _admit_caller(request, x_tenant_id, None, api_key_id=_anthropic_api_key_id(request))
+    caller = _admit_caller(request, x_tenant_id, None, x_api_key=True)
     return FeedbackScope(api_key_id=caller.api_key_id, tenant_id=caller.tenant_id)
 
 
@@ -1101,3 +1343,171 @@ def feedback_summary(
     )
     body = feedback_api.summary_response(summary, since_utc).model_dump(mode="json")
     return JSONResponse(content=body)
+
+
+@app.post(KEYS_PATH, response_model=None, dependencies=[Depends(_require_master_key)])
+def create_key(payload: KeyCreateRequest) -> JSONResponse:
+    """Issue a virtual key (master key only); the response is the only time its secret is shown.
+
+    Args:
+        payload: Key fields: alias, tenant, models, budget, window, RPM limit,
+            expiry, metadata, and whether it starts blocked.
+
+    Returns:
+        The new ``virtual_key`` object with its secret ``key``, or an OpenAI-style error.
+    """
+    try:
+        created = get_key_admin().create(payload)
+    except GatewayError as error:
+        return _openai_error(error)
+    _logger.info("virtual_key_created", key_id=created.id, key_prefix=created.key_prefix)
+    return JSONResponse(content=created.model_dump(mode="json"))
+
+
+@app.get(KEYS_PATH, response_model=None, dependencies=[Depends(_require_master_key)])
+def list_keys(
+    alias: str | None = None,
+    tenant: str | None = None,
+    blocked: bool | None = None,
+    expired: bool | None = None,
+    revoked: bool | None = None,
+    limit: Annotated[int, Query(ge=1, le=keys_api.MAX_PAGE_SIZE)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> JSONResponse:
+    """List virtual keys, newest first, without secrets (master key only).
+
+    Revoked keys stay listed (``status: revoked``) unless ``revoked=false``.
+
+    Args:
+        alias: Only keys with this alias.
+        tenant: Only keys bound to this tenant.
+        blocked: Only blocked (``true``) or unblocked (``false``) keys.
+        expired: Only keys past (``true``) or before (``false``) their expiry.
+        revoked: Only revoked (``true``) or unrevoked (``false``) keys.
+        limit: Page size (1-100).
+        offset: Number of matching keys to skip.
+
+    Returns:
+        An OpenAI-style ``list`` page with ``total`` and ``has_more``.
+    """
+    page = get_key_admin().list_keys(
+        alias=alias,
+        tenant=tenant,
+        blocked=blocked,
+        expired=expired,
+        revoked=revoked,
+        limit=limit,
+        offset=offset,
+    )
+    return JSONResponse(content=page.model_dump(mode="json"))
+
+
+@app.get(KEY_PATH, response_model=None, dependencies=[Depends(_require_master_key)])
+def retrieve_key(key_id: str) -> JSONResponse:
+    """Return one virtual key with its current spend (master key only).
+
+    Args:
+        key_id: Key id such as ``vk_...``.
+
+    Returns:
+        The ``virtual_key`` object, or an OpenAI-style 404.
+    """
+    try:
+        key = get_key_admin().get(key_id)
+    except GatewayError as error:
+        return _openai_error(error)
+    return JSONResponse(content=key.model_dump(mode="json"))
+
+
+@app.patch(KEY_PATH, response_model=None, dependencies=[Depends(_require_master_key)])
+def update_key(key_id: str, payload: KeyUpdateRequest) -> JSONResponse:
+    """Change a key's limits (master key only); ``null`` clears a limit, omitted fields stay.
+
+    Args:
+        key_id: Key id.
+        payload: Fields to change.
+
+    Returns:
+        The updated ``virtual_key`` object, or an OpenAI-style error.
+    """
+    try:
+        key = get_key_admin().update(key_id, payload)
+    except GatewayError as error:
+        return _openai_error(error)
+    _logger.info("virtual_key_updated", key_id=key.id, fields=sorted(payload.model_fields_set))
+    return JSONResponse(content=key.model_dump(mode="json"))
+
+
+def _revoke_key(key_id: str) -> JSONResponse:
+    try:
+        key = get_key_admin().revoke(key_id)
+    except GatewayError as error:
+        return _openai_error(error)
+    _logger.info("virtual_key_revoked", key_id=key.id)
+    return JSONResponse(content=key.model_dump(mode="json"))
+
+
+@app.delete(KEY_PATH, response_model=None, dependencies=[Depends(_require_master_key)])
+def delete_key(key_id: str) -> JSONResponse:
+    """Revoke a key for good (master key only); it stays listed as ``revoked`` for audit.
+
+    Args:
+        key_id: Key id.
+
+    Returns:
+        The revoked ``virtual_key`` object, or an OpenAI-style 404.
+    """
+    return _revoke_key(key_id)
+
+
+@app.post(KEY_REVOKE_PATH, response_model=None, dependencies=[Depends(_require_master_key)])
+def revoke_key(key_id: str) -> JSONResponse:
+    """Revoke a key (same as ``DELETE /v1/keys/{key_id}``; master key only).
+
+    Args:
+        key_id: Key id.
+
+    Returns:
+        The revoked ``virtual_key`` object, or an OpenAI-style 404.
+    """
+    return _revoke_key(key_id)
+
+
+@app.post(KEY_ROTATE_PATH, response_model=None, dependencies=[Depends(_require_master_key)])
+def rotate_key(key_id: str) -> JSONResponse:
+    """Replace a key's secret (master key only); the old secret stops working at once.
+
+    The key id, limits, and spend are kept.
+
+    Args:
+        key_id: Key id.
+
+    Returns:
+        The ``virtual_key`` object with its new secret ``key``, or an OpenAI-style error.
+    """
+    try:
+        rotated = get_key_admin().rotate(key_id)
+    except GatewayError as error:
+        return _openai_error(error)
+    _logger.info("virtual_key_rotated", key_id=rotated.id, key_prefix=rotated.key_prefix)
+    return JSONResponse(content=rotated.model_dump(mode="json"))
+
+
+@app.get(KEY_INFO_PATH, response_model=None)
+def key_info(request: Request) -> JSONResponse:
+    """Describe the calling virtual key: limits, models, window spend, and reset time.
+
+    Args:
+        request: FastAPI request object (the key arrives as ``Authorization`` or
+            ``x-api-key``).
+
+    Returns:
+        The caller's ``virtual_key`` object (never its secret), or an OpenAI-style error.
+    """
+    try:
+        key = get_key_gate().describe(
+            request.headers.get("authorization"), request.headers.get("x-api-key")
+        )
+    except GatewayError as error:
+        return _openai_error(error)
+    return JSONResponse(content=key.model_dump(mode="json"))

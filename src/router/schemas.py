@@ -159,6 +159,20 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class KeyLimits(BaseModel):
+    """Limits of the gateway API key (virtual key) a request was admitted with.
+
+    The API layer attaches them; the engine routes only to ``allowed_models``
+    (``None`` permits every catalog model) and skips candidates whose estimated
+    cost exceeds ``remaining_budget_usd`` (``None`` means no key budget).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    allowed_models: frozenset[str] | None = None
+    remaining_budget_usd: float | None = None
+
+
 class RouterRequest(BaseModel):
     """Internal request shape consumed by the routing engine."""
 
@@ -167,6 +181,7 @@ class RouterRequest(BaseModel):
     request_id: str
     messages: list[ChatMessage]
     api_key_id: str = "anonymous"
+    key_limits: KeyLimits | None = None
     tenant_id: str | None = None
     user_id: str = "anonymous"
     session_id: str = "default"
