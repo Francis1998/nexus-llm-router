@@ -708,6 +708,13 @@ async def request_validation_error_handler(
         error = feedback_api.validation_error(exception.errors())
         return JSONResponse(status_code=error.status_code, content=error.to_openai_body())
     if keys_api.is_keys_path(path):
+        if path != KEY_INFO_PATH:
+            # A body that is not JSON fails before route dependencies run, so
+            # authenticate here too: unauthenticated callers only ever see a 401 / 403.
+            try:
+                _require_master_key(request)
+            except GatewayError as denied:
+                return _openai_error(denied)
         return _openai_error(keys_api.validation_error(exception.errors()))
     if path != RESPONSES_PATH:
         return await request_validation_exception_handler(request, exception)
