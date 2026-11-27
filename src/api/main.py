@@ -70,6 +70,13 @@ from api.schemas import (
     SpendRecordRequest,
     SpendSummaryResponse,
 )
+from api.tool_calling import (
+    TOOL_CALLING_UNSUPPORTED,
+    ToolCallingRequestError,
+    tool_call_stream_frames,
+    tool_request_error,
+    tool_validation_error,
+)
 from cache.response_cache import ResponseCache
 from observability.logging import configure_logging, get_logger
 from observability.metrics import (
@@ -519,6 +526,7 @@ async def _complete_cached(
         tenant=tenant,
         max_tokens=router_request.max_tokens,
         strategy=(router_request.strategy or get_settings().default_strategy).value,
+        tools=router_request.tool_config.canonical() if router_request.tool_config else None,
     )
     cached = cache.get(cache_key)
     if cached is not None:
@@ -636,6 +644,8 @@ async def chat_completions(
     """
     if (invalid := conversation_error(payload.messages, "messages")) is not None:
         return JSONResponse(status_code=invalid.status_code, content=invalid.to_openai_body())
+    if (invalid := tool_request_error(payload)) is not None:
+        return JSONResponse(status_code=invalid.status_code, content=invalid.to_openai_body())
     try:
         strategy = _parse_strategy(x_router_strategy)
         caller = _admit_caller(
@@ -678,8 +688,11 @@ async def chat_completions(
             strategy=strategy,
             max_tokens=payload.max_tokens,
             stream=payload.stream,
+            tool_config=payload.tool_config(),
         )
         if payload.stream:
+            if router_request.uses_tools:
+                return await _stream_tool_completion(router_request)
             return _stream_chat_completion(router_request)
 
         try:
@@ -687,7 +700,7 @@ async def chat_completions(
                 router_request, temperature=payload.temperature, tenant=caller.cache_namespace
             )
         except GatewayError as exception:
-            raise HTTPException(exception.status_code, detail=exception.message) from exception
+            raise _chat_error(exception) from exception
         completion = ChatCompletionResponse.from_router_response(router_response)
         if reservation is not None:
             guards.complete_idempotency(reservation, completion.model_dump_json())
@@ -706,7 +719,10 @@ async def request_validation_error_handler(
 
     ``/v1/responses`` and ``/v1/keys*`` get an OpenAI-envelope 400,
     ``/v1/messages*`` the Anthropic one, and ``/v1/feedback*`` an
-    OpenAI-envelope 422; every other route keeps FastAPI's 422s.
+    OpenAI-envelope 422. On ``/v1/chat/completions`` an invalid tool-calling
+    field (``tools``, ``tool_choice``, ``parallel_tool_calls``, or a message's
+    ``tool_calls`` / ``tool_call_id``) gets an OpenAI-envelope 400; every other
+    error there, and on every other route, keeps FastAPI's 422s.
 
     Args:
         request: FastAPI request object.
@@ -731,6 +747,12 @@ async def request_validation_error_handler(
             except GatewayError as denied:
                 return _openai_error(denied)
         return _openai_error(keys_api.validation_error(exception.errors()))
+    if path == _CHAT_COMPLETIONS_PATH:
+        tool_error = tool_validation_error(exception.errors())
+        if tool_error is not None:
+            return JSONResponse(
+                status_code=tool_error.status_code, content=tool_error.to_openai_body()
+            )
     if path != RESPONSES_PATH:
         return await request_validation_exception_handler(request, exception)
     error = validation_error(exception.errors())
@@ -753,6 +775,23 @@ async def gateway_error_handler(request: Request, exception: GatewayError) -> JS
             status_code=exception.status_code, content=exception.to_anthropic_body()
         )
     return _openai_error(exception)
+
+
+@app.exception_handler(ToolCallingRequestError)
+async def tool_calling_error_handler(
+    request: Request, exception: ToolCallingRequestError
+) -> JSONResponse:
+    """Answer tool-calling request errors with the OpenAI ``{"error": {...}}`` envelope.
+
+    Args:
+        request: FastAPI request object.
+        exception: Tool-calling failure carrying the gateway error.
+
+    Returns:
+        JSON error response.
+    """
+    error = exception.error
+    return JSONResponse(status_code=error.status_code, content=error.to_openai_body())
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -1074,6 +1113,36 @@ async def count_message_tokens(
     prompt_text = RouterRequest(request_id=uuid4().hex, messages=messages).prompt_text
     count = AnthropicTokenCount(input_tokens=estimate_prompt_tokens(prompt_text))
     return JSONResponse(content=count.model_dump())
+
+
+def _chat_error(error: GatewayError) -> Exception:
+    """Return the exception that answers a failed ``/v1/chat/completions`` request.
+
+    ``tool_calling_unsupported`` gets the OpenAI ``{"error": {...}}`` envelope,
+    like every other tool-calling 400; other routing errors keep the route's
+    FastAPI ``{"detail": ...}`` body.
+    """
+    if error.code == TOOL_CALLING_UNSUPPORTED:
+        return ToolCallingRequestError(error)
+    return HTTPException(error.status_code, detail=error.message)
+
+
+async def _stream_tool_completion(router_request: RouterRequest) -> StreamingResponse:
+    """Answer a streamed tool-calling request from one non-streaming provider call.
+
+    The routed completion is fetched in full (spend, audit, and fallbacks work
+    exactly as for non-streaming requests), then sent as OpenAI
+    ``chat.completion.chunk`` frames with ``delta.tool_calls``. Routing errors
+    therefore surface as HTTP errors before any event is sent, never as a
+    half-written stream.
+    """
+    try:
+        router_response = await get_router().complete(router_request)
+    except ROUTING_ERRORS as exception:
+        raise _chat_error(routing_error(exception)) from exception
+    return StreamingResponse(
+        iter(tool_call_stream_frames(router_response)), media_type="text/event-stream"
+    )
 
 
 def _stream_chat_completion(router_request: RouterRequest) -> StreamingResponse:

@@ -9,6 +9,7 @@ from router.engine import (
     ProviderRejectedRequestError,
     ResponseRecordingError,
     RoutingFailedError,
+    ToolCallingUnsupportedError,
     UnpricedModelError,
 )
 from router.schemas import ChatMessage
@@ -16,6 +17,8 @@ from safety.budget import BudgetExceededError
 from safety.rate_limiter import RateLimitExceededError
 
 ROUTING_ERRORS = (RateLimitExceededError, BudgetExceededError, RoutingFailedError)
+TOOL_CALLING_UNSUPPORTED = "tool_calling_unsupported"
+"""Error code when no model the strategy chose can call tools (HTTP 400)."""
 
 # Anthropic error ``type`` for each HTTP status nexus can return. Nexus keeps its
 # usual statuses on every endpoint (503 rather than Anthropic's 529 when every
@@ -135,7 +138,8 @@ def routing_error(
         429 for rate limits, 402 when the budget guardrail or the API key's
         budget refused every candidate, 403 (``no_eligible_model``) when none of
         the API key's models is in the catalog, the provider's 4xx when it
-        rejected the request itself, 500
+        rejected the request itself, 400 (``tool_calling_unsupported``) when the
+        request uses tools and no routed model supports tool calling, 500
         (``model_price_unknown``) when no candidate model has a price, 500
         (``response_recording_failed``) when a provider answered but nexus
         failed to record the request, and 503 when every provider attempt failed.
@@ -154,6 +158,8 @@ def routing_error(
         )
     if isinstance(exception, ProviderRejectedRequestError):
         return GatewayError(exception.status_code, str(exception), code="provider_rejected_request")
+    if isinstance(exception, ToolCallingUnsupportedError):
+        return GatewayError(400, str(exception), code=TOOL_CALLING_UNSUPPORTED)
     if isinstance(exception, UnpricedModelError):
         return GatewayError(
             500, str(exception), error_type="server_error", code="model_price_unknown"
