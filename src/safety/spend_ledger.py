@@ -52,8 +52,10 @@ class SpendLedger:
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
-        # Records whose write failed with ``retain_on_failure``, oldest first.
+        # Records whose write failed with ``retain_on_failure``, oldest first. Their
+        # own lock keeps admission checks from waiting on a slow ledger write.
         self._unsettled: list[SpendRecord] = []
+        self._unsettled_lock = threading.Lock()
         self._initialize()
 
     @property
@@ -159,7 +161,7 @@ class SpendLedger:
             self._insert(record)
         except (sqlite3.Error, OSError):
             if retain_on_failure:
-                with self._lock:
+                with self._unsettled_lock:
                     self._unsettled.append(record)
             raise
         return record
@@ -173,12 +175,12 @@ class SpendLedger:
         Returns:
             ``True`` while a failed write of the key is waiting for :meth:`settle`.
         """
-        with self._lock:
+        with self._unsettled_lock:
             return any(record.api_key_id == api_key_id for record in self._unsettled)
 
     def settle(self) -> None:
         """Retry writing every retained record; records that fail again stay retained."""
-        with self._lock:
+        with self._unsettled_lock:
             pending, self._unsettled = self._unsettled, []
         failed: list[SpendRecord] = []
         for record in pending:
@@ -187,7 +189,7 @@ class SpendLedger:
             except (sqlite3.Error, OSError):
                 failed.append(record)
         if failed:
-            with self._lock:
+            with self._unsettled_lock:
                 self._unsettled = failed + self._unsettled
 
     def _insert(self, record: SpendRecord) -> None:
@@ -313,7 +315,8 @@ class SpendLedger:
         Returns:
             Spend and number of ledger rows for the key since ``since``.
         """
-        with self._lock, self._connect() as connection:
+        # A read on its own connection: budget checks never queue behind writes.
+        with self._connect() as connection:
             row = connection.execute(
                 "SELECT COALESCE(SUM(cost_usd), 0), COUNT(*) FROM spend_events "
                 "WHERE api_key_id = ? AND recorded_at >= ?",
