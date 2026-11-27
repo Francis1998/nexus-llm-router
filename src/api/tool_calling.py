@@ -172,6 +172,10 @@ def tool_message_error(messages: Sequence[ChatMessage]) -> GatewayError | None:
     answered: set[str] = set()
     for index, message in enumerate(messages):
         param = f"messages[{index}]"
+        if message.tool_call_id is not None and message.role != "tool":
+            return _invalid(
+                f"{param}.tool_call_id", "only messages with role 'tool' can carry tool_call_id"
+            )
         if message.tool_calls:
             if message.role != "assistant":
                 return _invalid(
@@ -206,10 +210,6 @@ def tool_message_error(messages: Sequence[ChatMessage]) -> GatewayError | None:
                 )
             answered.add(message.tool_call_id)
             continue
-        if message.tool_call_id is not None:
-            return _invalid(
-                f"{param}.tool_call_id", "only messages with role 'tool' can carry tool_call_id"
-            )
         if error := _unanswered_error(open_calls, answered, index):
             return error
         open_calls, answered = {}, set()
