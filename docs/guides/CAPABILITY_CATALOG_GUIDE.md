@@ -28,6 +28,13 @@ process.
 Pass `catalog.snapshot()` (or the catalog itself via a thin adapter) as the
 `capability_map=` argument many strategies already accept.
 
+`NexusRouter` also holds one (`router.capability_catalog`, or pass
+`capability_catalog=`): it gates tool-calling requests, which only go to models
+whose entry lists `tools`. The router's default catalog is seeded with the
+built-in capabilities of *every* catalog model, not only the four above, so
+call `router.capability_catalog.upsert(...)` to declare tool support for custom
+models (see the [tool calling guide](TOOL_CALLING_GUIDE.md#capability-aware-routing)).
+
 ## Example
 
 ```python

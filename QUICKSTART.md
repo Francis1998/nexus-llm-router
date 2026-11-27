@@ -99,6 +99,28 @@ Requests without an issued key now get 401, models outside the key's list 403,
 an exhausted daily budget 402, and a revoked key (`DELETE /v1/keys/<id>`) 401;
 see [docs/guides/VIRTUAL_KEYS_GUIDE.md](docs/guides/VIRTUAL_KEYS_GUIDE.md).
 
+Tool calling: offer a function, get `choices[0].message.tool_calls` back
+(`finish_reason: "tool_calls"`), run the function yourself, and send its result
+as a `role: "tool"` message together with the assistant turn (nexus never
+executes tools). With virtual keys enforced, send an issued key instead of
+`local-key`:
+
+```bash
+TOOLS='[{"type":"function","function":{"name":"get_weather","description":"Current weather for a city","parameters":{"type":"object","properties":{"city":{"type":"string","examples":["Paris"]}},"required":["city"]}}}]'
+curl -s http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer local-key" \
+  -d '{"messages":[{"role":"user","content":"What is the weather in Paris?"}],"tools":'"$TOOLS"'}'
+curl -s http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer local-key" \
+  -d '{"messages":[{"role":"user","content":"What is the weather in Paris?"},{"role":"assistant","content":null,"tool_calls":[{"id":"<tool_calls[0].id>","type":"function","function":{"name":"get_weather","arguments":"{\"city\": \"Paris\"}"}}]},{"role":"tool","tool_call_id":"<tool_calls[0].id>","content":"{\"temp_c\": 18, \"sky\": \"clear\"}"}],"tools":'"$TOOLS"'}'
+```
+
+The same request works whichever provider the strategy picks (OpenAI through
+the Responses API, Anthropic, Gemini, or Kimi), and streams with `"stream": true`;
+see [docs/guides/TOOL_CALLING_GUIDE.md](docs/guides/TOOL_CALLING_GUIDE.md).
+
 ## 4. Run the Offline Demo
 
 The demo uses mock providers and prints model choice plus rationale traces.

@@ -22,6 +22,13 @@ receive `text/event-stream` chunks instead of a hard 400.
 5. A final chunk carries the provider stop reason (`finish_reason=stop`, or
    `length` when `max_tokens` cut the answer) and is followed by `data: [DONE]`.
 
+Requests that offer `tools` or replay tool calls are the exception: nexus makes
+one non-streaming provider call and then sends the answer as a role chunk,
+one `delta.tool_calls` chunk per call, a finish chunk (`finish_reason`
+`tool_calls`, `stop`, or `length`), and `data: [DONE]`; their routing failures
+are HTTP errors before the stream starts. See the
+[tool calling guide](TOOL_CALLING_GUIDE.md#streaming).
+
 ## Failure semantics
 
 Provider failures **before any text** was streamed fall back to the next

@@ -27,6 +27,9 @@ Nexus is designed for AI infrastructure engineers running multi-model production
 - Issue: code, medical, legal, and general prompts need different quality defaults.
   Nexus solves this by extracting a domain tag and applying deterministic policy rules such as medical/legal to Claude Opus 5.5 and complex code to GPT-6.2 Astra.
 
+- Issue: agent frameworks call tools, and every provider spells tool calling differently (GPT-6.2 Astra and Sol accept tools only through the Responses API).
+  Nexus solves this with OpenAI-compatible `tools` / `tool_choice` / `tool_calls` on `POST /v1/chat/completions`, translated to the OpenAI Responses API, Anthropic tool use, Gemini function calling (thought signatures kept across turns), and Kimi, and routed only to models whose capability data lists `tools`; nexus never executes a tool.
+
 - Issue: one provider has an incident and the app fails hard.
   Nexus solves this with per-provider circuit breakers and automatic fallback chains.
 
@@ -121,6 +124,7 @@ Mock providers answer `[<model>] routed response`; routing, budgets, rate limits
 | OpenAI- and Anthropic-compatible API | `POST /v1/chat/completions` (with SSE streaming), `POST /v1/responses` (OpenAI Responses API and its SSE event stream), `POST /v1/messages` and `POST /v1/messages/count_tokens` (Anthropic Messages API, text-only, with Anthropic SSE events), `GET /v1/models` (model discovery with pricing, limits, and health), `GET`/`POST /v1/spend`, `GET /health`, `GET /metrics` | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md), [Anthropic Messages API guide](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md), [Models API guide](docs/guides/MODELS_API_GUIDE.md), [SSE streaming guide](docs/guides/SSE_STREAMING_GUIDE.md) |
 | Routing | 125 strategies chosen per request with `X-Router-Strategy` (default `rule-based`), from cost-optimal and latency-aware to token-budget, long-context, A/B, canary, and feedback-aware routing | [Routing Strategies](#routing-strategies), [CONFIGURATION.md](CONFIGURATION.md) |
 | Virtual keys | Admin-issued gateway keys (`sk-nexus-...`, stored as HMAC-SHA-256 hashes) with per-key USD budgets that reset per fixed UTC window, model allowlists the router and every fallback respect, RPM limits, expiry, tenant binding, blocking, rotation, and audit-preserving revocation; `NEXUS_AUTH_MODE=virtual_keys` enforces them on every model endpoint, `/v1/keys` manages them with the master key, `GET /v1/key/info` shows a key its own spend and reset time | [Virtual keys guide](docs/guides/VIRTUAL_KEYS_GUIDE.md) |
+| Tool calling | OpenAI `tools`, `tool_choice`, `parallel_tool_calls`, assistant `tool_calls`, and `role: "tool"` results on `POST /v1/chat/completions` (streaming too), translated for OpenAI (Responses API), Anthropic, Gemini, Kimi, and the mock provider; tool requests only route to tool-capable models (400 `tool_calling_unsupported` otherwise), and nexus never executes tools | [Tool calling guide](docs/guides/TOOL_CALLING_GUIDE.md) |
 | Feedback loop | `POST /v1/feedback` rates a completed request by its `request_id` (tenant-scoped, idempotent), `GET /v1/feedback/summary` reports Wilson and normal-approximation intervals per model, strategy, domain, or provider, and `feedback-aware` routes by Thompson sampling with a seeded, replayable draw | [Feedback loop guide](docs/guides/FEEDBACK_LOOP_GUIDE.md) |
 | Reliability | per-provider circuit breakers, health-ranked fallback chains, and no fallback splicing once a stream has started | [Failover-priority guide](docs/guides/FAILOVER_PRIORITY_GUIDE.md), [Fallback scoreboard guide](docs/guides/FALLBACK_SCOREBOARD_GUIDE.md) |
 | Cost control | provider list prices (including long-prompt tiers and announced price changes, applied on their date), pre-dispatch budget caps, a durable spend ledger, and Prometheus cost metrics | [Built-in model catalog](CONFIGURATION.md#built-in-model-catalog) |
@@ -161,6 +165,7 @@ Each request moves `RECEIVED → CLASSIFIED → ROUTED → DISPATCHED → RESPON
 | call nexus through the OpenAI Responses API | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) |
 | call nexus through the Anthropic Messages API (Anthropic SDK, text only) | [Anthropic Messages API guide](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md) |
 | fill a client's model picker with nexus models | [Models API guide](docs/guides/MODELS_API_GUIDE.md) |
+| give an agent tools (OpenAI function calling across every provider) | [Tool calling guide](docs/guides/TOOL_CALLING_GUIDE.md) |
 | rate answers and route by user feedback | [Feedback loop guide](docs/guides/FEEDBACK_LOOP_GUIDE.md) |
 | give each team its own API key, budget, and model list | [Virtual keys guide](docs/guides/VIRTUAL_KEYS_GUIDE.md) |
 | configure strategies, budgets, limits, and models | [CONFIGURATION.md](CONFIGURATION.md) |
@@ -289,6 +294,10 @@ Anthropic Messages API (`POST /v1/messages`, streaming, `count_tokens`) with cur
 Model discovery (`GET /v1/models`) with the official OpenAI SDK:
 
 ![Nexus models API demo](assets/demo/models-api.gif)
+
+Tool calling (`tools` → `tool_calls` → the client's `role: "tool"` result → the final answer, then the streamed `delta.tool_calls` chunks and a rejected orphan result) against the mock-provider server:
+
+![Nexus tool calling demo](assets/demo/tool-calling.gif)
 
 Feedback loop (`POST /v1/feedback`, `GET /v1/feedback/summary`, and `feedback-aware` routing) against the mock-provider server:
 
@@ -431,6 +440,7 @@ Soft rate-limit avoidance demo:
 - **Exact-match response cache** with TTL + tenant namespaces
 - **Semantic fuzzy cache** (trigram Jaccard) for near-duplicate prompts
 - **SSE streaming** for `stream=true` chat completions
+- **Tool calling** on `POST /v1/chat/completions`: OpenAI `tools` (up to 128 function tools), `tool_choice`, `parallel_tool_calls`, assistant `tool_calls`, and `role: "tool"` results, translated to the OpenAI Responses API (GPT-6.2 requires it for tools), Anthropic `tool_use` / `tool_result`, Gemini `functionDeclarations` / `functionResponse` (thought signatures round-trip in the call id), and Kimi; unpaired calls and results are 400s, tool requests route only to tool-capable models, streams carry `delta.tool_calls`, and arguments and results never reach logs or the audit trail — see `docs/guides/TOOL_CALLING_GUIDE.md`
 - **OpenAI Responses API** (`POST /v1/responses`): text-only subset with the official SSE event stream, OpenAI error envelopes, and a `nexus` routing block — see `docs/guides/RESPONSES_API_GUIDE.md`
 - **Anthropic Messages API** (`POST /v1/messages`, `POST /v1/messages/count_tokens`): text-only subset for Anthropic SDK apps (`base_url` swap), with Anthropic SSE events, Anthropic error envelopes, `x-api-key` auth, gateway-enforced `stop_sequences`, and a `nexus` routing block; tools and thinking are rejected, so it is not a Claude Code backend — see `docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md`
 - **Model discovery** (`GET /v1/models`, `GET /v1/models/{id}`): OpenAI-compatible model list for client model pickers, with nexus pricing, token limits, capabilities, and live provider health — see `docs/guides/MODELS_API_GUIDE.md`
@@ -694,6 +704,7 @@ Select a strategy with `X-Router-Strategy`:
 | [Responses API guide](docs/guides/RESPONSES_API_GUIDE.md) | OpenAI Responses API compatibility (`POST /v1/responses`), streaming events, supported fields |
 | [Anthropic Messages API guide](docs/guides/ANTHROPIC_MESSAGES_API_GUIDE.md) | Anthropic Messages API compatibility (`POST /v1/messages`, `count_tokens`), streaming events, supported fields, error mapping, limitations |
 | [Models API guide](docs/guides/MODELS_API_GUIDE.md) | OpenAI-compatible model discovery (`GET /v1/models`) with pricing, limits, capabilities, and live health |
+| [Tool calling guide](docs/guides/TOOL_CALLING_GUIDE.md) | OpenAI tool / function calling on `POST /v1/chat/completions` across OpenAI (Responses API), Anthropic, Gemini, and Kimi, capability-aware routing, streaming, errors, limitations |
 | [Feedback loop guide](docs/guides/FEEDBACK_LOOP_GUIDE.md) | Request feedback API, Wilson/normal summaries, and `feedback-aware` Thompson-sampling routing |
 | [Virtual keys guide](docs/guides/VIRTUAL_KEYS_GUIDE.md) | Admin-issued gateway keys with per-key budgets and windows, model allowlists, RPM limits, expiry, rotation, and revocation, enforced on every model endpoint |
 | [Use cases](docs/guides/USE_CASES.md) | Three end-to-end scenarios (cost control, OpenAI SDK migration with tenant guards, regulated domains) with real output |

@@ -34,6 +34,14 @@ python -m pip install ".[pii]"
 
 Then inject Presidio analyzer and anonymizer engines into `PiiScrubber` during application composition.
 
+With tool calling, the scrubber also covers the tool-call arguments of replayed
+assistant turns and `tool` results. They are scrubbed as JSON, leaf by leaf
+(every string, object key, and number; a number that would be redacted becomes
+the redaction string), so they stay valid JSON; plain-text tool results are
+scrubbed as text. Tool-call ids and function names are kept, so calls still pair
+with their results. As for text answers, the model's new calls are returned
+unscrubbed.
+
 ## Rate Limiting
 
 Nexus uses a token bucket per API key identifier:
@@ -202,6 +210,41 @@ fingerprints, and client-chosen metric names beyond 32 per process share the
 `other` label. See
 [docs/guides/FEEDBACK_LOOP_GUIDE.md](docs/guides/FEEDBACK_LOOP_GUIDE.md#safety-privacy-and-limits).
 
+## Tool calling
+
+`POST /v1/chat/completions` routes OpenAI-style tool (function) calling. The
+controls:
+
+- **Nexus never executes tools.** There is no tool registry, code execution, or
+  call to any tool endpoint: nexus forwards the model's `tool_calls` to the
+  client and the client's `role: "tool"` results to the model. The application
+  decides whether to run each call.
+- **Tool calls are untrusted model output.** A prompt-injected document or tool
+  result can make a model request a harmful call. Validate arguments against
+  your own schema, allowlist side-effecting functions, and have a human confirm
+  destructive actions; nexus only checks that replayed arguments are a JSON
+  object, not that they match the schema.
+- **Tool results are forwarded as-is** (after optional PII scrubbing) and are
+  not scanned for prompt injection; keep secrets out of them.
+- **Validated before routing.** Tool schemas (at most 128 function tools,
+  `^[a-zA-Z0-9_-]{1,64}$` names, object parameter schemas), `tool_choice`, and
+  the pairing of calls and results are checked first, so malformed conversations
+  get an OpenAI-style 400 and never reach a provider.
+- **Capability gate.** Requests that offer or replay tools only go to models
+  whose capability data lists `tools`; when the routing decision has none, the
+  request fails with 400 `tool_calling_unsupported` before any provider call
+  (no spend). The gate never adds a model outside the strategy's decision.
+- **Names and counts only.** The audit log records `tool_count` and
+  `tool_call_names`, the `routing_response` log adds `tools_offered` and the
+  called names, and tool-calling error messages name indices, ids, and function
+  names; tool arguments and results never reach logs or the audit trail.
+- **Isolation.** Response-cache keys include the tools, `tool_choice`, replayed
+  calls, and `tool_call_id`s, so an answer is never replayed for another tool set
+  or another tool result, and cached or idempotent replays stay in the caller's
+  namespace.
+
+See [docs/guides/TOOL_CALLING_GUIDE.md](docs/guides/TOOL_CALLING_GUIDE.md#safety).
+
 ## Prompt injection gateway
 
 `PromptInjectionGateway` can allow, redact, or block high-risk prompt patterns before routing. Advisory control complementary to routing shed strategies.
@@ -221,7 +264,9 @@ nexus does not call it on the request path. See the
 ## Request fingerprint deduper
 
 `RequestFingerprintDeduper` hashes `model + messages + temperature + tenant` into a
-SHA-256 fingerprint and flags identical payloads inside a short TTL window. It is
+SHA-256 fingerprint and flags identical payloads inside a short TTL window. Pass
+`tools=ToolConfig.canonical()` to include the offered tools, `tool_choice`, and
+`parallel_tool_calls`; digests of requests without tools are unchanged. It is
 distinct from `IdempotencyStore` (durable client-key response replay): this control
 never stores response bodies and never rejects traffic — callers decide how to
 handle `is_duplicate` for GPT-6 / Claude Opus 5.5 / Gemini 4 / Kimi K3.1 bursts.

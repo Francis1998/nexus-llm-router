@@ -37,6 +37,12 @@ a response routed by `cost-optimal` is never replayed for a `rule-based` request
 Omitting `X-Router-Strategy` is equivalent to sending the default strategy, so
 those requests share entries.
 
+Tool-calling requests also key on the offered `tools`, `tool_choice`,
+`parallel_tool_calls`, the assistant `tool_calls`, and each `tool_call_id`, so
+an answer is never replayed for another tool set or another tool result, and a
+cached tool-call answer replays its `tool_calls`. Keys of requests without
+tools are unchanged (see the [tool calling guide](TOOL_CALLING_GUIDE.md)).
+
 ## Configuration
 
 ```bash
