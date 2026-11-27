@@ -1,11 +1,13 @@
 """Google Gemini provider adapter."""
 
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
 from adapters.http_utils import finish_reason, json_object, nested_int
+from router.config import list_rates
 from router.schemas import ChatMessage, ProviderResponse
 
 
@@ -61,9 +63,11 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         """
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
-        # USD per 1K tokens (input, output) as of 2026-11-19. Gemini 4 Carbon and
-        # Argon rise to (0.004, 0.020) on 2026-12-01; Gemini 3.8 Flash to
-        # (0.0015, 0.0075) on 2027-01-01. Gemini 4 Neon is paid tier only.
+        # USD per 1K tokens (input, output): static list prices, verified 2026-11-27.
+        # Announced changes are router.config.PRICE_SCHEDULE entries, applied from
+        # their effective instant: Gemini 4 Carbon and Argon rise to (0.004, 0.020)
+        # on 2026-12-01, Gemini 3.8 Flash to (0.0015, 0.0075) on 2027-01-01.
+        # Gemini 4 Neon is paid tier only.
         self._costs: dict[str, tuple[float, float]] = {
             "gemini-4-carbon": (0.002, 0.010),
             "gemini-4-argon": (0.002, 0.010),
@@ -122,9 +126,11 @@ class GoogleGeminiAdapter(BaseProviderAdapter):
         """Return whether the Gemini price table lists ``model``."""
         return model in self._costs
 
-    def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        """Estimate Gemini completion cost."""
-        input_cost, output_cost = self._costs.get(model, (0.0, 0.0))
+    def estimate_cost(
+        self, model: str, input_tokens: int, output_tokens: int, *, at: datetime | None = None
+    ) -> float:
+        """Estimate Gemini completion cost at the list prices in effect at ``at``."""
+        input_cost, output_cost = list_rates(model, self._costs.get(model, (0.0, 0.0)), at)
         return (input_tokens / 1000.0) * input_cost + (output_tokens / 1000.0) * output_cost
 
     async def health_check(self) -> bool:

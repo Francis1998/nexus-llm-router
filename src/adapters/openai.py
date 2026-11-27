@@ -1,11 +1,13 @@
 """OpenAI provider adapter."""
 
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
 from adapters.http_utils import finish_reason, json_object, message_text, nested_int
+from router.config import list_rates
 from router.model_ids import GPT6_LONG_PROMPT_THRESHOLD_TOKENS
 from router.schemas import ChatMessage, LongPromptPricing, ProviderResponse
 
@@ -109,9 +111,11 @@ class OpenAIAdapter(BaseProviderAdapter):
         """Return whether the OpenAI price table lists ``model``."""
         return model in self._costs
 
-    def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def estimate_cost(
+        self, model: str, input_tokens: int, output_tokens: int, *, at: datetime | None = None
+    ) -> float:
         """Estimate OpenAI completion cost, including GPT-6 long-prompt pricing."""
-        input_cost, output_cost = self._costs.get(model, (0.0, 0.0))
+        input_cost, output_cost = list_rates(model, self._costs.get(model, (0.0, 0.0)), at)
         long_prompt_pricing = self._long_prompt_pricing.get(model)
         if long_prompt_pricing is not None:
             input_cost, output_cost = long_prompt_pricing.rates_for(

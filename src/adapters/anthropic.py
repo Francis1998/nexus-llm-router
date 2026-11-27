@@ -1,11 +1,13 @@
 """Anthropic provider adapter."""
 
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
 from adapters.http_utils import finish_reason, json_object, nested_int
+from router.config import list_rates
 from router.model_ids import HAIKU_5_5_LONG_PROMPT_THRESHOLD_TOKENS
 from router.schemas import ChatMessage, LongPromptPricing, ProviderResponse
 
@@ -152,9 +154,11 @@ class AnthropicAdapter(BaseProviderAdapter):
         """Return whether the Anthropic price table lists ``model``."""
         return model in self._costs
 
-    def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def estimate_cost(
+        self, model: str, input_tokens: int, output_tokens: int, *, at: datetime | None = None
+    ) -> float:
         """Estimate Anthropic completion cost, including Haiku 5.5 long-prompt pricing."""
-        input_cost, output_cost = self._costs.get(model, (0.0, 0.0))
+        input_cost, output_cost = list_rates(model, self._costs.get(model, (0.0, 0.0)), at)
         long_prompt_pricing = self._long_prompt_pricing.get(model)
         if long_prompt_pricing is not None:
             input_cost, output_cost = long_prompt_pricing.rates_for(

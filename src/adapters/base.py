@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 from router.schemas import ChatMessage, ProviderResponse
 
@@ -62,13 +63,17 @@ class BaseProviderAdapter(ABC):
         """
 
     @abstractmethod
-    def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def estimate_cost(
+        self, model: str, input_tokens: int, output_tokens: int, *, at: datetime | None = None
+    ) -> float:
         """Estimate completion cost.
 
         Args:
             model: Provider model name.
             input_tokens: Estimated input tokens.
             output_tokens: Estimated output tokens.
+            at: Instant whose list prices apply: a ``router.config.PRICE_SCHEDULE``
+                change in effect then replaces the static price. Defaults to now.
 
         Returns:
             Estimated cost in USD.

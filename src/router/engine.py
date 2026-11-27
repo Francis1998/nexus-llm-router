@@ -4,9 +4,10 @@ import asyncio
 import sqlite3
 import time
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
+from datetime import datetime
 from types import MappingProxyType
 
-from adapters.base import ProviderError
+from adapters.base import BaseProviderAdapter, ProviderError
 from adapters.registry import AdapterRegistry
 from observability.logging import get_logger
 from observability.metrics import (
@@ -17,7 +18,14 @@ from observability.metrics import (
 )
 from router.analyzer import RequestAnalyzer
 from router.audit import AuditLog
-from router.config import RouterSettings, default_model_catalog
+from router.config import (
+    Clock,
+    RouterSettings,
+    catalog_at,
+    default_model_catalog,
+    has_scheduled_price,
+    utc_now,
+)
 from router.fallback_scoreboard import ProviderFallbackScoreboard
 from router.feedback import FeedbackStore
 from router.schemas import (
@@ -132,6 +140,7 @@ class NexusRouter:
         analyzer: RequestAnalyzer | None = None,
         model_catalog: Mapping[str, ModelCandidate] | None = None,
         feedback_store: FeedbackStore | None = None,
+        clock: Clock | None = None,
     ) -> None:
         """Initialize router dependencies.
 
@@ -139,14 +148,20 @@ class NexusRouter:
             settings: Router runtime settings.
             adapter_registry: Provider adapter registry.
             analyzer: Optional request analyzer override.
-            model_catalog: Optional model catalog override.
+            model_catalog: Optional model catalog override, at static list prices.
             feedback_store: Optional request-feedback store override; defaults
                 to one at ``settings.feedback_path``.
+            clock: Optional source of the current timezone-aware time, which fixes
+                each request's list prices (``router.config.PRICE_SCHEDULE``);
+                defaults to ``router.config.utc_now``.
         """
         self._settings = settings
         self._adapter_registry = adapter_registry
         self._analyzer = analyzer or RequestAnalyzer()
-        self._model_catalog = dict(model_catalog or default_model_catalog())
+        self._clock = clock or utc_now
+        self._list_catalog = dict(model_catalog or default_model_catalog())
+        # Shared with the routing strategies and re-priced in place per request.
+        self._model_catalog = catalog_at(self._list_catalog, self._clock())
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
         self._feedback_store = feedback_store or FeedbackStore(
             settings.feedback_path, window_seconds=settings.feedback_window_seconds
@@ -341,8 +356,8 @@ class NexusRouter:
 
     @property
     def model_catalog(self) -> Mapping[str, ModelCandidate]:
-        """Return the routable model catalog (read-only view)."""
-        return MappingProxyType(self._model_catalog)
+        """Return the routable model catalog at the list prices in effect now (read-only)."""
+        return MappingProxyType(catalog_at(self._list_catalog, self._clock()))
 
     @property
     def feedback_store(self) -> FeedbackStore:
@@ -404,6 +419,7 @@ class NexusRouter:
         signals = self._analyzer.analyze(request)
         state_machine.transition(RequestState.CLASSIFIED)
         strategy = self._strategies[strategy_name]
+        priced_at, catalog = self._price_catalog()
         decision = strategy.choose(request, signals)
         state_machine.transition(RequestState.ROUTED)
         self._logger.info(
@@ -417,7 +433,7 @@ class NexusRouter:
         attempt_errors: list[Exception] = []
 
         for attempt_index, model_name in enumerate(attempts):
-            candidate = self._model_catalog[model_name]
+            candidate = catalog[model_name]
             is_last_attempt = attempt_index == len(attempts) - 1
 
             # Client-side guardrails (budget cap, open circuit) are not provider
@@ -518,7 +534,9 @@ class NexusRouter:
                 try:
                     return self._respond(
                         request=request,
-                        provider_response=self._apply_catalog_price(model_name, provider_response),
+                        provider_response=self._apply_list_price(
+                            model_name, provider_response, candidate, adapter, priced_at
+                        ),
                         strategy=strategy,
                         rationale=self._rationale(decision.rationale, model_name, attempt_index),
                         state_machine=state_machine,
@@ -570,6 +588,7 @@ class NexusRouter:
         signals = self._analyzer.analyze(request)
         state_machine.transition(RequestState.CLASSIFIED)
         strategy = self._strategies[strategy_name]
+        priced_at, catalog = self._price_catalog()
         decision = strategy.choose(request, signals)
         state_machine.transition(RequestState.ROUTED)
         self._logger.info(
@@ -583,7 +602,7 @@ class NexusRouter:
         attempt_errors: list[Exception] = []
 
         for attempt_index, model_name in enumerate(attempts):
-            candidate = self._model_catalog[model_name]
+            candidate = catalog[model_name]
             is_last_attempt = attempt_index == len(attempts) - 1
 
             try:
@@ -711,7 +730,9 @@ class NexusRouter:
                 try:
                     router_response = self._respond(
                         request=request,
-                        provider_response=self._apply_catalog_price(model_name, provider_response),
+                        provider_response=self._apply_list_price(
+                            model_name, provider_response, candidate, adapter, priced_at
+                        ),
                         strategy=strategy,
                         rationale=self._rationale(decision.rationale, model_name, attempt_index),
                         state_machine=state_machine,
@@ -735,9 +756,11 @@ class NexusRouter:
         Adapters keep their own price tables, and ``estimate_cost`` returns 0.0
         for a model missing from one, which would bill catalog-only SKUs
         (fine-tunes, newly released models) at $0. Those models are billed at
-        their catalog prices instead (``_apply_catalog_price``). A model whose
+        their catalog prices instead (``_apply_list_price``). A model whose
         catalog rates are $0 too has no known price, so it is never dispatched
-        (``_assert_priced``). Both cases are logged once per model.
+        (``_assert_priced``). Both cases are logged once per model. Models are
+        classified by their static catalog prices, so the result does not
+        depend on when the router started.
 
         Returns:
             ``(catalog_priced, unpriced)`` catalog model names.
@@ -745,7 +768,7 @@ class NexusRouter:
         adapters = dict(self._adapter_registry.items())
         catalog_priced: set[str] = set()
         unpriced: set[str] = set()
-        for model_name, candidate in self._model_catalog.items():
+        for model_name, candidate in self._list_catalog.items():
             adapter = adapters.get(candidate.provider)
             if adapter is None or adapter.has_price(model_name):
                 continue
@@ -782,24 +805,54 @@ class NexusRouter:
                 "and its catalog input and output prices are $0"
             )
 
-    def _apply_catalog_price(
-        self, model_name: str, provider_response: ProviderResponse
+    def _price_catalog(self) -> tuple[datetime, dict[str, ModelCandidate]]:
+        """Fix one request's list prices: those in effect now.
+
+        Routing strategies read the shared catalog, so it is re-priced in place
+        before they choose. The request keeps the returned snapshot for its
+        budget estimates and billing, so a scheduled change that takes effect
+        while it runs (at 00:00 UTC, say) does not change what it is charged.
+
+        Returns:
+            The request's pricing instant and the catalog at its prices.
+        """
+        priced_at = self._clock()
+        catalog = catalog_at(self._list_catalog, priced_at)
+        self._model_catalog.update(catalog)
+        return priced_at, catalog
+
+    def _apply_list_price(
+        self,
+        model_name: str,
+        provider_response: ProviderResponse,
+        candidate: ModelCandidate,
+        adapter: BaseProviderAdapter,
+        priced_at: datetime,
     ) -> ProviderResponse:
-        """Bill catalog prices when the provider adapter cannot price the model.
+        """Bill the list price in effect when the request was routed.
 
         Args:
             model_name: Catalog model that produced the response.
             provider_response: Normalized provider response.
+            candidate: The model's catalog row at the request's prices.
+            adapter: Adapter that served the response.
+            priced_at: The request's pricing instant (``_price_catalog``).
 
         Returns:
-            The response, re-priced from the catalog (long-prompt tier included)
-            when the adapter has no price for ``model_name``; otherwise unchanged.
+            The response re-priced from the catalog (long-prompt tier included)
+            when the adapter has no price for ``model_name``; re-priced by the
+            adapter at ``priced_at`` when the model has a scheduled price change,
+            because the adapter priced the response when it arrived; otherwise
+            unchanged.
         """
-        if model_name not in self._catalog_priced_models:
+        input_tokens = provider_response.input_tokens
+        output_tokens = provider_response.output_tokens
+        if model_name in self._catalog_priced_models:
+            cost_usd = candidate.estimate_cost(input_tokens, output_tokens)
+        elif has_scheduled_price(model_name):
+            cost_usd = adapter.estimate_cost(model_name, input_tokens, output_tokens, at=priced_at)
+        else:
             return provider_response
-        cost_usd = self._model_catalog[model_name].estimate_cost(
-            provider_response.input_tokens, provider_response.output_tokens
-        )
         return provider_response.model_copy(update={"cost_usd": cost_usd})
 
     @staticmethod

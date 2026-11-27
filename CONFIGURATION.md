@@ -980,9 +980,11 @@ The default catalog lives in `src/router/config.py` and includes:
 
 Costs are provider list prices verified on 2026-11-24 (GPT-6.2 / GPT-6, Claude 5.5,
 Gemini 4 Argon / Neon / 3.8 Flash, Kimi K3.1) and context windows come from the
-provider model pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01
-and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the
-adapter price tables together when list prices change.
+provider model pages. Announced changes take effect on their date without a
+redeploy (see "Dated list prices" below): Gemini 4 Argon rises to $4 / $20 per 1M
+tokens on 2026-12-01 and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01
+(re-verified 2026-11-27). Update the catalog and the adapter price tables together
+when a list price changes without notice.
 
 GPT-6.2 Astra ($8 / $40 per 1M) supersedes GPT-6 Astra ($10 / $50) as the frontier
 role, and GPT-6.2 Sol ($2 / $10) supersedes GPT-6.1 Sol at the same price. Gemini 4
@@ -1089,6 +1091,54 @@ prompt-token estimate plus `max_tokens`). For a custom adapter,
 whatever its `estimate_cost` returns, including $0 for a free self-hosted
 model. Override `has_price()` to bill catalog prices for models the adapter
 cannot price.
+
+### Dated list prices
+
+Announced list-price changes live in one table, `PRICE_SCHEDULE` in
+`src/router/config.py`, and take effect without a restart or redeploy:
+
+| Model | Price before (per 1M, input / output) | Effective (00:00 UTC) | New price |
+|---|---|---|---|
+| `gemini-4-carbon` | $2 / $10 | 2026-12-01 | $4 / $20 |
+| `gemini-4-argon` | $2 / $10 | 2026-12-01 | $4 / $20 |
+| `gemini-3.8-flash` | $0.75 / $3.75 | 2027-01-01 | $1.50 / $7.50 |
+
+Each entry (`ScheduledPrice`) names a model id, the UTC instant it takes effect
+(`effective_from`), and the new standard input and output rates per 1K tokens.
+From that instant on it replaces the model's static rates wherever nexus prices
+it: adapter billing (`estimate_cost`), the catalog that routing strategies rank,
+pre-dispatch budget estimates, and `GET /v1/models`, and so the response
+`cost_usd`, the spend ledger, budgets, audit records, and `router_cost_usd_total`.
+It applies to custom catalogs passed to `NexusRouter` too. Providers publish
+dates without a time of day, so nexus applies them at 00:00 UTC. Models without
+an entry, and long-prompt tiers, are unchanged.
+
+A request's prices are fixed once, when the router starts routing it: routing,
+the budget estimate, every fallback attempt, and billing use the prices in effect
+at that instant. An Argon request routed at 23:59:59 UTC on 2026-11-30 is billed
+$2 / $10 per 1M even if the answer arrives after midnight; the next request pays
+$4 / $20. The clock is `datetime.now(UTC)`. Embedders and tests can pass
+`NexusRouter(..., clock=...)` (a callable returning a timezone-aware `datetime`),
+and `estimate_cost(..., at=...)` prices one instant. Custom adapters accept that
+`at` keyword and honor the schedule by passing their static rates through
+`router.config.list_rates`.
+
+To add an announced change, append a `ScheduledPrice` to `PRICE_SCHEDULE` with
+the provider's date and rates (positive, per 1K tokens, with a timezone-aware
+`effective_from`), and keep the static catalog and adapter prices at the current
+price until then:
+
+```python
+ScheduledPrice(
+    model="gemini-4-argon",
+    effective_from=datetime(2026, 12, 1, tzinfo=UTC),
+    input_cost_per_1k=0.004,
+    output_cost_per_1k=0.020,
+),
+```
+
+Once the date has passed you can move the new price into the static tables and
+drop the entry.
 
 ## Canary-Cost-Blend Routing
 The `canary-cost-blend` strategy is a **cost-first** counterpart to
@@ -1794,9 +1844,11 @@ The default catalog lives in `src/router/config.py` and includes:
 
 Costs are provider list prices verified on 2026-11-24 (GPT-6.2 / GPT-6, Claude 5.5,
 Gemini 4 Argon / Neon / 3.8 Flash, Kimi K3.1) and context windows come from the
-provider model pages. Gemini 4 Argon rises to $4 / $20 per 1M tokens on 2026-12-01
-and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01; update the catalog and the
-adapter price tables together when list prices change.
+provider model pages. Announced changes take effect on their date without a
+redeploy (see "Dated list prices" below): Gemini 4 Argon rises to $4 / $20 per 1M
+tokens on 2026-12-01 and Gemini 3.8 Flash to $1.50 / $7.50 on 2027-01-01
+(re-verified 2026-11-27). Update the catalog and the adapter price tables together
+when a list price changes without notice.
 
 GPT-6.2 Astra ($8 / $40 per 1M) supersedes GPT-6 Astra ($10 / $50) as the frontier
 role, and GPT-6.2 Sol ($2 / $10) supersedes GPT-6.1 Sol at the same price. Gemini 4
@@ -1903,6 +1955,54 @@ prompt-token estimate plus `max_tokens`). For a custom adapter,
 whatever its `estimate_cost` returns, including $0 for a free self-hosted
 model. Override `has_price()` to bill catalog prices for models the adapter
 cannot price.
+
+### Dated list prices
+
+Announced list-price changes live in one table, `PRICE_SCHEDULE` in
+`src/router/config.py`, and take effect without a restart or redeploy:
+
+| Model | Price before (per 1M, input / output) | Effective (00:00 UTC) | New price |
+|---|---|---|---|
+| `gemini-4-carbon` | $2 / $10 | 2026-12-01 | $4 / $20 |
+| `gemini-4-argon` | $2 / $10 | 2026-12-01 | $4 / $20 |
+| `gemini-3.8-flash` | $0.75 / $3.75 | 2027-01-01 | $1.50 / $7.50 |
+
+Each entry (`ScheduledPrice`) names a model id, the UTC instant it takes effect
+(`effective_from`), and the new standard input and output rates per 1K tokens.
+From that instant on it replaces the model's static rates wherever nexus prices
+it: adapter billing (`estimate_cost`), the catalog that routing strategies rank,
+pre-dispatch budget estimates, and `GET /v1/models`, and so the response
+`cost_usd`, the spend ledger, budgets, audit records, and `router_cost_usd_total`.
+It applies to custom catalogs passed to `NexusRouter` too. Providers publish
+dates without a time of day, so nexus applies them at 00:00 UTC. Models without
+an entry, and long-prompt tiers, are unchanged.
+
+A request's prices are fixed once, when the router starts routing it: routing,
+the budget estimate, every fallback attempt, and billing use the prices in effect
+at that instant. An Argon request routed at 23:59:59 UTC on 2026-11-30 is billed
+$2 / $10 per 1M even if the answer arrives after midnight; the next request pays
+$4 / $20. The clock is `datetime.now(UTC)`. Embedders and tests can pass
+`NexusRouter(..., clock=...)` (a callable returning a timezone-aware `datetime`),
+and `estimate_cost(..., at=...)` prices one instant. Custom adapters accept that
+`at` keyword and honor the schedule by passing their static rates through
+`router.config.list_rates`.
+
+To add an announced change, append a `ScheduledPrice` to `PRICE_SCHEDULE` with
+the provider's date and rates (positive, per 1K tokens, with a timezone-aware
+`effective_from`), and keep the static catalog and adapter prices at the current
+price until then:
+
+```python
+ScheduledPrice(
+    model="gemini-4-argon",
+    effective_from=datetime(2026, 12, 1, tzinfo=UTC),
+    input_cost_per_1k=0.004,
+    output_cost_per_1k=0.020,
+),
+```
+
+Once the date has passed you can move the new price into the static tables and
+drop the entry.
 
 ## Canary-Cost-Blend Routing
 The `canary-cost-blend` strategy is a **cost-first** counterpart to
