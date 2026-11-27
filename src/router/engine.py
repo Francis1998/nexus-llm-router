@@ -18,6 +18,7 @@ from observability.metrics import (
 )
 from router.analyzer import RequestAnalyzer
 from router.audit import AuditLog
+from router.capability_catalog import ModelCapabilityCatalog
 from router.config import (
     Clock,
     RouterSettings,
@@ -29,6 +30,7 @@ from router.config import (
 from router.fallback_scoreboard import ProviderFallbackScoreboard
 from router.feedback import FeedbackStore
 from router.schemas import (
+    TOOL_CAPABILITY,
     AuditRecord,
     DomainTag,
     ModelCandidate,
@@ -36,6 +38,7 @@ from router.schemas import (
     RouterRequest,
     RouterResponse,
     RoutingDecision,
+    ToolConfig,
 )
 from router.state import RequestState, RoutingStateMachine
 from router.strategies import (
@@ -67,6 +70,7 @@ from router.strategies import (
     TokenBucketStats,
     TokenRpmWindow,
     build_strategies,
+    known_model_capabilities,
 )
 from safety.budget import BudgetExceededError, BudgetGuardrail
 from safety.circuit_breaker import CircuitBreakerRegistry, CircuitOpenError
@@ -114,6 +118,16 @@ class UnpricedModelError(RoutingFailedError):
     """
 
 
+class ToolCallingUnsupportedError(RoutingFailedError):
+    """Raised when no model the strategy chose can serve a tool-calling request.
+
+    A request that offers ``tools`` (or replays tool calls and results) only goes
+    to candidates whose capability data lists ``tools``. When the routing
+    decision has none, no provider is called: the request itself needs a
+    capability the routed models lack, so the API answers HTTP 400.
+    """
+
+
 class BudgetRefusedError(RoutingFailedError, BudgetExceededError):
     """Raised when the budget guardrail refused every candidate with a price.
 
@@ -148,6 +162,7 @@ class NexusRouter:
         model_catalog: Mapping[str, ModelCandidate] | None = None,
         feedback_store: FeedbackStore | None = None,
         clock: Clock | None = None,
+        capability_catalog: ModelCapabilityCatalog | None = None,
     ) -> None:
         """Initialize router dependencies.
 
@@ -161,6 +176,10 @@ class NexusRouter:
             clock: Optional source of the current timezone-aware time, which fixes
                 each request's list prices (``router.config.PRICE_SCHEDULE``);
                 defaults to ``router.config.utc_now``.
+            capability_catalog: Optional model capability catalog that decides
+                which models may serve tool-calling requests; defaults to the
+                built-in capabilities (``GET /v1/models`` ``nexus.capabilities``)
+                of every catalog model.
         """
         self._settings = settings
         self._adapter_registry = adapter_registry
@@ -169,6 +188,13 @@ class NexusRouter:
         self._list_catalog = dict(model_catalog or default_model_catalog())
         # Shared with the routing strategies and re-priced in place per request.
         self._model_catalog = catalog_at(self._list_catalog, self._clock())
+        self._capability_catalog = (
+            capability_catalog
+            if capability_catalog is not None
+            else ModelCapabilityCatalog(
+                seed={model: known_model_capabilities(model) for model in self._model_catalog}
+            )
+        )
         self._budget_guardrail = BudgetGuardrail(settings.budget_cap_usd)
         self._feedback_store = feedback_store or FeedbackStore(
             settings.feedback_path, window_seconds=settings.feedback_window_seconds
@@ -376,6 +402,25 @@ class NexusRouter:
         """Return the spend ledger completions are recorded in (with retained failed writes)."""
         return self._spend_ledger
 
+    @property
+    def capability_catalog(self) -> ModelCapabilityCatalog:
+        """Return the capability catalog that gates tool-calling requests.
+
+        Call ``upsert`` on it to declare tool support for a custom catalog model.
+        """
+        return self._capability_catalog
+
+    def supports_tools(self, model: str) -> bool:
+        """Return whether ``model`` may serve requests that offer or replay tool calls.
+
+        Args:
+            model: Catalog model name.
+
+        Returns:
+            ``True`` when the capability catalog lists ``tools`` for the model.
+        """
+        return TOOL_CAPABILITY in (self._capability_catalog.get(model) or frozenset())
+
     def allows_dispatch(self, model: str, subject: str, estimated_cost_usd: float) -> bool:
         """Return whether ``model`` would pass the pre-dispatch price and budget checks.
 
@@ -442,6 +487,9 @@ class NexusRouter:
             rationale=decision.rationale,
         )
         attempts = self._order_attempts(decision.chosen_model, decision.fallback_chain)
+        attempts, base_rationale = self._tool_capable_attempts(
+            request, attempts, decision, state_machine
+        )
         attempt_errors: list[Exception] = []
 
         for attempt_index, model_name in enumerate(attempts):
@@ -489,7 +537,12 @@ class NexusRouter:
                 self._inflight_stats.begin_for_tenant(tenant_key, candidate.provider)
                 try:
                     provider_response = await asyncio.wait_for(
-                        adapter.complete(model_name, sanitized_messages, request.max_tokens),
+                        adapter.complete(
+                            model_name,
+                            sanitized_messages,
+                            request.max_tokens,
+                            **self._tool_kwargs(request),
+                        ),
                         timeout=self._settings.provider_settings.request_timeout_seconds,
                     )
                 finally:
@@ -551,7 +604,7 @@ class NexusRouter:
                             model_name, provider_response, candidate, adapter, priced_at
                         ),
                         strategy=strategy,
-                        rationale=self._rationale(decision.rationale, model_name, attempt_index),
+                        rationale=self._rationale(base_rationale, model_name, attempt_index),
                         state_machine=state_machine,
                         started_at=started_at,
                         provider=candidate.provider,
@@ -612,6 +665,9 @@ class NexusRouter:
             rationale=decision.rationale,
         )
         attempts = self._order_attempts(decision.chosen_model, decision.fallback_chain)
+        attempts, base_rationale = self._tool_capable_attempts(
+            request, attempts, decision, state_machine
+        )
         attempt_errors: list[Exception] = []
 
         for attempt_index, model_name in enumerate(attempts):
@@ -656,7 +712,12 @@ class NexusRouter:
                 assembled = ""
                 reported: ProviderResponse | None = None
                 try:
-                    stream = adapter.stream(model_name, sanitized_messages, request.max_tokens)
+                    stream = adapter.stream(
+                        model_name,
+                        sanitized_messages,
+                        request.max_tokens,
+                        **self._tool_kwargs(request),
+                    )
                     async for chunk in stream:
                         if isinstance(chunk, ProviderResponse):
                             reported = chunk
@@ -748,7 +809,7 @@ class NexusRouter:
                             model_name, provider_response, candidate, adapter, priced_at
                         ),
                         strategy=strategy,
-                        rationale=self._rationale(decision.rationale, model_name, attempt_index),
+                        rationale=self._rationale(base_rationale, model_name, attempt_index),
                         state_machine=state_machine,
                         started_at=started_at,
                         provider=candidate.provider,
@@ -965,6 +1026,12 @@ class NexusRouter:
             rationale=rationale,
             request_id=request.request_id,
             finish_reason=provider_response.finish_reason,
+            tool_calls=provider_response.tool_calls,
+        )
+        tool_call_names = (
+            [call.function.name for call in provider_response.tool_calls]
+            if request.uses_tools
+            else None
         )
         audit_record = AuditRecord(
             request_id=request.request_id,
@@ -980,15 +1047,24 @@ class NexusRouter:
             api_key_id=request.api_key_id,
             tenant_id=request.tenant_id,
             domain=domain,
+            tool_count=len(request.tool_config.tools) if request.tool_config else None,
+            tool_call_names=tool_call_names,
         )
         self._append_audit(audit_record)
         self._register_for_feedback(audit_record)
+        # Tool arguments and results never reach logs or the audit trail: names and counts only.
+        tool_fields: dict[str, object] = (
+            {"tools_offered": audit_record.tool_count, "tool_calls": tool_call_names}
+            if tool_call_names is not None
+            else {}
+        )
         self._logger.info(
             "routing_response",
             request_id=request.request_id,
             model=response.model_used,
             latency_ms=response.latency_ms,
             cost_usd=response.cost_usd,
+            **tool_fields,
         )
         return response
 
@@ -1199,6 +1275,65 @@ class NexusRouter:
                 f"at ${estimated_cost:.6f} and ${max(remaining, 0.0):.6f} is left in the "
                 "budget window"
             )
+
+    def _tool_capable_attempts(
+        self,
+        request: RouterRequest,
+        attempts: list[str],
+        decision: RoutingDecision,
+        state_machine: RoutingStateMachine,
+    ) -> tuple[list[str], str]:
+        """Keep only tool-capable attempts for a request that offers or replays tools.
+
+        The strategy's order is kept; models without the ``tools`` capability are
+        skipped and named in the rationale. Models outside the routing decision
+        are never added, so strategies that restrict providers or regions keep
+        their guarantees.
+
+        Args:
+            request: Router request.
+            attempts: Ordered attempt list (chosen model, then fallbacks).
+            decision: Strategy decision the attempts came from.
+            state_machine: Request lifecycle state machine.
+
+        Returns:
+            The attempts to make and the rationale to report.
+
+        Raises:
+            ToolCallingUnsupportedError: If no attempt supports tool calling.
+        """
+        if not request.uses_tools:
+            return attempts, decision.rationale
+        capable = [model for model in attempts if self.supports_tools(model)]
+        skipped = [model for model in attempts if model not in capable]
+        if not capable:
+            state_machine.transition(RequestState.FAILED)
+            self._logger.warning(
+                "tool_calling_unsupported",
+                request_id=request.request_id,
+                strategy=decision.routing_strategy.value,
+                models=attempts,
+            )
+            raise ToolCallingUnsupportedError(
+                "no model in the routing decision supports tool calling: "
+                f"{decision.routing_strategy.value} chose {', '.join(attempts)}, and the "
+                f"capability catalog lists '{TOOL_CAPABILITY}' for none of them"
+            )
+        rationale = decision.rationale
+        if skipped:
+            rationale += f"; tool calling skipped {', '.join(skipped)} (no tools capability)"
+        return capable, rationale
+
+    @staticmethod
+    def _tool_kwargs(request: RouterRequest) -> dict[str, ToolConfig]:
+        """Return the adapter keyword arguments that carry the request's tools.
+
+        Tool-free requests pass none, so adapters written before tool calling
+        keep working for them.
+        """
+        if request.tool_config is None:
+            return {}
+        return {"tool_config": request.tool_config}
 
     def _order_attempts(self, chosen_model: str, fallback_chain: Sequence[str]) -> list[str]:
         """Keep the strategy primary model, reorder fallbacks by provider health.

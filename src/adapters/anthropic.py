@@ -1,15 +1,30 @@
 """Anthropic provider adapter."""
 
+import json
 from collections.abc import AsyncIterator
 from datetime import datetime
 
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
-from adapters.http_utils import finish_reason, json_object, nested_int
+from adapters.http_utils import JsonObject, json_object, nested_int
+from adapters.tool_calls import (
+    arguments_object,
+    history_tool_names,
+    provider_safe_id,
+    tool_finish_reason,
+)
 from router.config import list_rates
 from router.model_ids import HAIKU_5_5_LONG_PROMPT_THRESHOLD_TOKENS
-from router.schemas import ChatMessage, LongPromptPricing, ProviderResponse
+from router.schemas import (
+    ChatMessage,
+    LongPromptPricing,
+    NamedToolChoice,
+    ProviderResponse,
+    ToolCall,
+    ToolCallFunction,
+    ToolConfig,
+)
 
 
 def _extract_anthropic_text(content_blocks: object) -> str:
@@ -43,8 +58,27 @@ def _extract_anthropic_text(content_blocks: object) -> str:
     return "".join(segments)
 
 
+def _extract_anthropic_tool_calls(content_blocks: object) -> list[ToolCall]:
+    """Return the ``tool_use`` blocks of an Anthropic response as OpenAI tool calls."""
+    calls: list[ToolCall] = []
+    for block in content_blocks if isinstance(content_blocks, list) else []:
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            continue
+        call_id, name = block.get("id"), block.get("name")
+        if not isinstance(call_id, str) or not isinstance(name, str):
+            continue
+        arguments = json.dumps(block.get("input") or {})
+        calls.append(
+            ToolCall(id=call_id, function=ToolCallFunction(name=name, arguments=arguments))
+        )
+    return calls
+
+
 def _build_anthropic_payload(
-    model: str, messages: list[ChatMessage], max_tokens: int
+    model: str,
+    messages: list[ChatMessage],
+    max_tokens: int,
+    tool_config: ToolConfig | None = None,
 ) -> dict[str, object]:
     """Build Anthropic Messages API payload with system text extracted.
 
@@ -52,17 +86,53 @@ def _build_anthropic_payload(
     roles; tool results are carried on a ``user`` turn. An incoming ``tool``
     message was previously forwarded verbatim, producing a ``{"role": "tool"}``
     entry that Anthropic rejects with a 400 and fails the whole request. Tool
-    turns are therefore mapped to the ``user`` role here.
+    turns are therefore mapped to the ``user`` role here: a ``tool`` message
+    answering an assistant tool call becomes a ``tool_result`` block (consecutive
+    results share one ``user`` turn), and the assistant's ``tool_calls`` become
+    ``tool_use`` blocks.
     """
     system_parts = [message.content for message in messages if message.role == "system"]
-    conversation_messages = [
-        {
-            "role": "user" if message.role == "tool" else message.role,
-            "content": message.content,
-        }
-        for message in messages
-        if message.role in {"user", "assistant", "tool"}
-    ]
+    conversation_messages: list[JsonObject] = []
+    previous_was_tool_result = False
+    for message in messages:
+        if message.role == "system":
+            continue
+        if message.role == "tool" and message.tool_call_id is not None:
+            block: JsonObject = {
+                "type": "tool_result",
+                "tool_use_id": provider_safe_id(message.tool_call_id),
+            }
+            if message.content:
+                block["content"] = message.content
+            last = conversation_messages[-1] if conversation_messages else None
+            if previous_was_tool_result and last is not None and isinstance(last["content"], list):
+                last["content"].append(block)
+            else:
+                conversation_messages.append({"role": "user", "content": [block]})
+            previous_was_tool_result = True
+            continue
+        previous_was_tool_result = False
+        if message.role == "assistant" and message.tool_calls:
+            blocks: list[JsonObject] = (
+                [{"type": "text", "text": message.content}] if message.content else []
+            )
+            blocks.extend(
+                {
+                    "type": "tool_use",
+                    "id": provider_safe_id(call.id),
+                    "name": call.function.name,
+                    "input": arguments_object(call.function.arguments),
+                }
+                for call in message.tool_calls
+            )
+            conversation_messages.append({"role": "assistant", "content": blocks})
+            continue
+        conversation_messages.append(
+            {
+                "role": "user" if message.role == "tool" else message.role,
+                "content": message.content,
+            }
+        )
     payload: dict[str, object] = {
         "model": model,
         "max_tokens": max_tokens,
@@ -70,7 +140,54 @@ def _build_anthropic_payload(
     }
     if system_parts:
         payload["system"] = "\n\n".join(system_parts)
+    payload.update(_anthropic_tool_fields(tool_config, messages))
     return payload
+
+
+def _anthropic_tool_fields(
+    tool_config: ToolConfig | None, messages: list[ChatMessage]
+) -> JsonObject:
+    """Return Anthropic ``tools`` and ``tool_choice`` for a request.
+
+    Anthropic rejects ``tool_use`` / ``tool_result`` blocks unless ``tools`` are
+    defined. A conversation that replays tool calls without offering tools gets
+    minimal definitions of the called functions and ``tool_choice: none``, the
+    Anthropic equivalent of offering no tools.
+    """
+    if tool_config is None:
+        names = history_tool_names(messages)
+        if not names:
+            return {}
+        return {
+            "tools": [
+                {"name": name, "input_schema": {"type": "object", "properties": {}}}
+                for name in names
+            ],
+            "tool_choice": {"type": "none"},
+        }
+    tools: list[JsonObject] = []
+    for tool in tool_config.tools:
+        definition: JsonObject = {
+            "name": tool.function.name,
+            "input_schema": tool.function.parameters_schema(),
+        }
+        if tool.function.description:
+            definition["description"] = tool.function.description
+        tools.append(definition)
+    fields: JsonObject = {"tools": tools}
+    choice = tool_config.tool_choice
+    tool_choice: JsonObject | None
+    if isinstance(choice, NamedToolChoice):
+        tool_choice = {"type": "tool", "name": choice.function.name}
+    elif choice is None:
+        tool_choice = None
+    else:
+        tool_choice = {"type": {"auto": "auto", "required": "any", "none": "none"}[choice]}
+    if tool_config.parallel_tool_calls is False and (tool_choice or {}).get("type") != "none":
+        tool_choice = {**(tool_choice or {"type": "auto"}), "disable_parallel_tool_use": True}
+    if tool_choice is not None:
+        fields["tool_choice"] = tool_choice
+    return fields
 
 
 class AnthropicAdapter(BaseProviderAdapter):
@@ -108,12 +225,16 @@ class AnthropicAdapter(BaseProviderAdapter):
         }
 
     async def complete(
-        self, model: str, messages: list[ChatMessage], max_tokens: int
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        max_tokens: int,
+        tool_config: ToolConfig | None = None,
     ) -> ProviderResponse:
         """Return a normalized Anthropic completion."""
         if not self._api_key:
             raise ProviderError("ANTHROPIC_API_KEY is not configured")
-        payload = _build_anthropic_payload(model, messages, max_tokens)
+        payload = _build_anthropic_payload(model, messages, max_tokens, tool_config)
         headers = {
             "x-api-key": self._api_key,
             "anthropic-version": "2023-06-01",
@@ -131,6 +252,7 @@ class AnthropicAdapter(BaseProviderAdapter):
             )
         body = json_object(response)
         content = _extract_anthropic_text(body.get("content", []))
+        tool_calls = _extract_anthropic_tool_calls(body.get("content", []))
         input_tokens = nested_int(body, ["usage", "input_tokens"])
         output_tokens = nested_int(body, ["usage", "output_tokens"])
         return ProviderResponse(
@@ -139,14 +261,19 @@ class AnthropicAdapter(BaseProviderAdapter):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=self.estimate_cost(model, input_tokens, output_tokens),
-            finish_reason=finish_reason(body.get("stop_reason"), {"max_tokens"}),
+            finish_reason=tool_finish_reason(body.get("stop_reason"), {"max_tokens"}, tool_calls),
+            tool_calls=tool_calls,
         )
 
     async def stream(
-        self, model: str, messages: list[ChatMessage], max_tokens: int
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        max_tokens: int,
+        tool_config: ToolConfig | None = None,
     ) -> AsyncIterator[str | ProviderResponse]:
         """Stream normalized Anthropic text chunks, then the final response."""
-        response = await self.complete(model, messages, max_tokens)
+        response = await self._complete_once(model, messages, max_tokens, tool_config)
         yield response.content
         yield response
 

@@ -2,11 +2,12 @@
 
 Translates the documented text-only subset of the Anthropic Messages API into
 nexus router messages, renders routed results as Anthropic ``message`` objects,
-and serializes Anthropic's streaming event sequence. Provider adapters are
-text-only, so tools, extended thinking, structured outputs, and non-text
-content blocks are rejected with an Anthropic-style 400 instead of being
-silently dropped. ``stop_sequences`` are enforced at the gateway because
-adapters cannot ask providers to stop at custom strings.
+and serializes Anthropic's streaming event sequence. This endpoint is
+text-only (tool calling is routed on ``/v1/chat/completions``), so tools,
+extended thinking, structured outputs, and non-text content blocks are rejected
+with an Anthropic-style 400 instead of being silently dropped.
+``stop_sequences`` are enforced at the gateway because adapters cannot ask
+providers to stop at custom strings.
 """
 
 from __future__ import annotations
@@ -66,8 +67,8 @@ def reject_unsupported(payload: MessageCountTokensRequest) -> None:
     """
     if payload.tools:
         raise _invalid(
-            "tools: tool use is not supported by nexus /v1/messages (provider adapters are "
-            "text-only); remove `tools`."
+            "tools: tool use is not supported by nexus /v1/messages (tool calling is routed "
+            "on /v1/chat/completions only); remove `tools`."
         )
     if payload.tool_choice is not None and (
         payload.tool_choice.get("type") not in _PASSIVE_TOOL_CHOICES
@@ -194,7 +195,7 @@ def _block_text(block: object, location: str) -> str:
         if block_type in _THINKING_BLOCK_TYPES:
             reason = "nexus does not return or replay extended thinking"
         elif isinstance(block_type, str) and "tool" in block_type:
-            reason = "tool use is not routed by nexus"
+            reason = "tool use is routed on /v1/chat/completions only"
         else:
             reason = "nexus routes text only"
         raise _invalid(

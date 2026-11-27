@@ -1,9 +1,18 @@
 """Shared request, response, and decision schemas."""
 
+import json
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 
 class DomainTag(StrEnum):
@@ -152,11 +161,179 @@ class RoutingStrategyName(StrEnum):
     AB_TEST = "ab"
 
 
+TOOL_CAPABILITY = "tools"
+"""Capability name (``/v1/models`` ``nexus.capabilities``) of models that can call functions."""
+
+TOOL_NAME_PATTERN = r"^[a-zA-Z0-9_-]{1,64}$"
+"""Function names every provider accepts (OpenAI's documented rule)."""
+
+MAX_TOOLS = 128
+"""Most tools one request may offer (OpenAI's documented limit)."""
+
+MIN_TOOL_OUTPUT_TOKENS = 16
+"""Smallest ``max_tokens`` of a request that uses tools.
+
+The OpenAI Responses API, which serves OpenAI tool calls, rejects a smaller
+``max_output_tokens``; requiring it for every provider keeps the client's limit
+and the budget estimate exact whichever model is routed.
+"""
+
+
+class ToolCallFunction(BaseModel):
+    """Function name and JSON-encoded arguments of one tool call."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    arguments: str
+
+
+class ToolCall(BaseModel):
+    """OpenAI ``tool_calls[]`` entry: a function call the model asks the client to run."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    type: Literal["function"] = "function"
+    function: ToolCallFunction
+
+
+class FunctionDefinition(BaseModel):
+    """OpenAI ``tools[].function``: name, description, and JSON Schema parameters.
+
+    ``parameters`` must be an object schema (``"type": "object"``): OpenAI,
+    Anthropic (``input_schema``), and Gemini all require one, so a schema only
+    some providers accept would make routing outcomes depend on the provider.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(pattern=TOOL_NAME_PATTERN)
+    description: str | None = None
+    parameters: dict[str, Any] | None = None
+    strict: bool | None = None
+
+    @field_validator("parameters")
+    @classmethod
+    def _require_object_schema(cls, parameters: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Reject parameter schemas whose ``type`` is not ``"object"``."""
+        if parameters is not None and parameters.get("type") != "object":
+            raise ValueError('must be a JSON Schema object with "type": "object"')
+        return parameters
+
+    def parameters_schema(self) -> dict[str, Any]:
+        """Return the JSON Schema of the arguments (an empty object schema when omitted)."""
+        if self.parameters is None:
+            return {"type": "object", "properties": {}}
+        return self.parameters
+
+
+class ToolDefinition(BaseModel):
+    """OpenAI function tool offered to the model."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: Literal["function"] = "function"
+    function: FunctionDefinition
+
+
+class ToolChoiceFunction(BaseModel):
+    """Function named by a forced ``tool_choice``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+
+
+class NamedToolChoice(BaseModel):
+    """``{"type": "function", "function": {"name": ...}}``: the model must call this function."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: Literal["function"] = "function"
+    function: ToolChoiceFunction
+
+
+ToolChoice = Literal["none", "auto", "required"] | NamedToolChoice
+
+
+class ToolConfig(BaseModel):
+    """Validated function-calling settings of one request.
+
+    ``tools`` holds 1 to ``MAX_TOOLS`` uniquely named functions, and a named
+    ``tool_choice`` must name one of them. ``tool_choice`` and
+    ``parallel_tool_calls`` stay ``None`` when the client omitted them, so
+    adapters send provider defaults.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    tools: tuple[ToolDefinition, ...] = Field(min_length=1, max_length=MAX_TOOLS)
+    tool_choice: ToolChoice | None = None
+    parallel_tool_calls: bool | None = None
+
+    @model_validator(mode="after")
+    def _check_names(self) -> "ToolConfig":
+        """Reject duplicate function names and a ``tool_choice`` naming no declared tool."""
+        names = self.tool_names
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate function names in tools: {', '.join(duplicates)}")
+        forced = self.forced_function
+        if forced is not None and forced not in names:
+            raise ValueError(f"tool_choice names function '{forced}', which tools does not declare")
+        return self
+
+    @property
+    def forced_function(self) -> str | None:
+        """Return the function a named ``tool_choice`` forces, if any."""
+        if isinstance(self.tool_choice, NamedToolChoice):
+            return self.tool_choice.function.name
+        return None
+
+    @property
+    def tool_names(self) -> list[str]:
+        """Return the declared function names in request order."""
+        return [tool.function.name for tool in self.tools]
+
+    def canonical(self) -> dict[str, Any]:
+        """Return a JSON-serializable form for cache keys and token estimates."""
+        return {
+            "tools": [tool.model_dump(exclude_none=True) for tool in self.tools],
+            "tool_choice": (
+                self.tool_choice.model_dump()
+                if isinstance(self.tool_choice, NamedToolChoice)
+                else self.tool_choice
+            ),
+            "parallel_tool_calls": self.parallel_tool_calls,
+        }
+
+
 class ChatMessage(BaseModel):
-    """OpenAI-compatible chat message."""
+    """OpenAI-compatible chat message.
+
+    An assistant message may carry ``tool_calls``; its ``content`` may then be
+    ``null`` (or omitted), which is stored as an empty string. A ``tool``
+    message answers one of those calls through ``tool_call_id``.
+    """
 
     role: Literal["system", "user", "assistant", "tool"] = "user"
     content: str
+    tool_calls: list[ToolCall] | None = None
+    tool_call_id: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_tool_fields(cls, data: object) -> object:
+        """Accept ``content: null`` next to ``tool_calls``; treat ``tool_calls: []`` as absent."""
+        if not isinstance(data, dict):
+            return data
+        if data.get("tool_calls") == []:
+            data = {**data, "tool_calls": None}
+        calls_tools = data.get("role") == "assistant" and bool(data.get("tool_calls"))
+        if calls_tools and data.get("content") is None:
+            data = {**data, "content": ""}
+        return data
 
 
 class KeyLimits(BaseModel):
@@ -192,11 +369,40 @@ class RouterRequest(BaseModel):
     max_tokens: int = Field(default=512, ge=1)
     stream: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
+    tool_config: ToolConfig | None = None
 
     @property
     def prompt_text(self) -> str:
         """Return the concatenated prompt text used by classifiers."""
         return "\n".join(message.content for message in self.messages)
+
+    @property
+    def uses_tools(self) -> bool:
+        """Return whether the request offers tools or replays tool calls and results.
+
+        Such a request can only be served by a model with the ``tools`` capability.
+        """
+        return self.tool_config is not None or any(
+            message.tool_calls or message.role == "tool" for message in self.messages
+        )
+
+    @property
+    def token_estimate_text(self) -> str:
+        """Return the text the prompt-token estimate counts.
+
+        Providers bill tool definitions and the assistant's earlier tool calls
+        as prompt tokens, so they are appended to ``prompt_text``. Requests
+        without tools estimate exactly ``prompt_text``.
+        """
+        parts = [self.prompt_text]
+        if self.tool_config is not None:
+            parts.append(json.dumps(self.tool_config.canonical(), sort_keys=True))
+        parts.extend(
+            f"{call.function.name}{call.function.arguments}"
+            for message in self.messages
+            for call in message.tool_calls or ()
+        )
+        return "\n".join(parts)
 
 
 class TaskSignals(BaseModel):
@@ -299,8 +505,9 @@ class RoutingDecision(BaseModel):
     fallback_chain: list[str] = Field(default_factory=list)
 
 
-FinishReason = Literal["stop", "length"]
-"""Normalized stop reason: ``length`` when output hit the token cap, otherwise ``stop``."""
+FinishReason = Literal["stop", "length", "tool_calls"]
+"""Normalized stop reason: ``length`` when output hit the token cap, ``tool_calls``
+when the model stopped to call tools, otherwise ``stop``."""
 
 
 class ProviderResponse(BaseModel):
@@ -312,10 +519,15 @@ class ProviderResponse(BaseModel):
     output_tokens: int
     cost_usd: float = Field(ge=0.0)
     finish_reason: FinishReason = "stop"
+    tool_calls: list[ToolCall] = Field(default_factory=list)
 
 
 class RouterResponse(BaseModel):
-    """Unified completion response returned by Nexus LLM Router."""
+    """Unified completion response returned by Nexus LLM Router.
+
+    ``tool_calls`` is excluded from serialization: the API renders it in
+    ``choices[0].message`` and the ``router`` block does not repeat arguments.
+    """
 
     content: str
     model_used: str
@@ -327,6 +539,7 @@ class RouterResponse(BaseModel):
     rationale: str
     request_id: str
     finish_reason: FinishReason = "stop"
+    tool_calls: list[ToolCall] = Field(default_factory=list, exclude=True)
 
 
 class AuditRecord(BaseModel):
@@ -334,7 +547,10 @@ class AuditRecord(BaseModel):
 
     ``api_key_id`` is the caller's non-reversible key fingerprint and
     ``tenant_id`` its optional ``X-Tenant-Id``; together they scope feedback on
-    the request. ``domain`` is the analyzer's domain tag.
+    the request. ``domain`` is the analyzer's domain tag. For tool-calling
+    requests, ``tool_count`` is the number of tools offered and
+    ``tool_call_names`` the functions the model called; tool arguments and
+    tool results are never recorded.
     """
 
     request_id: str
@@ -350,3 +566,14 @@ class AuditRecord(BaseModel):
     api_key_id: str | None = None
     tenant_id: str | None = None
     domain: DomainTag | None = None
+    tool_count: int | None = None
+    tool_call_names: list[str] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_tool_fields(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Keep audit lines of tool-free requests unchanged by dropping unset tool fields."""
+        data: dict[str, Any] = handler(self)
+        for key in ("tool_count", "tool_call_names"):
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data

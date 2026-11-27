@@ -238,7 +238,7 @@ silently. Known fields fall into three groups:
 | `tools: []`, `tool_choice` `{"type": "auto"}` / `{"type": "none"}`, `thinking: {"type": "disabled"}` | Accepted (no-op) | Passive defaults some clients always send. |
 | `cache_control` (top level and on text blocks), `citations` on input text blocks | Accepted, ignored | Prompt-caching hints and citation metadata do not change the routed text. |
 | `service_tier`, `speed`, `output_config.effort`, `diagnostics` | Accepted, ignored | Validated; nexus has no priority-capacity, fast-mode, effort, or cache-diagnostics control. |
-| `tools` (non-empty), `tool_choice` `any` / `tool` | Rejected | Tool use is not routed: adapters are text-only. |
+| `tools` (non-empty), `tool_choice` `any` / `tool` | Rejected | Tool use is not routed on this endpoint; send OpenAI-style `tools` to `POST /v1/chat/completions` instead ([Tool calling guide](TOOL_CALLING_GUIDE.md)). |
 | `thinking` `enabled` / `adaptive` / `between_tools` | Rejected | No extended thinking. |
 | `output_config.format` | Rejected | No structured outputs. |
 | `container` | Rejected | No code-execution containers or skills. |
@@ -392,7 +392,7 @@ Anthropic API returns 529 for `overloaded_error`; nexus keeps the standard
 fast. Real error bodies:
 
 ```text
-{"type":"error","error":{"type":"invalid_request_error","message":"tools: tool use is not supported by nexus /v1/messages (provider adapters are text-only); remove `tools`."}} HTTP 400
+{"type":"error","error":{"type":"invalid_request_error","message":"tools: tool use is not supported by nexus /v1/messages (tool calling is routed on /v1/chat/completions only); remove `tools`."}} HTTP 400
 {"type":"error","error":{"type":"invalid_request_error","message":"messages.0.content.1.type: 'image' content blocks are not supported by nexus /v1/messages (nexus routes text only); send 'text' blocks."}} HTTP 400
 {"type":"error","error":{"type":"invalid_request_error","message":"thinking: extended thinking is not supported by nexus /v1/messages; omit `thinking` or send {\"type\": \"disabled\"}."}} HTTP 400
 {"type":"error","error":{"type":"invalid_request_error","message":"messages.1.role: the final message must have role 'user'; nexus /v1/messages does not support assistant prefill (continuing a partial assistant turn)."}} HTTP 400
@@ -431,7 +431,9 @@ provider cache counters, so `cache_creation_input_tokens` and
   no containers, skills, or MCP connector. All of these are rejected with a 400.
 - **Not usable for Claude Code or other agent loops.** Claude Code and the
   Claude Agent SDK send `tools` on every request and depend on `tool_use` /
-  `tool_result` round trips, which nexus does not route. Do not point
+  `tool_result` round trips, which `/v1/messages` does not route (nexus routes
+  OpenAI-style tool calling on `/v1/chat/completions` only; see the
+  [Tool calling guide](TOOL_CALLING_GUIDE.md)). Do not point
   `ANTHROPIC_BASE_URL` for Claude Code at nexus; use it for text generation
   from Anthropic SDK apps.
 - **No prompt caching control.** `cache_control` is accepted but never

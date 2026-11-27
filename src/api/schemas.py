@@ -5,10 +5,28 @@ from time import time
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    StrictBool,
+    StrictInt,
+    field_validator,
+    model_serializer,
+)
 
 from router.feedback import METRIC_PATTERN
-from router.schemas import ChatMessage, RouterResponse, RoutingStrategyName
+from router.schemas import (
+    MAX_TOOLS,
+    ChatMessage,
+    RouterResponse,
+    RoutingStrategyName,
+    ToolCall,
+    ToolChoice,
+    ToolConfig,
+    ToolDefinition,
+)
 
 DEFAULT_MAX_TOKENS = 512
 FEEDBACK_COMMENT_MAX_CHARS = 1000
@@ -18,7 +36,13 @@ _METADATA_MAX_VALUE_CHARS = 512
 
 
 class ChatCompletionRequest(BaseModel):
-    """OpenAI-compatible chat completion request."""
+    """OpenAI-compatible chat completion request.
+
+    ``tools`` (function tools only), ``tool_choice``, and ``parallel_tool_calls``
+    enable tool calling; an empty ``tools`` list counts as no tools. The
+    deprecated ``functions`` / ``function_call`` parameters are accepted only
+    so they can be rejected with a 400 instead of being silently ignored.
+    """
 
     model: str | None = None
     messages: list[ChatMessage]
@@ -26,6 +50,31 @@ class ChatCompletionRequest(BaseModel):
     temperature: float = Field(default=1.0)
     stream: bool = False
     user: str | None = None
+    tools: list[ToolDefinition] | None = Field(default=None, max_length=MAX_TOOLS)
+    tool_choice: ToolChoice | None = None
+    parallel_tool_calls: StrictBool | None = None
+    functions: Any = Field(
+        default=None,
+        exclude=True,
+        description="Deprecated; rejected with 400 (send tools).",
+        json_schema_extra={"deprecated": True},
+    )
+    function_call: Any = Field(
+        default=None,
+        exclude=True,
+        description="Deprecated; rejected with 400 (send tool_choice).",
+        json_schema_extra={"deprecated": True},
+    )
+
+    def tool_config(self) -> ToolConfig | None:
+        """Return the request's tool settings, or ``None`` when it offers no tools."""
+        if not self.tools:
+            return None
+        return ToolConfig(
+            tools=tuple(self.tools),
+            tool_choice=self.tool_choice,
+            parallel_tool_calls=self.parallel_tool_calls,
+        )
 
 
 class Usage(BaseModel):
@@ -37,10 +86,23 @@ class Usage(BaseModel):
 
 
 class ChatCompletionMessage(BaseModel):
-    """OpenAI-compatible assistant message payload."""
+    """OpenAI-compatible assistant message payload.
+
+    ``content`` is ``null`` when the model only called tools; ``tool_calls`` is
+    omitted from the JSON when the model called none.
+    """
 
     role: Literal["assistant"] = "assistant"
-    content: str
+    content: str | None
+    tool_calls: list[ToolCall] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_tool_calls(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Keep text-only messages in their ``{"role", "content"}`` shape."""
+        data: dict[str, Any] = handler(self)
+        if data.get("tool_calls") is None:
+            data.pop("tool_calls", None)
+        return data
 
 
 class ChatCompletionChoice(BaseModel):
@@ -78,7 +140,14 @@ class ChatCompletionResponse(BaseModel):
             model=router_response.model_used,
             choices=[
                 ChatCompletionChoice(
-                    message=ChatCompletionMessage(content=router_response.content),
+                    message=ChatCompletionMessage(
+                        content=(
+                            router_response.content
+                            if router_response.content or not router_response.tool_calls
+                            else None
+                        ),
+                        tool_calls=list(router_response.tool_calls) or None,
+                    ),
                     finish_reason=router_response.finish_reason,
                 ),
             ],

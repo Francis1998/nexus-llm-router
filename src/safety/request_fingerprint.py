@@ -80,14 +80,19 @@ class RequestFingerprintDeduper:
         messages: Sequence[Mapping[str, Any]],
         temperature: float | None = None,
         tenant: str | None = None,
+        tools: Mapping[str, Any] | None = None,
     ) -> str:
         """Return a stable SHA-256 hex digest for the request payload.
 
         Args:
             model: Model identifier (non-empty).
-            messages: Chat messages (must be non-empty).
+            messages: Chat messages (must be non-empty), including any assistant
+                ``tool_calls`` and ``tool_call_id`` fields.
             temperature: Optional sampling temperature included in the hash.
             tenant: Optional tenant namespace included in the hash.
+            tools: Optional tool settings (``tools``, ``tool_choice``,
+                ``parallel_tool_calls``; for example ``ToolConfig.canonical()``).
+                Requests without tools keep the digests earlier builds produced.
 
         Returns:
             64-character lowercase hex digest.
@@ -99,12 +104,14 @@ class RequestFingerprintDeduper:
             raise ValueError("model must be non-empty")
         if not messages:
             raise ValueError("messages must be non-empty")
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": list(messages),
             "temperature": temperature,
             "tenant": tenant,
         }
+        if tools is not None:
+            payload["tools"] = dict(tools)
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 

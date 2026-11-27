@@ -267,7 +267,7 @@ of being silently dropped.
 | `store` | `false` only | Nexus never stores responses; omitted means `false`, `true` → 400. |
 | `background` | `false` only | Needs stored responses → `true` → 400. |
 | `previous_response_id`, `conversation` | Rejected | Stateless; resend history in `input`. |
-| `tools` (non-empty), `tool_choice` (other than `auto`/`none`) | Rejected | Tool calling is not routed by this endpoint yet. |
+| `tools` (non-empty), `tool_choice` (other than `auto`/`none`) | Rejected | Tool calling is not routed by this endpoint yet; send `tools` to `POST /v1/chat/completions` instead ([Tool calling guide](TOOL_CALLING_GUIDE.md)). |
 | `prompt` | Rejected | Prompt templates are not stored; send rendered text. |
 | `text.format` other than `{"type": "text"}` | Rejected | No structured outputs: `json_schema` / `json_object` → `unsupported_parameter`; a malformed `text` or `text.format` (not an object, missing or unknown `type`) → `invalid_value` instead of a silent plain-text answer. |
 | `input_image`, `input_file`, `input_audio` parts | Rejected | Nexus routes text-only messages. |
@@ -391,7 +391,7 @@ make them pinnable.
 | OpenAI-compatible `POST /v1/responses` | Yes (since v1.63.8) | Yes (`/api/v1/responses`) | Yes |
 | Streaming | Yes | Yes | Yes (official lifecycle with `sequence_number`) |
 | Stored responses (`store`, `previous_response_id`, GET/DELETE) | Yes | No, stateless (400) | No, stateless (400) |
-| Tool calling | Yes | Yes | Not yet (explicit 400) |
+| Tool calling | Yes | Yes | Not on this endpoint yet (explicit 400); OpenAI-style tool calling on `/v1/chat/completions` ([guide](TOOL_CALLING_GUIDE.md)) |
 | Multi-provider routing | Load balancing and fallbacks across deployments | Provider routing | 100+ task-aware strategies selectable per request via `X-Router-Strategy` |
 
 What nexus adds on top of compatibility: every response explains its routing

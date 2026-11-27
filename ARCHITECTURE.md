@@ -46,6 +46,12 @@ RECEIVED | CLASSIFIED | ROUTED | DISPATCHED | FALLBACK -> FAILED
 
 Strategies return `RoutingDecision`, which includes selected model, provider, strategy, rationale, and fallback chain.
 
+For a request that uses tools (it offers `tools` or replays tool calls and
+results), the engine then keeps only the attempts whose capability data lists
+`tools`, in the strategy's order, and fails with `ToolCallingUnsupportedError`
+(HTTP 400 `tool_calling_unsupported`) before dispatch when none qualifies; see
+[Tool Calling](#tool-calling).
+
 ## Act
 
 `src/router/engine.py` dispatches through `BaseProviderAdapter`:
@@ -67,14 +73,17 @@ request's prices once, when it routes the request.
 ### Response normalization contract
 
 Each adapter normalizes a provider-specific payload into a `ProviderResponse`
-(`content`, `model`, `input_tokens`, `output_tokens`, `cost_usd`, `finish_reason`). Because
+(`content`, `model`, `input_tokens`, `output_tokens`, `cost_usd`, `finish_reason`,
+`tool_calls`). Because
 provider content is a *list* (OpenAI `choices`, Gemini `content.parts`,
 Anthropic `content` blocks), an adapter must reconstruct the full text rather
 than reading only the first element: it concatenates every text segment in
 order and skips non-text parts (for example Gemini `functionCall` parts, or
 Anthropic `thinking`/`tool_use` blocks that can precede the answer). Reading a
 single element silently truncates multi-part completions and returns an empty
-string whenever the leading element is not itself a text segment.
+string whenever the leading element is not itself a text segment. Function-call
+parts are not text: they become `ProviderResponse.tool_calls` in the OpenAI
+shape (see [Tool Calling](#tool-calling)).
 
 The same rule applies to a single message's `content`: OpenAI-compatible
 gateways may return `message.content` as a structured list of
@@ -85,7 +94,9 @@ text parts, so the OpenAI and Moonshot adapters never drop a valid completion.
 Adapters also normalize the provider stop reason into
 `ProviderResponse.finish_reason` with `adapters.http_utils.finish_reason`.
 `length` means the output-token cap was hit (OpenAI/Kimi `length`, Anthropic
-`max_tokens`, Gemini `MAX_TOKENS`); every other reason is `stop`. `stream()`
+`max_tokens`, Gemini `MAX_TOKENS`); `tool_calls` means the model stopped to call
+tools (`adapters.tool_calls.tool_finish_reason`; `length` wins when a call was
+cut off at the cap); every other reason is `stop`. `stream()`
 yields text chunks and then ends with the final `ProviderResponse`, so the
 engine records provider-reported usage, cost, and stop reason for streams too.
 A custom adapter whose stream yields text only falls back to estimates.
@@ -124,6 +135,10 @@ second answer onto the partial one. `GET /v1/models` and `GET /v1/models/{id}`
 aggregate the ratings; see [Feedback Loop](#feedback-loop). The response cache
 is namespaced by API key fingerprint, `X-Tenant-Id`, and end user, so a cached
 answer and its `request_id` are only replayed to the caller allowed to rate it.
+`/v1/chat/completions` also carries OpenAI tool calling (`tools`, `tool_choice`,
+`parallel_tool_calls`, assistant `tool_calls`, `role: "tool"` results):
+`src/api/tool_calling.py` validates it before routing and renders streamed tool
+calls; see [Tool Calling](#tool-calling).
 
 ## Request Admission
 
@@ -160,9 +175,52 @@ hashes and limits in `NEXUS_VIRTUAL_KEYS_PATH`. See
 
 ## Audit Log
 
-`AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, final state, the caller's API key fingerprint, or virtual key id in `virtual_keys` mode (`api_key_id`), and `X-Tenant-Id` (`tenant_id`, a tenant-bound key's tenant), and the analyzer's `domain`. The spend ledger records the same `api_key_id` per request.
+`AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, final state, the caller's API key fingerprint, or virtual key id in `virtual_keys` mode (`api_key_id`), and `X-Tenant-Id` (`tenant_id`, a tenant-bound key's tenant), and the analyzer's `domain`. The spend ledger records the same `api_key_id` per request. Tool-calling requests add `tool_count` (tools offered) and `tool_call_names` (functions the model called); tool arguments and results are never recorded, and lines of tool-free requests are unchanged.
 
 The audit, spend-ledger, and feedback-index writes run after the provider answered, outside the attempt loop's failure handling: an I/O error there logs a warning (`audit_log_write_failed`, `spend_ledger_write_failed`, `feedback_index_failed`) and still returns the answer, and no error after the answer triggers a fallback or counts against the provider (see [SAFETY.md](SAFETY.md#accounting-write-failures-are-not-provider-failures)).
+
+## Tool Calling
+
+Nexus routes OpenAI-style function calling and never executes a tool:
+
+```text
+POST /v1/chat/completions {tools, tool_choice, messages with tool_calls / role: tool}
+  -> api/tool_calling.py: schema + call/result pairing checks (OpenAI 400s)
+  -> RouterRequest.tool_config (ToolConfig) -> Observe (token estimate counts tool schemas)
+  -> Decide -> tool-capability gate (NexusRouter.capability_catalog, "tools")
+  -> Act: adapter.complete(..., tool_config=...) translates to the provider and back
+  -> ProviderResponse.tool_calls -> message.tool_calls, finish_reason "tool_calls"
+```
+
+1. `ChatCompletionRequest.tool_config()` turns `tools` / `tool_choice` /
+   `parallel_tool_calls` into a frozen `ToolConfig` (`src/router/schemas.py`):
+   at most 128 uniquely named function tools with object parameter schemas, and
+   a named `tool_choice` that names one of them. `tool_request_error` checks that
+   every `tool` message answers a call of the preceding assistant turn and every
+   call is answered once.
+2. `RouterRequest.uses_tools` is true when tools are offered or replayed. The
+   engine's `_tool_capable_attempts` filters the decision's attempts to
+   tool-capable models (never adding new ones) and names skipped models in the
+   rationale.
+3. Adapters receive `tool_config` as a keyword argument only for tool requests,
+   so adapters written before tool calling keep serving text requests; streams
+   that wrap `complete()` go through `BaseProviderAdapter._complete_once`.
+   `src/adapters/tool_calls.py` holds the shared helpers (provider-safe ids,
+   stable generated ids, Gemini thought signatures embedded in ids, finish
+   reasons, OpenAI-compatible serialization). OpenAI tool requests use the
+   Responses API (`function_call` / `function_call_output` items, `store: false`);
+   Anthropic uses `tool_use` / `tool_result` blocks; Gemini uses
+   `functionDeclarations`, `functionCall`, and `functionResponse` parts; Kimi and
+   the mock adapter speak the OpenAI shape.
+4. Streamed tool requests are answered from one non-streaming
+   `NexusRouter.complete()` call and rendered as `chat.completion.chunk` frames
+   with `delta.tool_calls` (`tool_call_stream_frames`), so routing failures stay
+   HTTP errors.
+5. Response-cache keys, request fingerprints, and token estimates include the
+   tool settings and replayed calls; the audit log and logs keep tool counts and
+   names only; PII scrubbing covers replayed arguments and tool results.
+
+See [docs/guides/TOOL_CALLING_GUIDE.md](docs/guides/TOOL_CALLING_GUIDE.md).
 
 ## Feedback Loop
 
@@ -201,6 +259,6 @@ Nexus emits:
 
 ## Extension Points
 
-- Add a provider by implementing `BaseProviderAdapter` and registering it in `AdapterRegistry`.
+- Add a provider by implementing `BaseProviderAdapter` and registering it in `AdapterRegistry`. To serve tool calls, accept the optional `tool_config` keyword in `complete()` / `stream()`, return the model's calls in `ProviderResponse.tool_calls`, and list `tools` for its models in `NexusRouter.capability_catalog`.
 - Add a strategy by subclassing `RoutingStrategy` and wiring it in `build_strategies`.
 - Replace classifier weights in `LogisticComplexityClassifier` or load weights from `scripts/train_classifier.py` output.

@@ -475,7 +475,7 @@ WEATHER_TOOL = {"name": "get_weather", "input_schema": {"type": "object"}}
                 ]
             },
             "messages.1.content.0.type: 'tool_use' content blocks are not supported by nexus "
-            "/v1/messages (tool use is not routed by nexus)",
+            "/v1/messages (tool use is routed on /v1/chat/completions only)",
         ),
         (
             {

@@ -6,9 +6,15 @@ from datetime import datetime
 import httpx
 
 from adapters.base import BaseProviderAdapter, ProviderError
-from adapters.http_utils import finish_reason, json_object, message_text, nested_int
+from adapters.http_utils import json_object, message_text, nested_int
+from adapters.tool_calls import (
+    openai_chat_messages,
+    openai_chat_tool_fields,
+    parse_openai_tool_calls,
+    tool_finish_reason,
+)
 from router.config import list_rates
-from router.schemas import ChatMessage, ProviderResponse
+from router.schemas import ChatMessage, ProviderResponse, ToolCall, ToolConfig
 
 
 class MoonshotAdapter(BaseProviderAdapter):
@@ -36,18 +42,27 @@ class MoonshotAdapter(BaseProviderAdapter):
         }
 
     async def complete(
-        self, model: str, messages: list[ChatMessage], max_tokens: int
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        max_tokens: int,
+        tool_config: ToolConfig | None = None,
     ) -> ProviderResponse:
-        """Return a normalized Moonshot completion."""
+        """Return a normalized Moonshot completion.
+
+        Kimi's API is OpenAI-compatible, so ``tools``, ``tool_choice``, assistant
+        ``tool_calls``, and ``tool`` results pass through unchanged.
+        """
         if not self._api_key:
             raise ProviderError("MOONSHOT_API_KEY is not configured")
         # Kimi deprecates ``max_tokens`` in favour of ``max_completion_tokens``.
         # K3-series models fix temperature (1.0), top_p, n, and penalties and
         # reject other values, so sampling parameters are never sent.
-        payload = {
+        payload: dict[str, object] = {
             "model": model,
-            "messages": [message.model_dump() for message in messages],
+            "messages": openai_chat_messages(messages),
             "max_completion_tokens": max_tokens,
+            **openai_chat_tool_fields(tool_config),
         }
         headers = {"Authorization": f"Bearer {self._api_key}"}
         async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
@@ -65,9 +80,11 @@ class MoonshotAdapter(BaseProviderAdapter):
         choices = body.get("choices", [])
         content = ""
         stop_reason: object = None
+        tool_calls: list[ToolCall] = []
         if isinstance(choices, list) and choices and isinstance(choices[0], dict):
             content = message_text(choices[0].get("message"))
             stop_reason = choices[0].get("finish_reason")
+            tool_calls = parse_openai_tool_calls(choices[0].get("message"))
         input_tokens = nested_int(body, ["usage", "prompt_tokens"])
         output_tokens = nested_int(body, ["usage", "completion_tokens"])
         return ProviderResponse(
@@ -76,14 +93,19 @@ class MoonshotAdapter(BaseProviderAdapter):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=self.estimate_cost(model, input_tokens, output_tokens),
-            finish_reason=finish_reason(stop_reason, {"length"}),
+            finish_reason=tool_finish_reason(stop_reason, {"length"}, tool_calls),
+            tool_calls=tool_calls,
         )
 
     async def stream(
-        self, model: str, messages: list[ChatMessage], max_tokens: int
+        self,
+        model: str,
+        messages: list[ChatMessage],
+        max_tokens: int,
+        tool_config: ToolConfig | None = None,
     ) -> AsyncIterator[str | ProviderResponse]:
         """Stream normalized Moonshot text chunks, then the final response."""
-        response = await self.complete(model, messages, max_tokens)
+        response = await self._complete_once(model, messages, max_tokens, tool_config)
         yield response.content
         yield response
 

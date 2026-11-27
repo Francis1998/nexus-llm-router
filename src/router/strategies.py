@@ -11576,7 +11576,8 @@ class ThinkingModelPreferStrategy(RoutingStrategy):
 class ToolCallingPreferStrategy(RoutingStrategy):
     """Prefer tool/function-calling capable models when tools are required.
 
-    When ``metadata.requires_tools`` is truthy, or ``metadata.tools`` is a
+    When the request offers ``tools`` on ``/v1/chat/completions``,
+    ``metadata.requires_tools`` is truthy, or ``metadata.tools`` is a
     non-empty list/string (mirroring OpenRouter-style tool-use routing), rank
     healthy domain-eligible candidates by whether they support tools, then by
     quality (descending) and cost (ascending). Tool support is resolved from,
@@ -11624,8 +11625,12 @@ class ToolCallingPreferStrategy(RoutingStrategy):
 
     @classmethod
     def _wants_tools(cls, request: RouterRequest) -> bool:
-        """Return whether the request asks for tool / function calling."""
-        if cls._is_truthy(request.metadata.get("requires_tools")):
+        """Return whether the request asks for tool / function calling.
+
+        Requests that offer real ``tools`` (or replay tool calls) always do;
+        the metadata signals cover callers that only describe the need.
+        """
+        if request.uses_tools or cls._is_truthy(request.metadata.get("requires_tools")):
             return True
         tools = request.metadata.get("tools")
         if tools is None:
