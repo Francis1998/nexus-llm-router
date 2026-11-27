@@ -228,6 +228,7 @@ works as for text-only requests (see the [README](../../README.md#core-gateway))
 | `tools[].function.strict` | boolean | none | Forwarded to OpenAI (nexus sends `strict: false` unless you set `true`, because the Responses API defaults to `true`) and Kimi; Anthropic and Gemini do not receive it. |
 | `tool_choice` | `"none"`, `"auto"`, `"required"`, or `{"type": "function", "function": {"name": "..."}}` | provider default (`auto` when tools are offered) | A named choice must name a declared tool; `"required"` needs at least one tool. `"none"` / `"auto"` without tools are accepted and have no effect. |
 | `parallel_tool_calls` | boolean | provider default | `false` asks for at most one call per turn (see [How each provider is translated](#how-each-provider-is-translated)). |
+| `max_tokens` | integer | 512 | At least **16** when the request uses tools (offers them or replays calls): the OpenAI Responses API minimum, applied to every provider so the limit and the budget estimate never depend on the routed model. |
 | `functions`, `function_call` | - | - | Deprecated OpenAI parameters: rejected with 400 `unsupported_parameter` instead of being silently ignored. Send `tools` / `tool_choice`. |
 
 ### Message fields
@@ -315,6 +316,7 @@ indices, ids, and function names, never tool arguments or results.
 | `invalid_value` | `tools` | More than 128 tools, or duplicate function names. |
 | `invalid_value` | `tool_choice` | An unknown value, a named function that `tools` does not declare, or `"required"` without tools. |
 | `invalid_value` | `parallel_tool_calls` | Not a JSON boolean. |
+| `invalid_value` | `max_tokens` | Below 16 on a request that offers tools or replays tool calls. |
 | `unsupported_parameter` | `functions` / `function_call` | The deprecated function-calling parameters. |
 | `missing_required_parameter` | `messages[i].tool_call_id` | A `tool` message without `tool_call_id`. |
 | `invalid_value` | `messages[i].tool_call_id` | A result that answers no call of the preceding assistant message, answers one twice, or a `tool_call_id` on a non-`tool` message. |
@@ -380,7 +382,8 @@ request that offers tools or replays tool calls to `POST /v1/responses`:
   become `function_call_output` items paired by `call_id`;
 - `store` is `false`: nexus is stateless and resends the conversation every
   turn, so nothing is kept at OpenAI and `previous_response_id` is not used;
-- `max_output_tokens` is `max(max_tokens, 16)` (the Responses API minimum);
+- `max_output_tokens` is the request's `max_tokens` (the API rejects tool
+  requests below the Responses API minimum of 16, so the cap is never raised);
 - the answer's `function_call` items become `tool_calls` (their `call_id` is the
   client-visible id), `output_text` / `refusal` parts become `content`, and
   `incomplete_details.reason: "max_output_tokens"` becomes `finish_reason: "length"`.

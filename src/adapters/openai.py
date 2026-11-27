@@ -16,6 +16,7 @@ from adapters.tool_calls import openai_chat_messages, provider_safe_id, tool_fin
 from router.config import list_rates
 from router.model_ids import GPT6_LONG_PROMPT_THRESHOLD_TOKENS
 from router.schemas import (
+    MIN_TOOL_OUTPUT_TOKENS,
     ChatMessage,
     LongPromptPricing,
     NamedToolChoice,
@@ -28,8 +29,6 @@ from router.schemas import (
 _LEGACY_MAX_TOKENS_PREFIXES = ("gpt-4", "gpt-3.5")
 _CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 _RESPONSES_URL = "https://api.openai.com/v1/responses"
-# The Responses API rejects ``max_output_tokens`` below 16.
-_RESPONSES_MIN_OUTPUT_TOKENS = 16
 
 
 class OpenAIAdapter(BaseProviderAdapter):
@@ -81,6 +80,13 @@ class OpenAIAdapter(BaseProviderAdapter):
         if not self._api_key:
             raise ProviderError("OPENAI_API_KEY is not configured")
         if tool_config is not None or _replays_tools(messages):
+            if max_tokens < MIN_TOOL_OUTPUT_TOKENS:
+                # Raising the cap would exceed the client's limit and the budget estimate.
+                raise ProviderError(
+                    "openai tool calls go through the Responses API, which needs "
+                    f"max_output_tokens >= {MIN_TOOL_OUTPUT_TOKENS}; got max_tokens={max_tokens}",
+                    status_code=400,
+                )
             payload = _responses_payload(model, messages, max_tokens, tool_config)
             body = await self._post(_RESPONSES_URL, payload)
             return self._normalize_responses_body(model, body)
@@ -204,7 +210,7 @@ def _responses_payload(
     payload: dict[str, object] = {
         "model": model,
         "input": _responses_input(messages),
-        "max_output_tokens": max(max_tokens, _RESPONSES_MIN_OUTPUT_TOKENS),
+        "max_output_tokens": max_tokens,
         "store": False,
     }
     if tool_config is None:

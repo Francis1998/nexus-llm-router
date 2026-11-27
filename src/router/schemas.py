@@ -170,6 +170,14 @@ TOOL_NAME_PATTERN = r"^[a-zA-Z0-9_-]{1,64}$"
 MAX_TOOLS = 128
 """Most tools one request may offer (OpenAI's documented limit)."""
 
+MIN_TOOL_OUTPUT_TOKENS = 16
+"""Smallest ``max_tokens`` of a request that uses tools.
+
+The OpenAI Responses API, which serves OpenAI tool calls, rejects a smaller
+``max_output_tokens``; requiring it for every provider keeps the client's limit
+and the budget estimate exact whichever model is routed.
+"""
+
 
 class ToolCallFunction(BaseModel):
     """Function name and JSON-encoded arguments of one tool call."""

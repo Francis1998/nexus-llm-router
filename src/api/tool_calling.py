@@ -18,7 +18,13 @@ from uuid import uuid4
 
 from api.errors import TOOL_CALLING_UNSUPPORTED, GatewayError
 from api.schemas import ChatCompletionRequest
-from router.schemas import TOOL_NAME_PATTERN, ChatMessage, NamedToolChoice, RouterResponse
+from router.schemas import (
+    MIN_TOOL_OUTPUT_TOKENS,
+    TOOL_NAME_PATTERN,
+    ChatMessage,
+    NamedToolChoice,
+    RouterResponse,
+)
 
 __all__ = [
     "TOOL_CALLING_UNSUPPORTED",
@@ -104,9 +110,10 @@ def tool_request_error(payload: ChatCompletionRequest) -> GatewayError | None:
     """Return a 400 for a tool-calling request no provider could answer consistently.
 
     Checks the deprecated ``functions`` / ``function_call`` parameters, duplicate
-    tool names, a ``tool_choice`` that needs tools the request lacks, and the
+    tool names, a ``tool_choice`` that needs tools the request lacks, the
     pairing of tool calls and tool results in ``messages``
-    (:func:`tool_message_error`).
+    (:func:`tool_message_error`), and that a request using tools allows at
+    least ``MIN_TOOL_OUTPUT_TOKENS`` output tokens.
 
     Args:
         payload: Parsed chat completion request.
@@ -148,7 +155,21 @@ def tool_request_error(payload: ChatCompletionRequest) -> GatewayError | None:
             code="invalid_value",
             param="tool_choice",
         )
-    return tool_message_error(payload.messages)
+    if (error := tool_message_error(payload.messages)) is not None:
+        return error
+    uses_tools = bool(names) or any(
+        message.tool_calls or message.role == "tool" for message in payload.messages
+    )
+    if uses_tools and payload.max_tokens < MIN_TOOL_OUTPUT_TOKENS:
+        return GatewayError(
+            400,
+            f"Invalid value for 'max_tokens': requests that use tools need at least "
+            f"{MIN_TOOL_OUTPUT_TOKENS} output tokens (the OpenAI Responses API minimum, "
+            f"applied to every provider); got {payload.max_tokens}.",
+            code="invalid_value",
+            param="max_tokens",
+        )
+    return None
 
 
 def tool_message_error(messages: Sequence[ChatMessage]) -> GatewayError | None:

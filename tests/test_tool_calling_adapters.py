@@ -157,13 +157,13 @@ async def test_openai_tool_request_goes_through_the_responses_api() -> None:
         response = await adapter.complete(
             OPENAI_EVERYDAY_MODEL,
             [ChatMessage(role="system", content="Be brief."), ChatMessage(content="Paris?")],
-            8,
+            64,
             tool_config=config,
         )
     payload = posts[0]["json"]
     assert posts[0]["url"] == "https://api.openai.com/v1/responses"
     assert payload["store"] is False
-    assert payload["max_output_tokens"] == 16  # the Responses API minimum
+    assert payload["max_output_tokens"] == 64
     assert payload["tools"][0] == {
         "type": "function",
         "name": "get_weather",
