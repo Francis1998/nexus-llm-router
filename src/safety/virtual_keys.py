@@ -27,6 +27,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from safety.tenant_rate_limiter import TenantRateLimiter
+
 KEY_PREFIX = "sk-nexus-"
 # Random characters shown after ``sk-nexus-`` in listings (24 of the key's 256 bits).
 DISPLAY_RANDOM_CHARS = 4
@@ -515,6 +517,7 @@ class VirtualKeyStore:
         rpm_limit: int | None = None,
         expires_at: datetime | float | None = None,
         metadata: Mapping[str, object] | None = None,
+        enabled: bool = True,
     ) -> tuple[str, VirtualKey]:
         """Create a virtual key and return ``(raw_key, record)``.
 
@@ -528,6 +531,7 @@ class VirtualKeyStore:
             rpm_limit: Optional requests-per-minute limit.
             expires_at: Optional expiry (datetime, naive means UTC, or Unix time).
             metadata: Optional JSON object stored with the key.
+            enabled: ``False`` creates the key blocked.
 
         Returns:
             The one-time raw key string and the durable record (hash only).
@@ -544,6 +548,7 @@ class VirtualKeyStore:
             "rpm_limit": _check_rpm(rpm_limit),
             "expires_at": _check_expiry(expires_at),
             "metadata": _check_metadata(metadata),
+            "enabled": _check_enabled(enabled),
         }
         raw_key = _new_secret()
         now = self._clock()
@@ -555,7 +560,7 @@ class VirtualKeyStore:
                     key_id, key_hash, tenant, max_budget_usd, allowed_models, enabled,
                     hash_scheme, key_prefix, alias, budget_duration, rpm_limit, expires_at,
                     metadata, created_at, updated_at, revoked_at
-                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
                 """,
                 (
                     key_id,
@@ -563,6 +568,7 @@ class VirtualKeyStore:
                     values["tenant"],
                     values["max_budget_usd"],
                     self._column_value("allowed_models", values["allowed_models"]),
+                    self._column_value("enabled", values["enabled"]),
                     _HMAC_SCHEME,
                     _display_prefix(raw_key),
                     values["alias"],
@@ -845,3 +851,34 @@ class VirtualKeyStore:
             raise VirtualKeyBudgetError(
                 f"virtual key budget exceeded: {projected:.6f} > {key.max_budget_usd:.6f}"
             )
+
+
+class KeyRateLimiter:
+    """Per-key requests-per-minute limits: one token bucket per key.
+
+    A key with ``rpm_limit`` N may send up to N requests at once, refilling at N
+    per minute (``TenantRateLimiter`` buckets). A changed limit starts a fresh
+    bucket. State is per process, like the other gateway rate limiters.
+    """
+
+    def __init__(self) -> None:
+        """Initialize an empty limiter."""
+        self._buckets: dict[str, tuple[int, TenantRateLimiter]] = {}
+        self._lock = threading.Lock()
+
+    def assert_allowed(self, key_id: str, rpm_limit: int) -> None:
+        """Consume one request for ``key_id`` or raise when its limit is reached.
+
+        Args:
+            key_id: Virtual key id.
+            rpm_limit: The key's current requests-per-minute limit.
+
+        Raises:
+            TenantRateLimitExceededError: When the key's bucket is empty.
+        """
+        with self._lock:
+            entry = self._buckets.get(key_id)
+            if entry is None or entry[0] != rpm_limit:
+                entry = (rpm_limit, TenantRateLimiter(rpm_limit, rpm_limit / 60.0))
+                self._buckets[key_id] = entry
+        entry[1].assert_allowed(key_id)

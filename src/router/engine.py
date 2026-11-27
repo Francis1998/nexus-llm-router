@@ -1014,6 +1014,7 @@ class NexusRouter:
                 "spend_ledger_write_failed",
                 request_id=request.request_id,
                 tenant=request.user_id,
+                api_key_id=request.api_key_id,
                 provider=provider,
                 model=provider_response.model,
                 cost_usd=provider_response.cost_usd,
