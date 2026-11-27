@@ -125,9 +125,41 @@ aggregate the ratings; see [Feedback Loop](#feedback-loop). The response cache
 is namespaced by API key fingerprint, `X-Tenant-Id`, and end user, so a cached
 answer and its `request_id` are only replayed to the caller allowed to rate it.
 
+## Request Admission
+
+Before routing, `_admit_caller` in `src/api/main.py` turns the request's
+credential into the caller identity every later stage keys on (`api_key_id`):
+
+```text
+Authorization / x-api-key
+  -> NEXUS_AUTH_MODE=open:         fingerprint (key_<16 hex>), no limits
+  -> NEXUS_AUTH_MODE=virtual_keys: KeyGate.admit (src/api/keys.py)
+       1. credential: master key (constant-time) or VirtualKeyStore.authenticate
+          (HMAC-SHA-256 lookup)                                        -> 401
+       2. tenant binding vs X-Tenant-Id                                 -> 403
+       3. explicit catalog model vs the key's allowlist                 -> 403
+       4. metered endpoints: window spend from the spend ledger         -> 402
+       5. metered endpoints: per-key RPM token bucket                   -> 429
+       -> api_key_id = vk_..., KeyLimits(allowed_models, remaining_budget_usd)
+  -> X-Tenant-Id hard rate limit -> Idempotency-Key -> response cache
+  -> NexusRouter: decision and fallback chain restricted to allowed_models;
+     candidates whose estimate exceeds remaining_budget_usd are skipped (402)
+  -> provider -> spend ledger row (api_key_id, real cost) + audit record
+```
+
+`KeyLimits` (`src/router/schemas.py`) is the only thing the router learns about
+virtual keys: `NexusRouter._restrict_to_key_models` filters the strategy's
+decision and `_assert_key_budget` joins the per-candidate budget checks, so
+every strategy and every fallback respects a key's policy without knowing
+about keys. Spend is never cached per process: each admission reads the key's
+settled spend in its UTC window from the shared ledger, so all workers enforce
+the same budget. `/v1/keys*` (`KeyAdmin`) is master-key only; the store keeps
+hashes and limits in `NEXUS_VIRTUAL_KEYS_PATH`. See
+[docs/guides/VIRTUAL_KEYS_GUIDE.md](docs/guides/VIRTUAL_KEYS_GUIDE.md).
+
 ## Audit Log
 
-`AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, final state, the caller's API key fingerprint (`api_key_id`) and `X-Tenant-Id` (`tenant_id`), and the analyzer's `domain`.
+`AuditLog` persists newline-delimited JSON to `NEXUS_AUDIT_LOG_PATH`. Each response records request id, chosen model, provider, strategy, rationale, latency, token cost, token usage, final state, the caller's API key fingerprint, or virtual key id in `virtual_keys` mode (`api_key_id`), and `X-Tenant-Id` (`tenant_id`, a tenant-bound key's tenant), and the analyzer's `domain`. The spend ledger records the same `api_key_id` per request.
 
 The audit, spend-ledger, and feedback-index writes run after the provider answered, outside the attempt loop's failure handling: an I/O error there logs a warning (`audit_log_write_failed`, `spend_ledger_write_failed`, `feedback_index_failed`) and still returns the answer, and no error after the answer triggers a fallback or counts against the provider (see [SAFETY.md](SAFETY.md#accounting-write-failures-are-not-provider-failures)).
 

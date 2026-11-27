@@ -45,7 +45,38 @@ The API key identifier is a non-reversible fingerprint of the `Authorization`
 header (`key_` + 16 hex chars of SHA-256 over the credential, with any `Bearer`
 prefix stripped; `anonymous` when absent). The raw header is never used as an
 identifier, so it cannot leak through 429 details, `GET /v1/spend`, or the
-durable spend/idempotency stores. See [SECURITY.md](SECURITY.md#credential-handling).
+durable spend/idempotency stores. In `virtual_keys` mode the identifier is the
+issued key's id instead, and each key's own `rpm_limit` applies on top (see
+[Virtual keys](#virtual-keys)). See [SECURITY.md](SECURITY.md#credential-handling).
+
+## Virtual keys
+
+With `NEXUS_AUTH_MODE=virtual_keys` only the master key and keys it issued
+reach a model endpoint (see
+[docs/guides/VIRTUAL_KEYS_GUIDE.md](docs/guides/VIRTUAL_KEYS_GUIDE.md)):
+
+- **Key handling.** Secrets are 256 random bits behind `sk-nexus-`, returned
+  once (create / rotate) and stored only as HMAC-SHA-256 under
+  `NEXUS_KEY_HASH_PEPPER`, with a 4-character display prefix. Stored digests
+  are compared with `hmac.compare_digest`; a copy of the key store cannot
+  verify a leaked key without the pepper.
+- **Master key.** `NEXUS_MASTER_KEY` is a secret setting (masked in reprs and
+  settings validation errors), compared in constant time over fixed-length
+  digests, required at startup in `virtual_keys` mode, and never logged.
+- **No secrets in logs or stores.** The spend ledger, audit log, response
+  cache, idempotency and feedback stores, structured logs, and error messages
+  carry the key id (`vk_...`) or display prefix only; unknown keys are never
+  echoed back.
+- **Refusals before spend.** Unknown, revoked, expired, and blocked keys get a
+  401, a catalog model outside the allowlist a 403, an exhausted window budget
+  a 402, and an exceeded RPM limit a 429, all before any provider call.
+  Routing and fallbacks never leave the allowlist, and candidates whose cost
+  forecast exceeds the key's remaining budget are skipped like the global
+  budget guardrail's refusals (no provider failure is recorded).
+- **Limits of the guarantee.** Budgets are checked against settled spend, so
+  requests in flight when a budget runs out can overshoot it by their own
+  cost; RPM buckets are per process; `/health` and `/metrics` stay
+  unauthenticated.
 
 ## Failure Semantics
 

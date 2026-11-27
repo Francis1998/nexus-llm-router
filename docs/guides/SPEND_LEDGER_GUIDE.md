@@ -16,13 +16,19 @@ instances pointing at the same database path.
 
 1. On each successful routed completion, `NexusRouter` appends a row to
    `SpendLedger` (SQLite).
-2. Rows capture `request_id`, tenant (`user_id`), provider, model, cost, and
-   token counts.
-3. `summary(tenant=..., provider=..., model=..., since=..., until=...)`
-   aggregates with optional half-open time window
-   (`recorded_at >= since` and `recorded_at < until`).
+2. Rows capture `request_id`, tenant (`user_id`), provider, model, cost,
+   token counts, and `api_key_id` (the key fingerprint, or the virtual key id
+   in `virtual_keys` mode; never the secret). Ledgers created before the
+   column existed gain it in place, with `NULL` in older rows.
+3. `summary(tenant=..., provider=..., model=..., since=..., until=...,
+   api_key_id=...)` aggregates with optional half-open time window
+   (`recorded_at >= since` and `recorded_at < until`); `key_spend(api_key_id,
+   since=...)` returns one key's spend and request count, which virtual-key
+   budgets are checked against (see `VIRTUAL_KEYS_GUIDE.md`).
 4. `GET /v1/spend` returns totals plus breakdowns by tenant / provider / model.
-5. `POST /v1/spend` accepts manual records for demos or offline ingestion.
+   In `virtual_keys` mode a virtual key sees only its own requests.
+5. `POST /v1/spend` accepts manual records for demos or offline ingestion
+   (master key only in `virtual_keys` mode).
 6. Pair with `TenantSpendQuotaEnforcer` for fail-closed UTC calendar-month
    USD caps (see `TENANT_SPEND_QUOTA_GUIDE.md`).
 
