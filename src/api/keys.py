@@ -415,7 +415,8 @@ class KeyGate:
         Checks run in this order: credential (401), ``X-Tenant-Id`` against a
         tenant-bound key (403), the requested model against the key's allowlist
         (403), the allowlist against the catalog (403), then for ``metered``
-        endpoints (the ones that call a provider) the budget window (402) and
+        endpoints (the ones that call a provider) earlier spend whose ledger
+        write failed (503 until it is settled), the budget window (402), and
         the RPM limit (429), so refused requests never use up the RPM limit. A
         ``model`` that is not a catalog
         model (such as ``auto``) stays a routing hint, as in ``open`` mode: the
@@ -450,6 +451,8 @@ class KeyGate:
                     error_type=_PERMISSION_ERROR,
                     code="no_eligible_model",
                 )
+        if metered:
+            self._assert_settled(key)
         remaining = self._remaining_budget(key) if metered else None
         if metered and key.rpm_limit is not None:
             try:
@@ -464,6 +467,25 @@ class KeyGate:
                 ) from error
         limits = KeyLimits(allowed_models=allowed, remaining_budget_usd=remaining)
         return KeyAccess(api_key_id=key.key_id, key=key, limits=limits)
+
+    def _assert_settled(self, key: VirtualKey) -> None:
+        """Refuse new spend while an earlier request's spend is missing from the ledger.
+
+        The router keeps a virtual key's ledger write that failed and the gate
+        retries it here: budgets read the ledger, so admitting more requests on
+        stale totals could take the key past its budget.
+        """
+        if not self._ledger.has_unsettled(key.key_id):
+            return
+        self._ledger.settle()
+        if self._ledger.has_unsettled(key.key_id):
+            raise GatewayError(
+                503,
+                f"Spend of an earlier request made with API key {key.key_id} could not be "
+                "recorded yet, so its budget cannot be checked; retry later.",
+                error_type="server_error",
+                code="spend_unsettled",
+            )
 
     def _remaining_budget(self, key: VirtualKey) -> float | None:
         """Return the key's budget left in its window; 402 when none is left."""

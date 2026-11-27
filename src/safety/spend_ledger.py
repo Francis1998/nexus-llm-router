@@ -52,6 +52,8 @@ class SpendLedger:
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        # Records whose write failed with ``retain_on_failure``, oldest first.
+        self._unsettled: list[SpendRecord] = []
         self._initialize()
 
     @property
@@ -116,6 +118,7 @@ class SpendLedger:
         output_tokens: int = 0,
         recorded_at: float | None = None,
         api_key_id: str | None = None,
+        retain_on_failure: bool = False,
     ) -> SpendRecord:
         """Persist a spend event and return the stored record.
 
@@ -130,9 +133,15 @@ class SpendLedger:
             recorded_at: Optional unix timestamp; defaults to now.
             api_key_id: Gateway API key the request was made with (a virtual
                 key id or a key fingerprint, never the secret).
+            retain_on_failure: Keep the record in memory when the write fails,
+                so :meth:`has_unsettled` reports it and :meth:`settle` retries it.
 
         Returns:
             The durable spend record.
+
+        Raises:
+            sqlite3.Error: When the write fails.
+            OSError: When the database file cannot be written.
         """
         stamp = time.time() if recorded_at is None else float(recorded_at)
         record = SpendRecord(
@@ -146,6 +155,42 @@ class SpendLedger:
             recorded_at=stamp,
             api_key_id=api_key_id,
         )
+        try:
+            self._insert(record)
+        except (sqlite3.Error, OSError):
+            if retain_on_failure:
+                with self._lock:
+                    self._unsettled.append(record)
+            raise
+        return record
+
+    def has_unsettled(self, api_key_id: str) -> bool:
+        """Return whether a retained record of ``api_key_id`` is not in the ledger yet.
+
+        Args:
+            api_key_id: Gateway API key id.
+
+        Returns:
+            ``True`` while a failed write of the key is waiting for :meth:`settle`.
+        """
+        with self._lock:
+            return any(record.api_key_id == api_key_id for record in self._unsettled)
+
+    def settle(self) -> None:
+        """Retry writing every retained record; records that fail again stay retained."""
+        with self._lock:
+            pending, self._unsettled = self._unsettled, []
+        failed: list[SpendRecord] = []
+        for record in pending:
+            try:
+                self._insert(record)
+            except (sqlite3.Error, OSError):
+                failed.append(record)
+        if failed:
+            with self._lock:
+                self._unsettled = failed + self._unsettled
+
+    def _insert(self, record: SpendRecord) -> None:
         with self._lock, self._connect() as connection:
             connection.execute(
                 """
@@ -167,7 +212,6 @@ class SpendLedger:
                 ),
             )
             connection.commit()
-        return record
 
     def summary(
         self,

@@ -371,6 +371,11 @@ class NexusRouter:
         """Return the store that indexes completed requests and their feedback."""
         return self._feedback_store
 
+    @property
+    def spend_ledger(self) -> SpendLedger:
+        """Return the spend ledger completions are recorded in (with retained failed writes)."""
+        return self._spend_ledger
+
     def allows_dispatch(self, model: str, subject: str, estimated_cost_usd: float) -> bool:
         """Return whether ``model`` would pass the pre-dispatch price and budget checks.
 
@@ -1008,6 +1013,8 @@ class NexusRouter:
                 input_tokens=provider_response.input_tokens,
                 output_tokens=provider_response.output_tokens,
                 api_key_id=request.api_key_id,
+                # A virtual key's budget reads the ledger: keep a failed row for retry.
+                retain_on_failure=request.key_limits is not None,
             )
         except (sqlite3.Error, OSError) as error:
             self._logger.warning(

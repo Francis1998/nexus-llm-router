@@ -251,14 +251,18 @@ def get_key_rate_limiter() -> KeyRateLimiter:
 def get_key_gate() -> KeyGate:
     """Return the gate that authenticates credentials against the virtual-key store.
 
+    The gate reads the router's own spend ledger, which also holds the virtual-key
+    spend whose write failed until it is settled.
+
     Returns:
         Key gate over the current settings, store, ledger, and catalog.
     """
+    router = get_router()
     return KeyGate(
         settings=get_settings(),
         store=get_virtual_key_store(),
-        ledger=get_spend_ledger(),
-        catalog=get_router().model_catalog,
+        ledger=router.spend_ledger,
+        catalog=router.model_catalog,
         rate_limiter=get_key_rate_limiter(),
     )
 
