@@ -14,7 +14,9 @@ def estimate_prompt_tokens(prompt_text: str) -> int:
     provider tokenizer, so the number is known before a model is chosen.
 
     Args:
-        prompt_text: Concatenated prompt (``RouterRequest.prompt_text``).
+        prompt_text: Text to estimate: ``RouterRequest.token_estimate_text``
+            (the prompt plus any tool schemas and earlier tool calls), or
+            ``RouterRequest.prompt_text`` for text-only requests.
 
     Returns:
         Estimated prompt tokens (at least 1).
@@ -55,7 +57,7 @@ class RequestAnalyzer:
         complexity_score = self._complexity_classifier.predict_score(features)
         domain_tag = self._domain_classifier.classify(features)
         latency_requirement = self._latency_classifier.classify(features, complexity_score)
-        estimated_tokens = estimate_prompt_tokens(request.prompt_text)
+        estimated_tokens = estimate_prompt_tokens(request.token_estimate_text)
         return TaskSignals(
             complexity_score=complexity_score,
             domain_tag=domain_tag,

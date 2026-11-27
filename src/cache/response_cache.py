@@ -6,8 +6,9 @@ import hashlib
 import json
 import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -21,10 +22,11 @@ class _CacheEntry:
 class ResponseCache:
     """Exact-match response cache keyed by every generation-affecting input.
 
-    Keys cover model, messages, temperature, ``max_tokens``, and the routing
-    strategy, and may be optionally namespaced by tenant so multi-tenant
-    gateways do not share completions across customers. Entries expire after
-    ``ttl_seconds``.
+    Keys cover model, messages (including assistant tool calls and tool
+    results), offered tools and ``tool_choice``, temperature, ``max_tokens``,
+    and the routing strategy, and may be optionally namespaced by tenant so
+    multi-tenant gateways do not share completions across customers. Entries
+    expire after ``ttl_seconds``.
     """
 
     def __init__(self, ttl_seconds: float = 300.0, *, enabled: bool = True) -> None:
@@ -62,32 +64,42 @@ class ResponseCache:
         *,
         max_tokens: int | None = None,
         strategy: str | None = None,
+        tools: Mapping[str, Any] | None = None,
     ) -> str:
         """Build a stable SHA-256 cache key.
 
         Args:
             model: Requested model id (or None when the router will choose).
-            messages: Chat messages as dicts or objects with role/content.
+            messages: Chat messages as dicts or objects with role/content and,
+                for tool calling, ``tool_calls`` / ``tool_call_id``.
             temperature: Sampling temperature included in the fingerprint.
             tenant: Optional tenant namespace for isolation.
             max_tokens: Output token limit; a completion truncated at a small
                 limit must not be replayed for a request allowing more tokens.
             strategy: Effective routing strategy; different strategies may pick
                 different models for the same prompt.
+            tools: Canonical tool settings (``ToolConfig.canonical()``): a
+                completion produced for one set of tools or ``tool_choice``
+                must not be replayed for another.
 
         Returns:
-            Hex digest cache key.
+            Hex digest cache key. Requests without tools keep the keys earlier
+            builds produced.
         """
-        normalized_messages: list[dict[str, str]] = []
+        normalized_messages: list[dict[str, object]] = []
         for message in messages:
-            if isinstance(message, dict):
-                role = str(message.get("role", "user"))
-                content = str(message.get("content", ""))
-            else:
-                role = str(getattr(message, "role", "user"))
-                content = str(getattr(message, "content", ""))
-            normalized_messages.append({"role": role, "content": content})
-        payload = {
+            fields = message if isinstance(message, dict) else None
+            role = str(_field(message, fields, "role", "user"))
+            content = str(_field(message, fields, "content", ""))
+            normalized: dict[str, object] = {"role": role, "content": content}
+            tool_calls = _field(message, fields, "tool_calls", None)
+            if isinstance(tool_calls, Sequence) and tool_calls:
+                normalized["tool_calls"] = [_tool_call_fingerprint(call) for call in tool_calls]
+            tool_call_id = _field(message, fields, "tool_call_id", None)
+            if tool_call_id is not None:
+                normalized["tool_call_id"] = str(tool_call_id)
+            normalized_messages.append(normalized)
+        payload: dict[str, object] = {
             "tenant": tenant or "",
             "model": model or "",
             "messages": normalized_messages,
@@ -95,6 +107,8 @@ class ResponseCache:
             "max_tokens": max_tokens,
             "strategy": strategy or "",
         }
+        if tools is not None:
+            payload["tools"] = dict(tools)
         blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -147,3 +161,18 @@ class ResponseCache:
         """Return the number of in-memory entries (including expired)."""
         with self._lock:
             return len(self._entries)
+
+
+def _field(message: object, fields: dict[Any, Any] | None, name: str, default: object) -> object:
+    """Read ``name`` from a message given as a dict or as an object."""
+    if fields is not None:
+        return fields.get(name, default)
+    return getattr(message, name, default)
+
+
+def _tool_call_fingerprint(call: object) -> object:
+    """Return a JSON-serializable form of one assistant tool call."""
+    model_dump = getattr(call, "model_dump", None)
+    if callable(model_dump):
+        return model_dump()
+    return call
