@@ -178,8 +178,15 @@ def test_admin_api_refuses_virtual_keys_with_403(gateway: Callable[..., Gateway]
 
 def test_admin_api_checks_credentials_before_the_body(gateway: Callable[..., Gateway]) -> None:
     """An unauthenticated caller learns nothing from body validation errors."""
-    response = gateway().client.post("/v1/keys", json={"models": "not-a-list"})
-    assert response.status_code == 401
+    gw = gateway()
+    assert gw.client.post("/v1/keys", json={"models": "not-a-list"}).status_code == 401
+    malformed = {"content": b"{not json", "headers": {"content-type": "application/json"}}
+    assert gw.client.post("/v1/keys", **malformed).status_code == 401
+    assert gw.client.patch("/v1/keys/vk_x", **malformed).status_code == 401
+    as_admin = gw.client.post(
+        "/v1/keys", content=b"{not json", headers=MASTER | {"content-type": "application/json"}
+    )
+    assert as_admin.status_code == 400
 
 
 def test_admin_api_is_disabled_without_a_master_key(gateway: Callable[..., Gateway]) -> None:
