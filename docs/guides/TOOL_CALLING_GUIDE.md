@@ -431,7 +431,9 @@ Tool-free requests stay on `POST /v1/chat/completions` unchanged.
 - `tool` results become `functionResponse` parts in a `user` turn, named after
   the call they answer (looked up by `tool_call_id`); a JSON-object result is
   sent as `response`, any other text as `{"output": "<text>"}`. Consecutive
-  results share one turn.
+  results share one turn, in the order of the calls they answer: Gemini pairs
+  these name-only responses with calls by position, so results the client sent
+  in another order (say, Tokyo's weather before Paris's) are reordered.
 
 ### Kimi (Kimi K3.1 Pro, Kimi K3.1 Pro Highspeed)
 

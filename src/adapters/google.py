@@ -1,6 +1,7 @@
 """Google Gemini provider adapter."""
 
 import json
+from bisect import bisect_right
 from collections.abc import AsyncIterator
 from datetime import datetime
 
@@ -192,10 +193,14 @@ def _gemini_contents(messages: list[ChatMessage]) -> list[JsonObject]:
     without one; a call from another provider gets Gemini's documented
     placeholder). ``tool`` results become ``functionResponse`` parts named
     after the call they answer, and consecutive results share one turn, as
-    Gemini expects for parallel calls.
+    Gemini expects for parallel calls. Gemini pairs these name-only responses
+    with the calls by position, so they follow the order of the preceding
+    assistant turn's calls, whatever order the client sent them in.
     """
     contents: list[JsonObject] = []
     names_by_id: dict[str, str] = {}
+    call_positions: dict[str, int] = {}
+    turn_positions: list[int] = []
     previous_was_tool_result = False
     for message in messages:
         if message.role == "system":
@@ -205,10 +210,14 @@ def _gemini_contents(messages: list[ChatMessage]) -> list[JsonObject]:
             part: JsonObject = {
                 "functionResponse": {"name": name, "response": _function_response(message.content)}
             }
+            position = call_positions.get(message.tool_call_id or "", len(call_positions))
             last = contents[-1] if contents else None
             if previous_was_tool_result and last is not None and isinstance(last["parts"], list):
-                last["parts"].append(part)
+                slot = bisect_right(turn_positions, position)
+                turn_positions.insert(slot, position)
+                last["parts"].insert(slot, part)
             else:
+                turn_positions = [position]
                 contents.append({"role": "user", "parts": [part]})
             previous_was_tool_result = True
             continue
@@ -218,6 +227,7 @@ def _gemini_contents(messages: list[ChatMessage]) -> list[JsonObject]:
             signatures = [decode_thought_signature(call.id) for call in message.tool_calls]
             if not any(signatures):
                 signatures[0] = DUMMY_THOUGHT_SIGNATURE
+            call_positions = {call.id: index for index, call in enumerate(message.tool_calls)}
             for call, signature in zip(message.tool_calls, signatures, strict=True):
                 names_by_id[call.id] = call.function.name
                 function_part: JsonObject = {
