@@ -73,6 +73,10 @@ reach a model endpoint (see
   Routing and fallbacks never leave the allowlist, and candidates whose cost
   forecast exceeds the key's remaining budget are skipped like the global
   budget guardrail's refusals (no provider failure is recorded).
+- **Accounting failures fail closed.** When a virtual key's spend cannot be
+  written to the ledger, the answer is returned, the row is retained, and the
+  key's next metered request retries it, getting 503 `spend_unsettled` until
+  it is recorded.
 - **Limits of the guarantee.** Budgets are checked against settled spend, so
   requests in flight when a budget runs out can overshoot it by their own
   cost; RPM buckets are per process; `/health` and `/metrics` stay

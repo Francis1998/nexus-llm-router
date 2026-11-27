@@ -307,6 +307,7 @@ secret, including `spend.spend_usd`, `spend.remaining_usd`, and
 | 403 | `permission_error` | `no_eligible_model` | None of the key's `models` is in the catalog any more. |
 | 403 | `permission_error` | `tenant_mismatch` | `X-Tenant-Id` names another tenant than the key is bound to. |
 | 402 | `budget_exceeded` | `budget_exceeded` | The key's window budget is used up, or no allowed model's estimated cost fits what is left. |
+| 503 | `server_error` | `spend_unsettled` | An earlier request's spend could not be written to the spend ledger and still cannot; the key may spend again once it is recorded. |
 | 429 | `rate_limit_error` | `rate_limit_exceeded` | The key's `rpm_limit` is reached. |
 | 400 | `invalid_request_error` | `invalid_value` / `unknown_parameter` / `missing_required_parameter` | Admin API validation (`param` names the field). |
 | 400 | `invalid_request_error` | `not_a_virtual_key` | `GET /v1/key/info` with the master key. |
@@ -320,11 +321,14 @@ and a refusal at any step happens **before any provider is called** (refusals
 at steps 1-3 also leave the key's budget and RPM limit untouched):
 
 1. **Credential**: the master key, or an active virtual key (401 otherwise).
-2. **Tenant binding**: `X-Tenant-Id` must match a tenant-bound key (403).
+2. **Tenant binding**: `X-Tenant-Id` must match a tenant-bound key (403), on
+   every endpoint.
 3. **Models**: a `model` that names a catalog model outside the allowlist is a
    403; an allowlist with no catalog model left is a 403 `no_eligible_model`.
 4. **Budget** (endpoints that can spend): spend settled in the current window
-   must be below `max_budget_usd` (402).
+   must be below `max_budget_usd` (402). If an earlier request's ledger write
+   failed, nexus first retries it and answers 503 `spend_unsettled` while it
+   still fails, rather than checking the budget against stale totals.
 5. **RPM** (endpoints that can spend): one request from the key's bucket (429).
 6. The existing gateway guards: the `X-Tenant-Id` rate limit, `Idempotency-Key`
    replays, and the response cache, all scoped per key.
@@ -392,6 +396,13 @@ current window. Use `1mo` rather than `30d` for calendar months.
   the cost of its concurrent requests. Cap concurrency with `rpm_limit` when
   that matters; in-flight reservations are on the
   [roadmap](#limitations-and-roadmap).
+- **Ledger write failures:** if recording a response's cost fails (a locked
+  or full disk), the answer is still returned and the row is kept in memory.
+  The key's next request that can spend retries the write first and gets a
+  503 `spend_unsettled` while it keeps failing, so a broken ledger never lets
+  a key spend on stale totals. Rows kept in memory are lost if the process
+  restarts before they are written (the `spend_ledger_write_failed` warning
+  carries the request id, key id, and cost for reconciliation).
 - The global `NEXUS_BUDGET_CAP_USD` guardrail still applies on top of key
   budgets (whichever refuses first wins).
 
@@ -441,8 +452,8 @@ current window. Use `1mo` rather than `30d` for calendar months.
 
 | Feature | With virtual keys |
 | --- | --- |
-| `Idempotency-Key` | Replays are scoped to the key id, `X-Tenant-Id`, and end user, exactly as they were scoped to the key fingerprint. Another key never receives your replay. |
-| Response cache | The cache namespace is the key id, tenant, principal, and the key's allowlist: narrowing an allowlist never replays an answer from a model the key may no longer use. |
+| `Idempotency-Key` | Replays are scoped to the key id, `X-Tenant-Id`, and end user, exactly as they were scoped to the key fingerprint. Another key never receives your replay. Admission runs first, so a revoked, expired, blocked, over-budget, or rate-limited key gets its error instead of the replay. A replay returns the response of the request that already ran (and was billed) under the key's policy at that time, so narrowing the allowlist does not re-route it (that would run and bill the request twice); a retry that names a now-disallowed catalog model gets the 403. |
+| Response cache | The cache namespace is the key id, tenant, principal, and the key's allowlist, serialized as JSON so client-chosen ids cannot spell another namespace: narrowing an allowlist never serves a new request from a model the key may no longer use. |
 | Feedback (`/v1/feedback`) | Only the key (and tenant) that made a request can rate it; other keys get 404. |
 | Global budget cap (`NEXUS_BUDGET_CAP_USD`) | Unchanged, per end user (`user` / `metadata.user_id`) or per key id when no end user is sent. |
 | `X-Tenant-Id` rate limit | Unchanged; tenant-bound keys use their tenant. |
