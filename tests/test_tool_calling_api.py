@@ -317,6 +317,17 @@ def _with_call(arguments: str = '{"city": "Paris"}', **fields: object) -> dict[s
             "messages[0].tool_call_id",
             "invalid_value",
         ),
+        (
+            {"messages": [QUESTION, {**ASSISTANT_CALL, "tool_call_id": "call_1"}, RESULT]},
+            "messages[1].tool_call_id",
+            "invalid_value",
+        ),
+        ({"tools": [WEATHER_TOOL], "max_tokens": 15}, "max_tokens", "invalid_value"),
+        (
+            {"messages": [QUESTION, ASSISTANT_CALL, RESULT], "max_tokens": 8},
+            "max_tokens",
+            "invalid_value",
+        ),
     ],
 )
 def test_invalid_tool_requests_are_openai_style_400s(

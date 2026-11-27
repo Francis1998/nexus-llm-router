@@ -324,3 +324,25 @@ def test_pii_scrubbing_covers_tool_arguments_and_results_and_keeps_json_valid() 
     assert scrubbed[4].content == '{"status":"ok"}'  # no PII: forwarded byte for byte
     assert [message.tool_call_id for message in scrubbed[2:]] == ["call_1"] * 3
     assert PiiScrubber(enabled=False).scrub_messages(messages) is messages
+
+
+def test_pii_scrubbing_keeps_every_entry_when_redacted_keys_collide() -> None:
+    """Keys that redact to the same placeholder get distinct names; no entry is dropped."""
+    scrubber = PiiScrubber(enabled=True)
+    result = json.dumps(
+        {
+            "ada@example.com": {"balance": 10},
+            "[REDACTED_EMAIL]_2": "existing",
+            "bob@example.com": {"balance": 20},
+            "[REDACTED_EMAIL]": "placeholder",
+        }
+    )
+    [scrubbed] = scrubber.scrub_messages(
+        [ChatMessage(role="tool", tool_call_id="call_1", content=result)]
+    )
+    assert json.loads(scrubbed.content) == {
+        "[REDACTED_EMAIL]_3": {"balance": 10},
+        "[REDACTED_EMAIL]_2": "existing",
+        "[REDACTED_EMAIL]_4": {"balance": 20},
+        "[REDACTED_EMAIL]": "placeholder",
+    }

@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from adapters.anthropic import AnthropicAdapter
+from adapters.base import ProviderError
 from adapters.google import GoogleGeminiAdapter
 from adapters.mock import MockProviderAdapter, schema_example_arguments
 from adapters.moonshot import MoonshotAdapter
@@ -609,3 +610,55 @@ def test_thought_signatures_round_trip_through_url_safe_ids() -> None:
     assert decode_thought_signature(encoded) == SIGNATURE
     assert encode_thought_signature("call_x", None) == "call_x"
     assert decode_thought_signature("call_x") is None
+
+
+async def test_gemini_sends_out_of_order_results_in_the_calls_order() -> None:
+    """Name-only functionResponses pair by position, so they follow the calls' order."""
+    adapter = GoogleGeminiAdapter(api_key="key", timeout_seconds=5.0)
+    messages = [
+        ChatMessage(content="Paris and Tokyo?"),
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                _call("call_paris", arguments='{"city": "Paris"}'),
+                _call("call_tokyo", arguments='{"city": "Tokyo"}'),
+                _call("call_time", "get_time", "{}"),
+            ],
+        ),
+        ChatMessage(role="tool", tool_call_id="call_time", content='{"city": "UTC"}'),
+        ChatMessage(role="tool", tool_call_id="call_tokyo", content='{"city": "Tokyo"}'),
+        ChatMessage(role="tool", tool_call_id="call_paris", content='{"city": "Paris"}'),
+    ]
+    with _provider("google", _gemini_body({"text": "Mild."})) as posts:
+        await adapter.complete(GEMINI_FLASH_MODEL, messages, 64, _config())
+    parts = posts[0]["json"]["contents"][2]["parts"]
+    assert [part["functionResponse"]["response"]["city"] for part in parts] == [
+        "Paris",
+        "Tokyo",
+        "UTC",
+    ]
+
+
+async def test_openai_tool_requests_below_the_responses_minimum_are_rejected() -> None:
+    """The Responses API needs 16 output tokens; nexus never silently raises the client's cap."""
+    adapter = OpenAIAdapter(api_key="key", timeout_seconds=5.0)
+    with _provider("openai", _RESPONSES_CALL_BODY) as posts:
+        with pytest.raises(ProviderError) as raised:
+            await adapter.complete(
+                OPENAI_EVERYDAY_MODEL, [ChatMessage(content="x")], 15, tool_config=_config()
+            )
+        await adapter.complete(
+            OPENAI_EVERYDAY_MODEL, [ChatMessage(content="x")], 16, tool_config=_config()
+        )
+    assert raised.value.status_code == 400
+    assert [post["json"]["max_output_tokens"] for post in posts] == [16]
+
+
+def test_thought_signatures_use_the_litellm_id_format() -> None:
+    """``<id>__thought__<standard base64>`` verbatim, so ids round-trip through LiteLLM."""
+    encoded = encode_thought_signature("call_x", SIGNATURE)
+    assert encoded == f"call_x__thought__{SIGNATURE}"
+    assert decode_thought_signature(encoded) == SIGNATURE
+    assert decode_thought_signature(f"call_litellm__thought__{SIGNATURE}") == SIGNATURE
+    assert decode_thought_signature("call_x__thought__not base64!") is None
