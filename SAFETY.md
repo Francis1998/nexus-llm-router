@@ -37,8 +37,9 @@ Then inject Presidio analyzer and anonymizer engines into `PiiScrubber` during a
 With tool calling, the scrubber also covers the tool-call arguments of replayed
 assistant turns and `tool` results. They are scrubbed as JSON, leaf by leaf
 (every string, object key, and number; a number that would be redacted becomes
-the redaction string), so they stay valid JSON; plain-text tool results are
-scrubbed as text. Tool-call ids and function names are kept, so calls still pair
+the redaction string), so they stay valid JSON; object keys that redact to the
+same placeholder get `_2`, `_3`, ... suffixes, so no entry is lost. Plain-text
+tool results are scrubbed as text. Tool-call ids and function names are kept, so calls still pair
 with their results. As for text answers, the model's new calls are returned
 unscrubbed.
 

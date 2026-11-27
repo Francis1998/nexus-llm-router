@@ -84,7 +84,8 @@ class PiiScrubber:
         Redacting serialized JSON as text could break it (a phone-length number
         would become a bare ``[REDACTED_PHONE]``), so every string, object key,
         and number is scrubbed on its own; a number that would be redacted is
-        replaced by the redaction string. Documents without PII are returned
+        replaced by the redaction string, and keys that redact alike get distinct
+        suffixed names so no entry is lost. Documents without PII are returned
         verbatim.
 
         Args:
@@ -122,10 +123,30 @@ class PiiScrubber:
         if isinstance(value, list):
             return [self._scrub_json(item) for item in value]
         if isinstance(value, dict):
-            return {
-                self.scrub_text(str(key)): self._scrub_json(item) for key, item in value.items()
-            }
+            return self._scrub_object(value)
         return value
+
+    def _scrub_object(self, value: dict[object, object]) -> dict[str, object]:
+        """Scrub a decoded JSON object's keys and values without dropping an entry.
+
+        Keys that redact to the same text (two email addresses both become
+        ``[REDACTED_EMAIL]``) get ``_2``, ``_3``, ... suffixes. Keys without PII keep
+        their names, and a suffixed name never replaces one of them.
+        """
+        names = [str(key) for key in value]
+        redacted = [self.scrub_text(name) for name in names]
+        used = {name for name, new in zip(names, redacted, strict=True) if name == new}
+        scrubbed: dict[str, object] = {}
+        for name, new, item in zip(names, redacted, value.values(), strict=True):
+            key = new
+            if new != name:
+                suffix = 2
+                while key in used:
+                    key = f"{new}_{suffix}"
+                    suffix += 1
+                used.add(key)
+            scrubbed[key] = self._scrub_json(item)
+        return scrubbed
 
     def scrub_text(self, text: str) -> str:
         """Scrub PII from one text field.
